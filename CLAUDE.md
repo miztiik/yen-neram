@@ -1,86 +1,81 @@
-# CLAUDE.md - yen-gov Engineering Contract
+# CLAUDE.md - yen-neram Engineering Contract
 
-**Last Updated**: 2026-06-04
+**Last Updated**: 2026-06-07
 
-Non-negotiable contract for any human or AI agent working in this repo. Derived standard: [docs/reference/documentation-structure.md](docs/reference/documentation-structure.md). When the two disagree, this file wins for yen-gov.
+Non-negotiable contract for any human or AI agent working in this repo.
 
-You are a game development agent
+You are a game development agent.
 
+## 0. User Approval
 
+User approval supersedes every agent and every rule in this file. Amend conflicting rules in the same commit.
 
-## 0a. The One Rule
+## 0a. Non-Goals
 
-**OWID is the canonical reference for socio-economic data modelling.** Check OWID first; adopt verbatim; document deviations in [docs/architecture/data/canonical-store.md](docs/architecture/data/canonical-store.md) signed off by Hans + Max. See [docs/concepts/owid-alignment.md](docs/concepts/owid-alignment.md).
-
-
-
-**User approval supersedes every agent and every rule in this file.** Amend conflicting rules in the same commit.
-
-## 0. Non-Goals
-
-- **Accessibility (a11y / ARIA / WCAG / axe-core).** Descoped 2026-05-12. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement at project level. Re-scope by editing this entry.
+- **Accessibility** (a11y / ARIA / WCAG / axe-core / contrast-ratio tooling / screen-reader hints). Descoped at project level. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement. Re-scope by editing this entry.
 - **Production backend.** See Holy Law #1.
+- **Account systems** (login, signup, email collection, cross-device sync that requires a server). Game state is `localStorage` / `IndexedDB` only.
+- **Push notifications.** The player decides when to play.
+- **Runtime telemetry / analytics SDKs / third-party scripts that fetch at runtime.** Static-first means no runtime calls home. Measure perf locally in DevTools.
+- **Monetisation patterns** (ads, IAP, timers, lives-with-IAP, pay-to-skip, streak-savers). This is a hobby project; if it ever needs monetisation, the contract changes first.
 
 ## 1. Holy Laws (Read First, Every Session)
 
-1. **Static-first production.** Deployed app is a static bundle on GitHub Pages. No production backend. Anything the UI needs at runtime ships in the bundle.
-2. **Backend = local pipeline only.** `backend/` generates datasets, build artifacts etc.; MUST NOT be assumed to exist at production runtime.
-3. **Contracts before logic.** Every cross-boundary payload gets a typed schema before logic is written.
-4. **docs/ = agent memory.** Every design decision, however granular, is documented in the same commit as the code. Default home: relevant subsystem doc under `docs/architecture/<area>/` or concept doc under `docs/concepts/`.
+1. **Static-first production.** Deployed game is a static bundle on GitHub Pages. No production backend. Everything the game needs at runtime ships in the bundle.
+2. **The player's phone is the architecture.** Every runtime decision is measured against: input-to-photon <50ms, sustained 60fps (frame budget 16.7ms, game-logic budget ~4ms), <50KB shell + declared total-bundle cap, on a mid-tier Android (Snapdragon 6-series, 4GB RAM, ~2022 vintage) over patchy 4G. The target device is the contract; features bend to it. (See `.github/agents/carmack.agent.md`.)
+3. **Contracts before logic.** Every persisted shape - save format, level data, asset manifest - gets a typed schema before logic is written.
+4. **docs/ = agent memory.** Every design decision, however granular, is documented in the same commit as the code. Default home: `docs/architecture/<area>/` or `docs/concepts/`.
 5. **Structural fixes only.** No band-aids, no monkey patches, no "temporary" hacks. Escalate the correction level instead.
-6. **No hardcoding.** Tunable knobs live in `config/`; schema-validated.
-7. **No mocks unless asked.** Real implementations and real fixtures. Mocks only on explicit user request or for genuinely untestable external boundaries.
-8. **Open source first.** Prefer mature OSS over custom builds.
+6. **No hardcoding.** Tunable knobs (game-balance numbers, asset paths, difficulty thresholds) live in `config/`; schema-validated.
+7. **No mocks unless asked.** Real implementations and real fixtures. Mocks only on explicit user request or for genuinely untestable external boundaries (DuckDB-style WASM modules in unit tests, `fetch` in loader unit tests).
+8. **Open source first.** Prefer mature OSS over custom builds. Every dependency must name a beneficiary feature and its byte cost.
 9. **Tests ship with the feature.** Behaviour-changing commit lands with tests. Full suite green at merge.
 
 ## 2. Path Rules
 
-For anything leaving the process (JSON, logs, DB rows, emitted artifacts, agent memory, error messages, sources rows, ADR cross-links, dataset references):
+For anything leaving the process (JSON, logs, asset manifests, agent memory, error messages, doc cross-links):
 
-- Relative paths only. No absolute paths. No drive letters. No `/home/...`.
+- Relative paths only. No absolute paths. No drive letters.
 - POSIX separators only (`/`). Never `\`.
 - Minimal reconstructable form.
 
 In-memory `Path` objects for local I/O may stay platform-native. Rule applies at the moment a path leaves the process.
 
-**Ephemeral runtime.** `.runtime/` is ephemeral by definition. Agents MUST NOT reference `.runtime/` paths from any committed artifact. State that outlives a run belongs in `datasets/`, `config/`, or `docs/`.
-
 ## 3. Repository Topology
 
 | Directory       | Status     | Purpose |
 | --------------- | ---------- | ------- |
-| `docs/`         | created    | Canonical knowledge (Diataxis tiers, 3-level depth) |
-| `README.md`     | created    | Entry point |
 | `CLAUDE.md`     | created    | This file |
-| `config/`       | created    | Human-edited tunable knobs. Schemas live in `datasets/schemas/`. |
-| `backend/`      | created    | Local Python pipeline. FastAPI admin wrapper at `backend/`. |
-| `frontend/`     | created    | Static GitHub Pages app (Svelte 5 + Vite 6 + Tailwind + d3 + maplibre-gl). Never commits data files. |
-| `TODO/` `notes/`| optional   | Working scratchpads - non-authoritative |
+| `README.md`     | TBD        | Entry point |
+| `docs/`         | partial    | Canonical knowledge (Diataxis tiers, 3-level depth) |
+| `.github/agents/` | created  | Persona advisors (Carmack, Fowler, Jony, Palm, Player) |
+| `config/`       | TBD        | Human-edited tunable knobs (game balance, level thresholds) |
+| `src/`          | TBD        | Game source. Exact layout (TypeScript / Svelte / vanilla, components/, scenes/) decided by Fowler + Carmack on the first real PR. |
+| `assets/`       | TBD        | Source assets pre-pipeline (raw textures, models, sounds). Never read directly by the game. |
+| `tools/`        | TBD        | Build-time asset pipeline (`gltf-pipeline`, `basisu`, sound compression). |
+| `public/`       | TBD        | Static files served as-is (`index.html`, favicon, web manifest, service worker). |
+| `dist/`         | gitignored | Built bundle for GitHub Pages. |
+| `tests/`        | TBD        | Unit / contract / integration / e2e tests (section 13). |
+| `TODO/` `notes/`| optional   | Working scratchpads - non-authoritative. |
 
-Create folders only when real code is about to land. Identifier convention: use issuing-authority IDs (ISO 3166, ECI codes, LGD codes); see [docs/reference/identifiers.md](docs/reference/identifiers.md).
+Folders are created only when real code is about to land. The first real PR picks the build tool (Vite / esbuild / plain), the language (TypeScript / vanilla), and the component layer (Svelte / vanilla); those picks land alongside the code, not as speculative scaffolding.
 
 ## 4. Layer and Dependency Rules
 
-- `frontend/` MUST NOT import from `backend/`.
-- `frontend/` MUST NOT commit data files. Dev: Vite middleware `serveDatasets()` in [frontend/vite.config.ts](frontend/vite.config.ts) serves `datasets/` under `/data/`. Deploy: workflow copies `datasets/` into `_site/data/`. See [docs/architecture/frontend/data-loading.md](docs/architecture/frontend/data-loading.md).
-- `backend/` MUST NOT include UI/DOM logic.
-- `backend/` is the only writer to `datasets/`; readers treat it as a contract surface.
-- Cross-runtime sharing is via data contracts under `datasets/`, never code imports.
-- `tools/` MUST NOT import `backend/` runtime modules.
-- Domain/core code MUST NOT import adapters/infrastructure (adapters -> core, never reverse).
-- `datasets/<family>/_meadow/...` is the backend-internal meadow tier. Frontend MUST NOT fetch under `_meadow/`. See [ADR-0041](docs/architecture/data/canonical-store.md#adr-0041-meadow-tier) + [docs/concepts/meadow-tier.md](docs/concepts/meadow-tier.md). (MIGRATING: the meadow tier retires as the local-CSV reingest lands per plan chunk B4.)
+- `src/` MUST NOT depend on a runtime backend service.
+- Asset-pipeline scripts in `tools/` produce files into `public/assets/` (or equivalent) at build time. The game reads only pipeline output, never raw `assets/` sources.
+- The game canvas is one DOM element styled by Tailwind to fit its container. **Tailwind does NOT style canvas internals** - those are the renderer's job. (Jony worldview #6, Carmack worldview #20.)
+- Game / domain code MUST NOT import build tools.
+- Long compute (physics step on many bodies, pathfinding, procedural generation) runs in a Web Worker. The main thread keeps painting.
 
 ## 5. Documentation Discipline
 
-- Diataxis tiers under `docs/`: `architecture/`, `how-to/`, `concepts/`, `reference/` (+ `getting-started/`, `archive/`, `research/`, `agents/`).
+- Diataxis tiers under `docs/`: `architecture/`, `how-to/`, `concepts/`, `reference/` (+ `getting-started/`, `archive/`, `research/`).
 - Max depth: `docs/<tier>/<topic>/<file>.md`.
 - Every doc: H1 title, `Last Updated: YYYY-MM-DD`, "See also" cross-links.
 - One concept defined once; everywhere else links to it.
 - ASCII-only in all repo text: commit messages, docs, code comments, log strings, agent markdown, CLI output (use `-`, `->`, `>=`, "section", "INR"). No curly quotes, em-dashes, or non-ASCII symbols. Applies going forward; no retroactive fixing.
-- **Doc-class routing:** ADR / subsystem doc / concept doc / plan-doc - each has one valid home. See [ADR-0034](docs/concepts/documentation-discipline.md#adr-0034-documentation-routing-contract).
-- **Plan-doc distillation:** When a plan-doc row closes, durable findings are lifted into the right `docs/` home per [docs/how-to/distill-a-plan.md](docs/how-to/distill-a-plan.md). The plan-doc itself stays as a thin audit ledger with back-pointers. Agent-only execution lessons (gotchas, tool quirks, recurring traps) go to `/memories/lessons.md`, not `docs/`.
 - Agent memory (`AGENTS.md`, `/memories/repo/`) is derived, not authoritative; if it disagrees with `docs/`, docs win.
-- Personas live under `docs/agents/`; each loads [docs/agents/bootstrap.md](docs/agents/bootstrap.md) before answering. New citizen-facing features follow [docs/how-to/distill.md](docs/how-to/distill.md). Doctrine: [docs/concepts/citizen-first.md](docs/concepts/citizen-first.md).
 - Open questions live in the active plan-doc under `TODO/`, not in this file.
 - Docs-only PRs are a code smell.
 
@@ -93,7 +88,7 @@ Create folders only when real code is about to land. Identifier convention: use 
 |  2 | 1-2 files, explicit behavior change | Plan -> execute once scope is clear |
 |  3 | 2-3 files, cross-cutting | Plan -> phased execution |
 |  4 | 4+ files, structural | Propose breakdown first |
-|  5 | Core design / data model / runtime | Design consultation only - pause work |
+|  5 | Core design / save format / renderer / physics-engine pick | Design consultation only - pause work |
 
 When in doubt, choose the higher level.
 
@@ -115,7 +110,7 @@ Avoid (broad / lossy / history-rewriting):
 - `git add .` / `git add -A`
 - `git push --force` / `git push --force-with-lease`
 - Amending pushed commits
-- Leaving a merged PR's remote branch undeleted or its `: gone]` local tracking branches unpruned. Run post-merge cleanup per [docs/how-to/ship-a-pr.md](docs/how-to/ship-a-pr.md). The cosmetic `gh pr merge` error when any worktree holds `main` is expected; the manual `git push origin --delete <branch>` follow-up is mandatory, not optional.
+- Leaving a merged PR's remote branch undeleted or its `: gone]` local tracking branches unpruned.
 
 Safe workflow: `git status --porcelain`, leave unrelated dirty files alone, stage only explicit paths, verify with `git diff --cached --name-only`, small reversible commits on a named branch, push, merge after gates pass.
 
@@ -123,101 +118,100 @@ Commit messages describe the change. **No AI co-author / attribution tags.**
 
 ## 9. Definition of Done
 
-- [ ] Tests added/updated at the tier appropriate to the surface (section 15). No mocks per Holy Law #7.
-- [ ] Full suite green locally before commit (`npm test` in `frontend/`, `npm run test:e2e` if frontend runtime changed, `pytest -q` in `backend/`).
-- [ ] Lint, type-check, schema validation, tests all pass.
-- [ ] For `frontend/` or `admin/` runtime changes: smoke-tested via integrated browser tools per section 13.
+- [ ] Tests added/updated at the tier appropriate to the surface (section 13). No mocks per Holy Law #7.
+- [ ] Full suite green locally before commit.
+- [ ] Lint, type-check, tests all pass.
+- [ ] For runtime changes: smoke-tested via integrated browser tools per section 12 - including a perf check against the target device profile when the change touches the render loop, physics, or asset load.
 - [ ] Canonical docs updated in `docs/` (right tier).
-- [ ] Schemas bumped/migrated if any persisted contract changed.
-- [ ] Every new/changed observation row carries `source_id` FK (section 12).
+- [ ] Schemas bumped/migrated if any persisted contract changed (save format, level data, asset manifest - section 11).
 - [ ] Module `AGENTS.md` updated if structure or invariants changed.
 - [ ] No `[DEBUG]` markers left.
 - [ ] No new hardcoded values.
-- [ ] No source or instruction the user named explicitly was downgraded, substituted, or scope-narrowed without a Scope-change ledger row carrying a non-empty `signoff:` in the active plan-doc (section 10 STOP-AND-SURFACE).
 - [ ] No new mocks unless explicitly requested.
-- [ ] Lockfiles in sync with manifests. If commit touches `frontend/package.json` or `admin/package.json`, regenerate the matching `bun.lock` and stage in the SAME commit. The Pages workflow runs `bun install --frozen-lockfile` and will reject any desync.
-- [ ] Post-merge cleanup run per [docs/how-to/ship-a-pr.md](docs/how-to/ship-a-pr.md) section Post-merge cleanup (merge verified, remote branch deleted, `: gone` local branches pruned, `.tmp_*` removed, durable lessons distilled per [docs/how-to/distill-a-plan.md](docs/how-to/distill-a-plan.md)).
+- [ ] Lockfiles in sync with manifests.
+- [ ] Bundle-size budgets respected (shell <50KB gzipped; total-bundle within the declared cap).
+- [ ] Frame budget respected (no new feature drops the target device profile below 60fps).
+- [ ] Every new asset names its license in the asset manifest.
 
 ## 10. Anti-Patterns (Do NOT)
 
-- Reinterpret, downgrade, substitute, or scope-narrow a source or instruction the user named explicitly, without surfacing it as a scope change for sign-off (STOP-AND-SURFACE). An explicit user-named artifact may NOT be silently demoted - e.g. "ingest X" quietly becoming "X is crosswalk / fallback only" inside baked-facts or any other low-visibility ledger. Disposition of a user-named source is a contract change requiring an explicit STOP plus user sign-off (section 0a), NOT agent-internal ambiguity resolution. When you hit this: set the plan-doc row `BLOCKED-NEEDS-SIGNOFF`, write a Scope-change ledger row (verbatim instruction | proposed change | reason | `signoff:`) in the active plan-doc, and stop. See [docs/how-to/handle-scope-change.md](docs/how-to/handle-scope-change.md).
+- Reinterpret, downgrade, substitute, or scope-narrow a source or instruction the user named explicitly, without surfacing it as a scope change for sign-off (STOP-AND-SURFACE).
 - Assume a backend exists in production.
-- Hardcode taxonomy values, version numbers, magic strings.
+- Hardcode game-balance values, asset paths, level-difficulty thresholds, magic strings. They live in `config/`.
 - Store absolute / backslash paths in any persisted artifact.
-- Build custom HTTP / retry / parsing / validation when an OSS library exists.
+- Build custom HTTP / retry / parsing / validation / physics / rendering / particle systems when a mature OSS library exists. Justify any custom build against the OSS alternative.
 - Swallow exceptions or silently coerce invalid input - fail fast at the boundary.
 - Mock in tests by default.
-- Use `datetime.now()` in data-row content (observation provenance, indicator vintage, citizen-facing footers). Wall-clock at write time is operational telemetry, not provenance. Carve-out: control-plane artifacts (`datasets/manifest.json`, `.runtime/logs/`) MAY stamp `generated_at`. See [docs/concepts/data-provenance.md](docs/concepts/data-provenance.md) and [ADR-0032](docs/concepts/data-provenance.md#adr-0032-sources-citation-ledger).
-- Propose `write_text_if_changed`-style byte-compare helpers at write seams. Fix non-determinism upstream of the write seam.
-- Re-litigate the sources-table design (domain-as-identity, drop-the-table, add-`content_hash`-back, require-`citation_full`). See [ADR-0032](docs/concepts/data-provenance.md#adr-0032-rejected-alternatives) Rejected A/B/C/D.
-- Walk the real on-disk corpus from a `pytest` test or live HTTP smoke test. That is Tier-B (section 11), local-only via `python -m yen_gov validate --root .`. Inject root via env var, use `tmp_path` fixtures in tests. See [docs/architecture/backend/validator.md](docs/architecture/backend/validator.md).
-- Emit JSON projections of canonical data for the citizen frontend. Frontend reads long-format CSV via DuckDB-WASM `read_csv(columns=...)` for the X1a-flipped surfaces (dim_parties via `data/entities/parties.csv`; sources via `data/entities/source.csv`; election candidacies/summary via per-(state,year) CSV; ac_crosswalk via `data/entities/ac_crosswalk.csv` per X1a-followup #811; yenask semantic-catalogue startup via `data/entities/electoral.csv` + `taxonomy/election_events.json` per YA-apply #813) AND the X1b-retired tables (dim_persons + dim_pcs + dim_acs + elections_candidacies + taxonomy/persons + 6 small taxonomy orphans). Residual parquet reads pending B3 / a later partial-X1b pass: `election_results` (3 aggregators), `dim_party_alliances` (no CSV emit), `boundary_layers`, `entities`, `indicators`.
-- Run CI that processes `datasets/**`. Publish is plain static-file copy; CI gates are lint, type-check, pytest, frontend build, Playwright only.
-- Use broad / lossy / history-rewriting git commands (section 8).
+- Run a renderer / physics step / animation on the main thread when it can be offloaded to a Web Worker.
+- Use `setTimeout` / `setInterval` for game-loop timing. Use `requestAnimationFrame`.
+- Ship a layout-triggering CSS animation when `transform` + `opacity` will do.
+- Style canvas internals with Tailwind. Tailwind is for the chrome (HUD, menu, modal); the canvas is the renderer's job.
+- Commit raw source assets (`.obj`, 4K PNG, uncompressed WAV) into the served bundle. Run them through `tools/` first (`gltf-pipeline` for mesh, `basisu` / KTX2 for texture, ogg/opus for audio).
+- Ship an asset without naming its license in the asset manifest.
+- Add a runtime telemetry / analytics / error-tracking SDK.
+- Add a monetisation pattern (ads, IAP, timers, lives-with-IAP, pay-to-skip, streak-savers).
+- Ship a feature that depends on a runtime backend, account, or push notification.
+- Add a framework / library / build tool without naming the bytes it adds and the beneficiary feature.
+- Pick the renderer / physics engine in isolation. Carmack (Engine & Runtime) picks both together, with the dimensionality, body-count budget, and determinism requirement named in writing.
+- Mint a new save-format / level-data field without bumping the version and writing the read-side migration in the same commit.
+- Lower the perf target to fit a feature. The target is the player's phone, not the feature - if the feature can only run at 20fps on the target device, the feature is removed or simplified.
 - Let `TODO/`, chat logs, `AGENTS.md`, or `/memories/` become the source of truth for architecture.
 - Pre-create empty modules "for later".
 - Skip the docs update.
-- Edit `package.json` without running `bun install` and staging the resulting `bun.lock` in the same commit.
-- Create new files under `datasets/indicators/in/<topic>/<id>.json`. That path is retiring per [ADR-0041](docs/architecture/data/canonical-store.md#adr-0041-meadow-tier). New backend-internal parsed rows go to `datasets/<family>/_meadow/<source>/<vintage>/<file>.json`; citizen-facing canonical data goes to `datasets/<family>/<family>_<role>.parquet`. Enforced by Tier-B; see [docs/architecture/backend/validator.md](docs/architecture/backend/validator.md).
-- Author `id_aliases[]` on `datasets/taxonomy/indicators.json` without a paired `deprecated_in: "YYYY-MM-DD"`. Enforced by Tier-B `tier_b_indicator_alias_window` (60-day window); see [datasets/schemas/indicator-catalogue.schema.json](datasets/schemas/indicator-catalogue.schema.json) v1.1.
-- Encode topic membership as a prefix on `indicator_id`. The id is `<measure>-<unit>-<facet>` kebab-case (grain comes from the row's `entity_kind`, not the id — see [ADR-0044](docs/concepts/indicator-naming.md#adr-0044-grain-over-entity)); topic membership lives on M:N rows in `datasets/taxonomy/indicator_topic_tags.parquet`. See [docs/concepts/indicator-naming.md](docs/concepts/indicator-naming.md).
-- Prefix `state-` / `district-` / `national-` on `indicator_id`. Grain lives on each observation row's `entity_kind` and is dispatched at read time. The id is `<measure>-<unit>-<facet>` only. See [ADR-0044](docs/concepts/indicator-naming.md#adr-0044-grain-over-entity). Enforced by Tier-B `tier_b_indicator_id_no_grain_prefix` (ships dark in PR-B1, enforces post-PR-B9).
-- Add UI/render fields (`chart_type`, `default_mode`, `renderer_rules`, `facet_labels`, `dimension`) to `indicator-catalogue.schema.json` or `topic-catalogue.schema.json`. Render hints live in the grapher catalogue at `datasets/grapher/indicator_render.json` + `topic_render.json`, owned by the frontend per [ADR-0045](docs/architecture/data/indicator-catalogue.md#adr-0045-grapher-catalogue-split).
-- Add facet/grain-fanout cards to a topic page (e.g. separate cards per species / fuel / facet for the same measure). One card per measure; the facet picker lives inside the card. Enforced by [frontend/src/contracts/topic-card-uniqueness.test.ts](frontend/src/contracts/topic-card-uniqueness.test.ts) (live as of PR #411, which collapsed `/t/agriculture` from 16 cards to 7). See [docs/concepts/schema-is-the-design-system.md](docs/concepts/schema-is-the-design-system.md) "one card per measure" rule.
-- Mint a new `indicator_id` for a new vintage, new publisher, new base-year, or new sampling-frame of an existing fact. New vintage = UPSERT same id (writer PK is `(entity_id, year, period_label, indicator_id)`). New publisher of an existing fact = UPSERT or facet, never mint. Base-year rebase / definition shift = SAME id + new `methodology_breaks.parquet` row (Rosling rule). See OWID-precedent doctrine in [docs/archive/plans/20260526-grain-over-entity-and-storage-decoupling-plan.md](docs/archive/plans/20260526-grain-over-entity-and-storage-decoupling-plan.md) §0quint.
-- Skip the pre-ingest overlap check before adding any new ingest. Every new-source handover-doc MUST cite `python -m yen_gov check-overlap --concept "<noun>" --unit "<u>" --entity_kind "<k>"` (ships PR-Z3). If overlap >= 70%, the action is UPSERT into the existing indicator or add a facet — NOT mint a new id.
-- Land a new ingest without a green pre-flight report cited in the handover-doc. Run `python -m yen_gov pre-flight-ingest --proposal-file ./proposal.json --report ./report.json` (ADR-0046); cite both paths in the handover-doc §3. Exit code 2 = abort; no override flag (Holy Law #5). The gate batches the six mechanical checks (concept overlap, concept FK, grain prefix, update_period_days, justification, source_id derivation) so no future agent has to re-discover them PR-by-PR.
-- Author a plan-doc that touches indicator ids or catalogue fields without citing [ADR-0044](docs/concepts/indicator-naming.md#adr-0044-grain-over-entity) + [ADR-0045](docs/architecture/data/indicator-catalogue.md#adr-0045-grapher-catalogue-split) in its preamble. Reviewers enforce.
-- Land an indicator-catalogue row without declaring `update_period_days` (publisher refresh cadence in days: NDLM monthly = 30, RBI Handbook annual = 365, Census decennial = 3650). Staleness can only be surfaced when cadence is named. OWID precedent: every Grapher variable carries this. Enforced post-PR-Z3b by Tier-B `tier_b_indicator_freshness_declared`; see [docs/archive/plans/20260526-grain-over-entity-and-storage-decoupling-plan.md](docs/archive/plans/20260526-grain-over-entity-and-storage-decoupling-plan.md) §0quat guardrail #18.
-- Mint a new `indicator_id` without an FK to a row in `datasets/taxonomy/concepts.json` declaring `(noun, unit_canonical, normalisation, entity_kinds)`. Identity is what is MEASURED, not who published it. Run `python -m yen_gov check-overlap` (ships PR-Z3b) before authoring any new catalogue row; if a concept match >=70% exists, UPSERT into the existing indicator or add a facet. Enforced post-PR-Z3b by Tier-B `tier_b_one_indicator_per_concept`; see plan-doc §0quat guardrail #13.
 
 ## 11. Schema Versioning
 
-Every JSON Schema under `datasets/schemas/` carries:
+The persisted surfaces yen-neram cares about:
 
-- `$schema`: `https://json-schema.org/draft/2020-12/schema`
-- `$id`: relative path (`./<name>.schema.json`). Local `$id` only.
-- `title`, `description`.
-- `x-version`: `"<major>.<minor>"` only.
-- `x-changelog`: non-empty array, oldest first; last entry's `version` MUST equal `x-version`.
+- **Save format** (`localStorage` / `IndexedDB` JSON) - owned by the game; consumed by the next version of the game. Older saves must continue to load (one or two versions back) or be migrated on read.
+- **Level data** (per-level JSON shipped in the bundle).
+- **Asset manifest** (the index of in-bundle assets + their licenses).
 
-Bump rules:
+Each gets a typed schema before logic is written (Holy Law #3). Each carries a `version` field. Bump rules:
 
-- **Minor** (`1.0` -> `1.1`): purely additive, backwards-compatible.
-- **Major** (`1.x` -> `2.0`): removed/renamed field, type change, narrowed constraint, semantic shift.
-- Every bump adds a new `x-changelog` entry in the same commit.
-- **Code never hand-types schema-version literals.** Source via `yen_gov.core.schema_registry.schema_version("<file>")` / `schema_id("<file>")`.
+- **Minor** (additive, backwards-compatible).
+- **Major** (removed field, type change, semantic shift) - write the read-side migration that the new version of the game runs on older payloads. Same commit.
 
-Every emitted data file under `datasets/` carries `"$schema"` and `"$schema_version"`. Validation has two tiers (Tier A always-on in `pytest -q`; Tier B on-demand local via `python -m yen_gov validate --root .`). See [docs/architecture/backend/validator.md](docs/architecture/backend/validator.md).
+A player whose save from yesterday no longer loads today is a contract break and a release blocker.
 
-Schema-version compatibility follows [ADR-0047](docs/architecture/data/schema-evolution.md#adr-0047-schema-version-compatibility-contract) and [docs/architecture/data/schema-evolution.md](docs/architecture/data/schema-evolution.md): writers are strict, readers are compatible only by explicit contract. A writer MUST emit the current schema version. A reader or validator MAY accept an older declared version only when the compatibility contract says it can interpret that version without guessing. Old major versions require retained schemas, an explicit translator, migration, or fail-loud rejection. Until a reader/validator implements the compatibility contract, it MUST keep rejecting non-current versions.
+## 12. UI Verification (Browser Smoke)
 
-The reader compatibility contract lives in `datasets/schema-compatibility.json`. Schema-release history and the public receipt for `schema changed, values did not` live in `datasets/schema-evolution.json`; retained historical schemas live under `datasets/schemas/archive/<schema-stem>/v<major>.<minor>/<schema-file>`. Do not overload `datasets/migration-ledger.csv` for schema-release metadata.
-
-## 12. Data Provenance
-
-Every observation row in every long-format CSV family under `datasets/data/` (and every `datasets/elections/**` row) carries a `source_id` FK to one row in `datasets/data/entities/source.csv`. Provenance is a **citation ledger**, one row per `(producer, title, vintage)` triple, not per fetch event. Adopts OWID `origin.*` fields verbatim plus four yen-gov extensions for confidence + verifiability.
-
-Schema (11 columns, 8 required + 3 optional): [docs/architecture/data/canonical-store.md section 5](docs/architecture/data/canonical-store.md). Rationale + rejected designs: [ADR-0032](docs/concepts/data-provenance.md#adr-0032-sources-citation-ledger). v3.0 `vintage` sharpening (publisher edition vs operator snapshot window): [ADR-0042](docs/concepts/data-provenance.md#adr-0042-sources-schema-v3-vintage-as-period-anchor). Concept: [docs/concepts/data-provenance.md](docs/concepts/data-provenance.md).
-
-Build `source_id` via `backend.yen_gov.canonical.citation.derive_source_id`; never hand-author.
-
-## 13. UI Verification (Frontend / Admin)
-
-Any change touching `frontend/` or `admin/` runtime MUST be verified by the agent using integrated browser tools, not deferred to the human.
+Any runtime change MUST be verified by the agent using integrated browser tools, not deferred to the human.
 
 Minimum loop:
 
-1. Confirm dev server up (`http://localhost:5173/` frontend, `http://localhost:5174/` admin); start if not.
-2. `open_browser_page` / `navigate_page` to affected route(s) plus one cross-route smoke.
-3. `read_page` and confirm: (a) new copy/structure renders, (b) no new `[error]` console events, (c) no new `404`.
-4. If layout-sensitive: `screenshot_page` to confirm visual intent.
-5. Only then mark done.
+1. Confirm dev server up; start if not.
+2. Navigate to affected route(s) plus one cross-route smoke.
+3. Read page console; confirm zero new `[error]` events and zero new `404`.
+4. If layout-sensitive: screenshot to confirm visual intent.
+5. If perf-sensitive (render loop, physics, asset load): open DevTools Performance, throttle CPU 4x + Network "Slow 4G", record an interaction, confirm the relevant Carmack budget (worldview #9-15).
+6. Only then mark done.
 
-Does not apply to pure backend / pipeline / docs / schema-only changes.
+Does not apply to pure tooling / docs / schema-only changes.
 
-## 14. Test Coverage Policy
+## 13. Test Coverage Policy
 
-Four tiers - **Unit / Contract / Integration / End-to-end**. Change without appropriate-tier test in same commit is a Definition-of-Done failure. Mock carve-outs: (a) `fetch` in loader unit tests, (b) explicit user request. No pytest test walks the real corpus; use `tmp_path` fixtures injected via env var.
+Four tiers - **Unit / Contract / Integration / End-to-end**. Change without an appropriate-tier test in the same commit is a Definition-of-Done failure. Mock carve-outs: (a) `fetch` in loader unit tests, (b) DuckDB-style WASM modules in unit tests, (c) explicit user request.
 
-Per-tier matrix, commands, fixture conventions: [docs/architecture/testing.md](docs/architecture/testing.md).
+Per tier:
+
+- **Unit** - pure functions (math, score, level validation, save-data serialization round-trip).
+- **Contract** - the schemas (save format, level data, asset manifest) vs the readers and the writers.
+- **Integration** - game logic + renderer + physics engine working together at a level boundary, with real fixtures.
+- **End-to-end** - Playwright (or equivalent) drives the actual game in a real browser. Cover at minimum: first-load to playable, one level start-to-win, save-and-reload preserves progress.
+
+No pytest / vitest / playwright test fetches the network at runtime - use local fixtures.
+
+## 14. Agent Roster
+
+Five persona advisors live under `.github/agents/`, each at a distinct altitude:
+
+| Agent | File | Altitude |
+| --- | --- | --- |
+| Player | `player.agent.md` | mental model of the median casual-game player |
+| Jony (UI/UX) | `jony.agent.md` | game chrome (HUD, menu, modal, settings) |
+| Palm (Casual Design) | `palm.agent.md` | game verb / level shape / progression curve |
+| Fowler (Architecture & Engineering) | `fowler.agent.md` | architecture + contracts + commits + tests |
+| Carmack (Engine & Runtime) | `carmack.agent.md` | renderer + physics + asset pipeline + frame budget + bundle + offline |
+
+Rule: adding a new agent requires justifying a distinct altitude not already covered. Two agents at the same altitude collapse into one (see Fowler's 4-head construction).
