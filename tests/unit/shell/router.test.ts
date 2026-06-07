@@ -74,3 +74,41 @@ describe("routeToPath", () => {
     ).toBe("/play/5-in-a-row/?mode=infinite");
   });
 });
+
+describe("base-path handling (per ADR-0010)", () => {
+  it("strips base prefix from pathname when parsing", () => {
+    const route = parseRoute("/yen-neram/", "", "/yen-neram/");
+    expect(route).toEqual({ kind: "home" });
+  });
+
+  it("strips base prefix from play route", () => {
+    const route = parseRoute("/yen-neram/play/5-in-a-row/", "", "/yen-neram/");
+    expect(route.kind).toBe("play");
+    if (route.kind === "play") {
+      expect(route.slug).toBe("5-in-a-row");
+    }
+  });
+
+  it("treats base-without-trailing-slash as home", () => {
+    const route = parseRoute("/yen-neram", "", "/yen-neram/");
+    expect(route).toEqual({ kind: "home" });
+  });
+
+  it("prepends base prefix when emitting home path", () => {
+    expect(routeToPath({ kind: "home" }, "/yen-neram/")).toBe("/yen-neram/");
+  });
+
+  it("prepends base prefix when emitting play path", () => {
+    expect(
+      routeToPath(
+        { kind: "play", slug: "5-in-a-row", queryParams: new URLSearchParams() },
+        "/yen-neram/",
+      ),
+    ).toBe("/yen-neram/play/5-in-a-row/");
+  });
+
+  it("base '/' is a no-op (backward compatible)", () => {
+    expect(parseRoute("/play/5-in-a-row/", "", "/").kind).toBe("play");
+    expect(routeToPath({ kind: "home" }, "/")).toBe("/");
+  });
+});

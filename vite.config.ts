@@ -41,13 +41,16 @@ function spaFallback(): PluginOption {
   };
 }
 
+// Set GH_PAGES_BASE=/<repo>/ for project-page deploys; default "/" for user/org page or local dev.
+const REPO_BASE = process.env["GH_PAGES_BASE"] ?? "/";
+
 export default defineConfig({
   // Root-relative base so deep-route SPA loads (e.g. /play/5-in-a-row/)
   // resolve asset URLs from the deploy root, not the current path. For a
-  // GitHub Pages project deploy at /<repo>/, PR 8 (deploy) will override this
-  // via an env var or build-time config; for local dev + preview + e2e the
-  // site sits at /.
-  base: "/",
+  // GitHub Pages project deploy at /<repo>/, the deploy workflow overrides
+  // this via the GH_PAGES_BASE env var (see ADR-0010); for local dev +
+  // preview + e2e the site sits at /.
+  base: REPO_BASE,
   plugins: [spaFallback()],
   resolve: {
     alias: {

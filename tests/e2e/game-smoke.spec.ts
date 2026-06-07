@@ -3,7 +3,12 @@ import { test, expect } from "@playwright/test";
 test.describe("game smoke", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
-    await page.evaluate(() => localStorage.clear());
+    await page.evaluate(() => {
+      localStorage.clear();
+      // Skip the first-launch mode picker so existing smoke tests land on
+      // the board immediately. PR 8's full-flow.spec.ts covers the picker flow.
+      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+    });
   });
 
   test("navigate to game, board paints with motifs", async ({ page }) => {
@@ -29,9 +34,10 @@ test.describe("game smoke", () => {
     const board = page.locator("svg.yn-board-svg");
     await expect(board).toBeVisible({ timeout: 5_000 });
 
-    const motifCell = page
-      .locator("[data-r][data-c]:has(image), [data-r][data-c]:has(use)")
-      .first();
+    // Filter to cells with a FULL motif (yn-motif class), not preview pips
+    // (yn-preview-motif class). Previews are tiny hints; clicking them does
+    // not select anything.
+    const motifCell = page.locator("[data-r][data-c]:has(image.yn-motif)").first();
     await expect(motifCell).toBeVisible({ timeout: 5_000 });
 
     await motifCell.click();

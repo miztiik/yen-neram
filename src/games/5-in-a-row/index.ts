@@ -25,6 +25,7 @@ import {
   type SettingsState,
 } from "./ui/settings-drawer.js";
 import { openHowToPlay } from "./ui/how-to-play.js";
+import { openLeaderboard } from "./ui/leaderboard.js";
 
 type ExtendedBalance = BalanceLike & { readonly top_scores_max: number };
 const balanceConfig = balanceJson as unknown as ExtendedBalance;
@@ -309,6 +310,9 @@ const mount: GameMount = async (container, options) => {
       },
       onShowHowToPlay() {
         modalClose = openHowToPlay(container);
+      },
+      onShowLeaderboard() {
+        modalClose = openLeaderboard(container, { initialMode: save.mode });
       },
     });
   });

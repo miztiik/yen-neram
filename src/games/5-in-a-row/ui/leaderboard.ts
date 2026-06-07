@@ -199,7 +199,12 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
   });
   document.addEventListener("keydown", onKeyDown);
 
-  parent.appendChild(overlay);
+  // Mount on the document body to escape any stacking context the game
+  // container creates (the settings drawer also uses fixed + z-50 inside the
+  // same container, which made the modal render but be unreachable for clicks
+  // and accessibility queries). We use the parent's ownerDocument so the
+  // overlay still belongs to the same DOM tree as the caller.
+  (parent.ownerDocument?.body ?? document.body).appendChild(overlay);
   render();
 
   return close;

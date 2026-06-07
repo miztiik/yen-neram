@@ -17,16 +17,40 @@ export type Router = {
 const SLUG_PATTERN = /^[a-z0-9-]+$/;
 const PLAY_PREFIX = "/play/";
 
-export function parseRoute(pathname: string, search: string): Route {
-  if (pathname === "/" || pathname === "") {
+function normaliseBase(basePath: string): string {
+  // Ensure leading and trailing slash so prefix-stripping is unambiguous.
+  let b = basePath;
+  if (!b.startsWith("/")) b = "/" + b;
+  if (!b.endsWith("/")) b = b + "/";
+  return b;
+}
+
+function stripBase(pathname: string, basePath: string): string {
+  const b = normaliseBase(basePath);
+  if (b === "/") return pathname;
+  if (pathname === b.slice(0, -1) || pathname === b) return "/";
+  if (pathname.startsWith(b)) return "/" + pathname.slice(b.length);
+  return pathname;
+}
+
+function joinBase(path: string, basePath: string): string {
+  const b = normaliseBase(basePath);
+  if (b === "/") return path;
+  if (path === "/") return b;
+  return b + path.replace(/^\//, "");
+}
+
+export function parseRoute(pathname: string, search: string, basePath: string = "/"): Route {
+  const path = stripBase(pathname, basePath);
+  if (path === "/" || path === "") {
     return { kind: "home" };
   }
 
-  if (pathname.startsWith(PLAY_PREFIX)) {
-    const remainder = pathname.slice(PLAY_PREFIX.length);
+  if (path.startsWith(PLAY_PREFIX)) {
+    const remainder = path.slice(PLAY_PREFIX.length);
     const trimmed = remainder.endsWith("/") ? remainder.slice(0, -1) : remainder;
     if (trimmed.length === 0 || trimmed.includes("/") || !SLUG_PATTERN.test(trimmed)) {
-      return { kind: "not-found", path: pathname };
+      return { kind: "not-found", path };
     }
     return {
       kind: "play",
@@ -35,22 +59,26 @@ export function parseRoute(pathname: string, search: string): Route {
     };
   }
 
-  return { kind: "not-found", path: pathname };
+  return { kind: "not-found", path };
 }
 
-export function routeToPath(route: Route): string {
+export function routeToPath(route: Route, basePath: string = "/"): string {
   if (route.kind === "home") {
-    return "/";
+    return joinBase("/", basePath);
   }
   if (route.kind === "play") {
     const base = `/play/${route.slug}/`;
-    return route.queryParams.size > 0 ? `${base}?${route.queryParams.toString()}` : base;
+    const withQuery = route.queryParams.size > 0 ? `${base}?${route.queryParams.toString()}` : base;
+    return joinBase(withQuery, basePath);
   }
-  return route.path;
+  return joinBase(route.path, basePath);
 }
 
 export function createRouter(): Router {
-  let current: Route = parseRoute(window.location.pathname, window.location.search);
+  // Vite-injected base path; defaults to "/" for local dev/preview, set to
+  // "/<repo>/" for project-page deploys via the GH_PAGES_BASE env (per ADR-0010).
+  const basePath = import.meta.env.BASE_URL;
+  let current: Route = parseRoute(window.location.pathname, window.location.search, basePath);
   const listeners = new Set<RouteListener>();
   let popstateHandler: (() => void) | null = null;
 
@@ -66,7 +94,7 @@ export function createRouter(): Router {
     },
     go(route) {
       current = route;
-      window.history.pushState({}, "", routeToPath(route));
+      window.history.pushState({}, "", routeToPath(route, basePath));
       notify();
     },
     back() {
@@ -83,7 +111,7 @@ export function createRouter(): Router {
         return;
       }
       popstateHandler = () => {
-        current = parseRoute(window.location.pathname, window.location.search);
+        current = parseRoute(window.location.pathname, window.location.search, basePath);
         notify();
       };
       window.addEventListener("popstate", popstateHandler);

@@ -30,6 +30,7 @@ export type SettingsActions = {
   readonly onClearHighScores: () => Promise<void> | void;
   readonly onModeSwitch: () => Promise<void> | void;
   readonly onShowHowToPlay: () => void;
+  readonly onShowLeaderboard: () => void;
 };
 
 export type AvailableTheme = {
@@ -274,6 +275,17 @@ export function openSettingsDrawer(
   });
   helpSection.appendChild(helpBtn);
 
+  const scoresSection = makeSection("Scores");
+  const scoresBtn = document.createElement("button");
+  scoresBtn.type = "button";
+  scoresBtn.className =
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-slate-700 text-sm self-start";
+  scoresBtn.textContent = "High Scores";
+  scoresBtn.addEventListener("click", () => {
+    actions.onShowLeaderboard();
+  });
+  scoresSection.appendChild(scoresBtn);
+
   // Danger zone
   const dangerSection = makeSection("Danger zone");
   dangerSection.append(
@@ -281,7 +293,15 @@ export function openSettingsDrawer(
     makeDestructiveButton("Clear high scores", "Clear", () => actions.onClearHighScores()),
   );
 
-  drawer.append(header, themeSection, displaySection, modeSection, helpSection, dangerSection);
+  drawer.append(
+    header,
+    themeSection,
+    displaySection,
+    modeSection,
+    helpSection,
+    scoresSection,
+    dangerSection,
+  );
 
   // Close lifecycle (Escape, backdrop, explicit close button).
   let closed = false;
