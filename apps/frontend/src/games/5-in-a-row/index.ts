@@ -5,6 +5,7 @@ import { readSave, writeSave, makeFreshSave } from "./save.js";
 import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
+import { breakdownChain } from "./engine/score.js";
 import type { Coord, GameMode, ModeState } from "./types.js";
 import { createBoardView } from "./ui/board-view.js";
 import {
@@ -40,8 +41,25 @@ import {
   type ModeMeta,
   type TopThreeRow,
 } from "./ui/game-over-modal.js";
+import { derivePills, isSilentTier } from "./ui/bonus-pills.js";
+import { centroidOfClearedCells, createBonusWave, elementCenter } from "./ui/bonus-wave.js";
 
-type ExtendedBalance = BalanceLike & { readonly top_scores_max: number };
+type RewardTimings = {
+  readonly wave_pill_rise_ms: number;
+  readonly wave_pill_hold_ms: number;
+  readonly wave_pill_exit_ms: number;
+  readonly wave_pill_stagger_ms: number;
+  readonly wave_fly_to_score_ms: number;
+  readonly score_count_up_min_ms: number;
+  readonly score_count_up_per_delta_ms: number;
+  readonly score_count_up_max_ms: number;
+  readonly score_chip_glow_ms: number;
+  readonly best_chip_pulse_ms: number;
+};
+type ExtendedBalance = BalanceLike & {
+  readonly top_scores_max: number;
+  readonly reward: RewardTimings;
+};
 const balanceConfig = balanceJson as unknown as ExtendedBalance;
 const DEFAULT_THEME_ID = "tropical-fruits";
 const REDUCE_MOTION_CLASS = "prefers-reduced-motion-override";
@@ -92,20 +110,49 @@ const mount: GameMount = async (container, options) => {
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
     "lg:bg-transparent lg:backdrop-blur-none lg:border-b-0";
 
-  // Score chip: SCORE label above big number in an accent-filled pill.
-  // The number itself is the meaning; "Score:" prefix was 1990s.
+  // Score chip (ADR-0017 "Stacked Wave" pass): the NUMBER is the hero.
+  // Killed the "SCORE" label entirely -- the only big number on the bar
+  // after first play is the score, labelling it is redundant. Cream pill
+  // with terracotta digits; the accent orange is reserved for events
+  // (count-up celebration glow, BEST bump, the bonus-wave delta badge).
+  // Count-up animates via CSS @property --yn-score-count + counter() on
+  // ::after; JS only needs to write the integer + the per-event duration
+  // (no rAF, compositor-only). See board-view.css .yn-score-display /
+  // .yn-score-chip and the @property declaration at the top of that
+  // file's reward-loop block.
   const scoreEl = document.createElement("div");
   scoreEl.className =
-    "flex items-center gap-2 px-3 py-1 rounded-full bg-yn-accent text-white shadow-sm tabular-nums";
+    "yn-score-chip flex items-center justify-center px-5 py-2 rounded-2xl " +
+    "bg-yn-tile border border-yn-border text-yn-ink shadow-sm " +
+    "text-4xl sm:text-5xl font-bold tabular-nums tracking-tight";
   scoreEl.setAttribute("aria-live", "polite");
   scoreEl.setAttribute("aria-label", "Score 0");
-  const scoreLabel = document.createElement("span");
-  scoreLabel.className = "text-[10px] uppercase tracking-wider opacity-80";
-  scoreLabel.textContent = "Score";
   const scoreValue = document.createElement("span");
-  scoreValue.className = "text-base font-bold tabular-nums";
-  scoreValue.textContent = "0";
-  scoreEl.append(scoreLabel, scoreValue);
+  scoreValue.className = "yn-score-display";
+  // Seed the custom property at 0; the first render() bumps it to the
+  // restored save value (or stays at 0 on fresh game). The transition is
+  // applied per-update inline so duration scales with delta.
+  scoreValue.style.setProperty("--yn-score-count", "0");
+  scoreEl.appendChild(scoreValue);
+
+  // BEST chip (Palm's one-more-turn hook): session-best for the current
+  // mode. Lives in memory only -- intentionally NOT persisted to the save
+  // (all-time best lives in save.high_scores and surfaces in the
+  // leaderboard / game-over modal). A session reset (page reload) is the
+  // intended pull: "beat your last 5 minutes" without dark streak pressure.
+  // Hidden until the player scores at least once.
+  const bestEl = document.createElement("div");
+  bestEl.className =
+    "yn-best-chip hidden items-center gap-1.5 px-3 py-1 rounded-full " +
+    "bg-yn-bg border border-yn-border text-yn-muted text-xs font-semibold tabular-nums";
+  bestEl.setAttribute("aria-live", "polite");
+  const bestLabel = document.createElement("span");
+  bestLabel.className = "uppercase tracking-wider opacity-80";
+  bestLabel.textContent = "Best";
+  const bestValue = document.createElement("span");
+  bestValue.className = "yn-best-display";
+  bestValue.style.setProperty("--yn-best-count", "0");
+  bestEl.append(bestLabel, bestValue);
 
   // Streak chip: cream pill with day count. Hidden at 0 (no streak to brag).
   const streakEl = document.createElement("div");
@@ -139,7 +186,7 @@ const mount: GameMount = async (container, options) => {
   nextPipsEl.className = "flex items-center gap-1";
   previewEl.appendChild(nextPipsEl);
 
-  topBar.append(scoreEl, streakEl, timerEl, previewEl);
+  topBar.append(scoreEl, bestEl, streakEl, timerEl, previewEl);
 
   const boardArea = document.createElement("div");
   // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
@@ -244,6 +291,16 @@ const mount: GameMount = async (container, options) => {
   // surfaced in the game-over modal as "60s + Xs bonus". Reset implicitly on
   // reload because the closure goes away.
   let bonusesEarnedMs = 0;
+  // Session best -- in-memory only (Palm's one-more-turn hook per ADR-0017).
+  // Reset on reload by design; all-time best lives in save.high_scores.
+  // Seeded from current state.score so a restored in-progress game's score
+  // is the floor for "beat this session" pressure (not 0, which would
+  // pop the BEST chip on the first trivial clear).
+  let sessionBest = state.score;
+  // Most-recent on-screen score integer. Drives the CSS @property tween
+  // by changing only when state.score actually changes (otherwise theme
+  // hot-swap re-renders would retrigger a 0-delta count-up).
+  let displayedScore = state.score;
 
   const boardView = createBoardView({
     motifSymbolUrl: "",
@@ -253,6 +310,19 @@ const mount: GameMount = async (container, options) => {
     previewBounceEnabled: settingsState.previewBounceEnabled,
   });
   boardWrap.replaceChildren(boardView.element);
+
+  // Reward-loop overlay (ADR-0017). Single instance for the game's lifetime.
+  // The wave fixed-positions itself over document.body and computes
+  // spawn/target coordinates from getBoundingClientRect each play, so it
+  // tolerates resize / settings drawer / orientation change without
+  // re-creation.
+  const bonusWave = createBonusWave({
+    pill_rise_ms: balanceConfig.reward.wave_pill_rise_ms,
+    pill_hold_ms: balanceConfig.reward.wave_pill_hold_ms,
+    pill_exit_ms: balanceConfig.reward.wave_pill_exit_ms,
+    pill_stagger_ms: balanceConfig.reward.wave_pill_stagger_ms,
+    fly_to_score_ms: balanceConfig.reward.wave_fly_to_score_ms,
+  });
 
   const renderStreak = (): void => {
     const current = save.streak?.current ?? 0;
@@ -289,9 +359,91 @@ const mount: GameMount = async (container, options) => {
     }
   };
 
+  // Drive the count-up tween on the score chip. Duration scales with the
+  // delta per ADR-0017: a small +5 ticks in ~450ms (almost subliminal),
+  // the rare +135 takes the full ~1100ms cap so the player actually
+  // WATCHES it climb. Equal-time-per-event would make a 5-clear feel as
+  // heavy as a 135-clear; proportional time IS the recognition.
+  // Implementation note: the integer transition uses CSS @property
+  // (registered as <integer> in board-view.css) -- the browser interpolates
+  // the int, counter() re-evaluates each paint, and the ::after text
+  // updates without rAF.
+  const animateScoreTo = (target: number, celebrate: boolean): void => {
+    if (target === displayedScore) {
+      // No-op (likely a non-score-changing render like a deselect).
+      scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
+      return;
+    }
+    const delta = Math.max(0, target - displayedScore);
+    const durationMs = Math.min(
+      balanceConfig.reward.score_count_up_max_ms,
+      Math.max(
+        balanceConfig.reward.score_count_up_min_ms,
+        balanceConfig.reward.score_count_up_min_ms +
+          delta * balanceConfig.reward.score_count_up_per_delta_ms,
+      ),
+    );
+    scoreValue.style.transition = `--yn-score-count ${String(durationMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+    scoreValue.style.setProperty("--yn-score-count", String(target));
+    scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
+    displayedScore = target;
+    if (celebrate) {
+      scoreEl.style.setProperty(
+        "--yn-score-glow-ms",
+        `${String(balanceConfig.reward.score_chip_glow_ms)}ms`,
+      );
+      // Restart the celebration animation by toggling the class with a
+      // reflow tap (mirrors the pattern in awaitClassAnimation).
+      scoreEl.classList.remove("yn-score-celebrating");
+      void scoreEl.getBoundingClientRect();
+      scoreEl.classList.add("yn-score-celebrating");
+      window.setTimeout(
+        () => scoreEl.classList.remove("yn-score-celebrating"),
+        balanceConfig.reward.score_chip_glow_ms + 80,
+      );
+    }
+  };
+
+  // Promote / pulse the BEST chip when the just-resolved placement beats
+  // the session best. Idempotent: the chip stays visible once shown.
+  const bumpSessionBestIfBeaten = (newScore: number): void => {
+    if (newScore <= sessionBest) return;
+    sessionBest = newScore;
+    bestEl.classList.remove("hidden");
+    bestEl.classList.add("flex");
+    bestValue.style.setProperty("--yn-best-count", String(newScore));
+    bestEl.setAttribute("aria-label", `Session best ${String(newScore)}`);
+    bestEl.style.setProperty(
+      "--yn-best-bump-ms",
+      `${String(balanceConfig.reward.best_chip_pulse_ms)}ms`,
+    );
+    bestEl.classList.remove("yn-best-bumping");
+    void bestEl.getBoundingClientRect();
+    bestEl.classList.add("yn-best-bumping");
+    window.setTimeout(
+      () => bestEl.classList.remove("yn-best-bumping"),
+      balanceConfig.reward.best_chip_pulse_ms + 80,
+    );
+  };
+
+  // Seed the BEST chip visibility on initial render: if the restored
+  // game already has a non-zero score, the chip is already meaningful.
+  if (state.score > 0) {
+    bestEl.classList.remove("hidden");
+    bestEl.classList.add("flex");
+    bestValue.style.setProperty("--yn-best-count", String(state.score));
+    bestEl.setAttribute("aria-label", `Session best ${String(state.score)}`);
+  }
+
+  // render() is now layout-only (board, preview, streak, timer chips).
+  // The score chip is updated SEPARATELY via animateScoreTo so the
+  // wave-driven move path can defer the count-up tween to the exact
+  // moment the delta pill begins flying into the chip. Non-clearing
+  // moves still call render() + animateScoreTo together (the explicit
+  // syncScoreSilently helper) so a deselect / theme hot-swap re-render
+  // never bumps the count-up.
+  const syncScoreSilently = (): void => animateScoreTo(state.score, false);
   const render = (): void => {
-    scoreValue.textContent = String(state.score);
-    scoreEl.setAttribute("aria-label", `Score ${String(state.score)}`);
     renderNextPips();
     boardView.setBoard(state.board, state.nextPreview, state.selected);
     renderStreak();
@@ -450,13 +602,43 @@ const mount: GameMount = async (container, options) => {
       intermediate = setCell(intermediate, outcome.to.row, outcome.to.col, moving);
       boardView.setBoard(intermediate, state.nextPreview, null);
       await boardView.showLandBounce(outcome.to);
+      const scoreBefore = state.score;
       if (outcome.clears.length > 0 && outcome.spawnedAt.length === 0) {
         const keys = new Set<string>();
         for (const r of outcome.clears) for (const k of r.cells) keys.add(k);
         await boardView.showClearFlash(keys);
+        // Bonus-wave staging (ADR-0017). Pure-derived from the engine
+        // breakdown; if the clear is the tier-1 floor (length-5 single
+        // line, no bonuses) the wave is silently suppressed and the
+        // existing pink cell-splash stays as the entire reward.
+        const totalDelta = outcome.postMoveState.score - scoreBefore;
+        const breakdowns = breakdownChain(outcome.clears, balanceConfig);
+        const pills = derivePills(breakdowns, totalDelta);
+        const waveSuppressed = isSilentTier(breakdowns) || pills.length === 0;
+        if (!waveSuppressed) {
+          const centroid = centroidOfClearedCells(boardView.element, keys);
+          const target = elementCenter(scoreEl);
+          // wave.play resolves when the FINAL delta pill begins flying
+          // toward the score chip -- the cause-and-effect beat. The
+          // count-up + chip glow fire on the same tick.
+          await bonusWave.play(centroid, pills, target);
+          state = outcome.postMoveState;
+          render();
+          animateScoreTo(state.score, true);
+          bumpSessionBestIfBeaten(state.score);
+        } else {
+          state = outcome.postMoveState;
+          render();
+          syncScoreSilently();
+          bumpSessionBestIfBeaten(state.score);
+        }
+      } else {
+        state = outcome.postMoveState;
+        render();
+        syncScoreSilently();
+        // No clears = no score change in normal play; the silent sync
+        // above is a no-op in animateScoreTo (delta === 0 early return).
       }
-      state = outcome.postMoveState;
-      render();
       if (outcome.spawnedAt.length > 0) {
         await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
@@ -514,6 +696,15 @@ const mount: GameMount = async (container, options) => {
   document.addEventListener("keydown", onDocKeyDown);
 
   render();
+  // Seed the chip's initial integer WITHOUT a tween (a restored save with
+  // score 42 shouldn't visibly count up from 0 on every page load). The
+  // next animateScoreTo call (triggered by the player's first scoring
+  // move) explicitly overwrites the inline transition with its
+  // event-scaled duration, so we don't need to "restore" the empty
+  // transition here -- the no-op transition is harmless until then.
+  scoreValue.style.transition = "none";
+  scoreValue.style.setProperty("--yn-score-count", String(state.score));
+  scoreEl.setAttribute("aria-label", `Score ${String(state.score)}`);
   persist();
 
   // ---- Timed-mode countdown -------------------------------------------
@@ -636,6 +827,7 @@ const mount: GameMount = async (container, options) => {
       if (modalClose !== null) modalClose();
       if (drawerClose !== null) drawerClose();
       boardView.destroy();
+      bonusWave.destroy();
       container.replaceChildren();
     },
   };
