@@ -1,4 +1,5 @@
-import { defineConfig, type PluginOption } from "vite";
+import { defineConfig } from "vitest/config";
+import type { PluginOption } from "vite";
 import { fileURLToPath, URL } from "node:url";
 
 // Mimics GitHub Pages SPA fallback during `vite preview` and `vite dev`:
@@ -66,5 +67,23 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+  },
+  test: {
+    environment: "node",
+    include: [
+      "tests/unit/**/*.test.ts",
+      "tests/contract/**/*.test.ts",
+      "tests/integration/**/*.test.ts",
+    ],
+    exclude: ["tests/e2e/**", "node_modules", "dist"],
+    globals: false,
+    reporters: ["default"],
+    coverage: {
+      enabled: false,
+      provider: "v8",
+      reporter: ["text", "html"],
+      include: ["src/**/*.ts"],
+      exclude: ["src/**/*.d.ts", "src/main.ts", "src/styles/**"],
+    },
   },
 });

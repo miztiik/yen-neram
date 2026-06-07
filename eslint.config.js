@@ -3,7 +3,7 @@ import tsPlugin from "@typescript-eslint/eslint-plugin";
 
 export default [
   {
-    ignores: ["dist", "node_modules", "playwright-report", "coverage", "reference images"],
+    ignores: ["dist", "node_modules", "playwright-report", "coverage", "reference-images"],
   },
   {
     files: ["**/*.ts"],

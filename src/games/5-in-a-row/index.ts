@@ -1,6 +1,6 @@
 import type { GameMount, GameInstance } from "@/shared/contracts/game-module.js";
 import type { SaveV1 } from "@/shared/schemas/5-in-a-row.save.schema.js";
-import balanceJson from "../../../config/games/5-in-a-row/balance.json";
+import balanceJson from "./balance.json";
 import { readSave, writeSave, makeFreshSave } from "./save.js";
 import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";

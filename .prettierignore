@@ -3,4 +3,4 @@ node_modules
 playwright-report
 coverage
 pnpm-lock.yaml
-reference images
+reference-images
