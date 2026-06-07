@@ -40,11 +40,13 @@ modifying the canonical SVGs IN PLACE.
   canonical location IS the build output for this asset class).
 - A contract test
   (`apps/frontend/tests/contract/svgo-pipeline.test.ts`) asserts each
-  motif is `< 3000b`, well-formed, free of `<?xml>`, `<title>`,
-  `<desc>`. (Bumped from 1500b on 2026-06-07 to accommodate the more
-  detailed tropical-fruits banana motif, which optimises to 2691b
-  after SVGO. 3000b x 6 motifs x ~3 themes = ~54 KB ceiling for all
-  motif art, still trivial vs Holy Law #2 bundle budget.)
+  SVG motif is well-formed, free of `<?xml>`, `<title>`, `<desc>`.
+  Per-motif byte cap was REMOVED on 2026-06-07 (see amendment
+  below); the bundle-wide weight is governed by the size-limit gate
+  documented in `docs/architecture/runtime/perf-budget.md`, not by a
+  per-file cap. Raster motifs (PNG) are first-class as of the same
+  amendment - they pass through this pipeline untouched (SVGO is an
+  SVG-only tool).
 
 This is per-file optimisation only - no sprite-sheet, no atlas, no
 runtime indirection.
@@ -96,3 +98,44 @@ in their last-optimised form; nothing in the runtime bundle changes.
 - [0006-bundle-budget-and-codesplit.md](0006-bundle-budget-and-codesplit.md)
 - [0008-license-cc0.md](0008-license-cc0.md)
 - [../../../CLAUDE.md](../../../CLAUDE.md) sections 4, 9, 10
+
+## Amendments
+
+### 2026-06-07: per-motif byte cap removed; PNG motifs first-class
+
+The per-motif `< 3000 b` contract test was deleted. Rationale:
+
+- The cap was a forecast (`3 KB x 6 motifs x ~3 themes = ~54 KB`),
+  never a measured perf number. The real perf gate is the size-limit
+  bundle budget documented in `docs/architecture/runtime/perf-budget.md`.
+- Once a motif is decoded by the browser (one fetch + parse per
+  session per URL, then served from the in-memory image cache),
+  click + move + theme-swap costs are independent of source file
+  size - the animation is compositor-thread on the cloned
+  `<image>` element, not a re-decode.
+- A per-file cap forced asset choices the player never benefits
+  from (e.g. forbidding mildly detailed vector art that costs an
+  extra kilobyte over the wire is invisible to a non-engineer).
+
+At the same time, the schema regex on `manifest.motifs[*].file` was
+relaxed from `^motif-[1-7]\.svg$` to `^motif-[1-7]\.(svg|png)$`, and
+the theme-loader was fixed to actually read the manifest's `file`
+field (it was previously synthesising `motif-N.svg` and ignoring
+the declared file name). PNG motifs are now first-class. The SVGO
+pass continues to globber `motif-*.svg` only - PNGs pass through
+untouched, since SVGO is an SVG-only tool.
+
+What still holds:
+
+- The well-formed / no-`<?xml>` / no-`<title>` / no-`<desc>` SVG
+  contract tests remain - they catch an upstream pre-commit hook
+  that defeats SVGO.
+- Bundle-wide weight is still gated (size-limit). A theme that
+  ships 6 x 50 KB PNGs will show up in CI as a regression there.
+- The README sizing-guidance table is advisory only and lives in
+  `apps/frontend/public/assets/themes/README.md`.
+
+No schema-version bump: the change is a regex relaxation (every old
+payload still validates). Per CLAUDE.md section 11 this is a minor
+(additive, backwards-compatible) change; no read-side migration
+needed.
