@@ -7,7 +7,7 @@ const config: Config = {
       colors: {
         // Warm-vibrant chrome palette (Jony pass 2026-06-07, vibrancy bump).
         // Mirrors the CSS vars in src/styles/index.css; keep the two in sync.
-        "yn-bg": "#fdba74",
+        "yn-bg": "#fed7aa",
         "yn-tile": "#fff7ed",
         "yn-border": "#fb923c",
         "yn-ink": "#7c2d12",

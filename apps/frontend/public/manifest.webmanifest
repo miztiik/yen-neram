@@ -4,8 +4,8 @@
   "description": "A static-bundle multi-game shell. First game: 5-in-a-Row.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#fdba74",
-  "theme_color": "#fdba74",
+  "background_color": "#fed7aa",
+  "theme_color": "#fed7aa",
   "orientation": "portrait-primary",
   "categories": ["games", "entertainment"],
   "icons": [
