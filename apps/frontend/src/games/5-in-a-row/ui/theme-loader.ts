@@ -8,6 +8,7 @@
 // where it assumes the canonical `.svg` extension as a final escape hatch.
 
 import { type ThemeManifest, ThemeManifestSchema } from "@/shared/schemas/theme-manifest.schema.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
 export type LoadedTheme = {
   readonly id: string;
@@ -26,7 +27,7 @@ function buildMotifFiles(
   for (const k of MOTIF_KEYS) {
     const entry = motifs[k];
     if (entry === undefined) continue;
-    out[k] = `/assets/themes/${themeId}/${entry.file}`;
+    out[k] = assetPaths.themeMotif(themeId, entry.file);
   }
   return out;
 }
@@ -36,14 +37,14 @@ function buildDefaultMotifFiles(themeId: string): Readonly<Record<string, string
   // manifest fetch failed (network completely down, etc).
   const out: Record<string, string> = {};
   for (const k of MOTIF_KEYS) {
-    out[k] = `/assets/themes/${themeId}/motif-${k}.svg`;
+    out[k] = assetPaths.themeMotif(themeId, `motif-${k}.svg`);
   }
   return out;
 }
 
 async function fetchManifest(themeId: string): Promise<ThemeManifest | null> {
   try {
-    const response = await fetch(`/assets/themes/${themeId}/manifest.json`);
+    const response = await fetch(assetPaths.themeManifest(themeId));
     if (!response.ok) return null;
     const data: unknown = await response.json();
     const parsed = ThemeManifestSchema.safeParse(data);
