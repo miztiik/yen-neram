@@ -3,6 +3,7 @@ import { mountPortal } from "@/shell/portal/index.js";
 import { GameManifestArraySchema } from "@/shared/schemas/game-manifest.schema.js";
 import type { GameManifestEntry } from "@/shared/contracts/game-manifest.js";
 import type { GameInstance, GameModule, MountOptions } from "@/shared/contracts/game-module.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
 // Vite scans this glob at build time and produces one code-split chunk per
 // matching file. The shell never references game internals directly; it only
@@ -67,7 +68,7 @@ export async function mountShell(container: HTMLElement): Promise<void> {
 
 async function fetchGames(): Promise<GameManifestEntry[]> {
   try {
-    const response = await fetch("/games.json");
+    const response = await fetch(assetPaths.games());
     if (!response.ok) {
       return [];
     }

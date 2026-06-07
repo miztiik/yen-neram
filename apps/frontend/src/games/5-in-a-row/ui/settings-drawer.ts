@@ -11,6 +11,7 @@ import { z } from "zod";
 
 import { SAVE_KEY_APP, readJson, writeJson } from "@/shared/save/index.js";
 import { ThemeManifestSchema } from "@/shared/schemas/theme-manifest.schema.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
 // ---- Public types ----------------------------------------------------------
 
@@ -87,7 +88,7 @@ export async function discoverAvailableThemes(): Promise<AvailableTheme[]> {
   const results = await Promise.all(
     KNOWN_THEME_IDS.map(async (id): Promise<AvailableTheme | null> => {
       try {
-        const r = await fetch(`/assets/themes/${id}/manifest.json`);
+        const r = await fetch(assetPaths.themeManifest(id));
         if (!r.ok) return null;
         const raw: unknown = await r.json();
         const parsed = ThemeManifestSchema.safeParse(raw);

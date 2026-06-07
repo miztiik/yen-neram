@@ -1,0 +1,42 @@
+import { describe, expect, it } from "vitest";
+import { assetPaths } from "@/shared/asset-paths.js";
+
+// The vitest config injects `import.meta.env.BASE_URL = "/"` (Vite's
+// dev/test default). These tests verify the builders join correctly
+// against that base; the more important real-world case ("/yen-neram/")
+// is covered by the base-path e2e test that loads the production build.
+//
+// Per CLAUDE.md sec 10: no hardcoded paths at callsites. This file +
+// the asset-paths module are the single source of truth.
+
+describe("assetPaths (single source of truth for runtime asset URLs)", () => {
+  it("games() returns base + games.json", () => {
+    expect(assetPaths.games()).toBe("/games.json");
+  });
+
+  it("themeManifest(id) interpolates the themeId into the manifest path", () => {
+    expect(assetPaths.themeManifest("tropical-fruits")).toBe(
+      "/assets/themes/tropical-fruits/manifest.json",
+    );
+    expect(assetPaths.themeManifest("origami")).toBe("/assets/themes/origami/manifest.json");
+  });
+
+  it("themeMotif(id, file) interpolates both arguments and respects the file extension", () => {
+    expect(assetPaths.themeMotif("tropical-fruits", "motif-1.png")).toBe(
+      "/assets/themes/tropical-fruits/motif-1.png",
+    );
+    expect(assetPaths.themeMotif("origami", "motif-3.svg")).toBe(
+      "/assets/themes/origami/motif-3.svg",
+    );
+  });
+
+  it("does not produce double slashes when relative paths accidentally start with /", () => {
+    // The helper strips a leading "/" so e.g. base "/yen-neram/" + "/foo"
+    // yields "/yen-neram/foo", not "/yen-neram//foo". Calling the public
+    // builders never produces a leading-slash relative input, but the
+    // guard inside join() is the contract.
+    expect(assetPaths.games().includes("//")).toBe(false);
+    expect(assetPaths.themeManifest("origami").includes("//")).toBe(false);
+    expect(assetPaths.themeMotif("origami", "motif-1.svg").includes("//")).toBe(false);
+  });
+});
