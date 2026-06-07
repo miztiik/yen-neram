@@ -78,4 +78,42 @@ test.describe("base-path safety: no hard-coded absolute paths", () => {
       ).toBe(true);
     }
   });
+
+  test("portal tile silhouette images are base-prefixed and load successfully", async ({
+    page,
+  }) => {
+    const tileFailures: string[] = [];
+    page.on("response", (response) => {
+      const url = response.url();
+      if (url.includes("/assets/portal-tiles/") && response.status() >= 400) {
+        tileFailures.push(`${String(response.status())} ${url}`);
+      }
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: "5 in a Row" })).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // The shipped game's tile must have an <img> child whose src resolves
+    // through the document base (not a bare "/assets/..." that 404's on
+    // GH Pages). Inspect the rendered src attribute directly.
+    const tileImgSrc = await page
+      .getByRole("button", { name: "5 in a Row" })
+      .locator("img")
+      .first()
+      .getAttribute("src");
+    expect(tileImgSrc, "5-in-a-row tile must render an <img>").not.toBeNull();
+
+    const baseFromDocument = await page.evaluate(() => new URL("./", document.baseURI).pathname);
+    const tilePath = new URL(tileImgSrc ?? "", page.url()).pathname;
+    expect(
+      tilePath.startsWith(baseFromDocument),
+      `tile silhouette resolved to ${tilePath}; expected to start with ${baseFromDocument}`,
+    ).toBe(true);
+
+    expect(tileFailures, `tile silhouette requests 4xx/5xx'd:\n${tileFailures.join("\n")}`).toEqual(
+      [],
+    );
+  });
 });
