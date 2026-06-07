@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import { ThemeManifestSchema } from "@/shared/schemas/theme-manifest.schema.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const themesRoot = resolve(here, "../../assets/themes");
+const themesRoot = resolve(here, "../../public/assets/themes");
 
 function listThemeIds(): string[] {
   return readdirSync(themesRoot)

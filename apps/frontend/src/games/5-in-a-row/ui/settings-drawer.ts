@@ -73,7 +73,8 @@ export function updateAppPref(patch: Partial<Omit<AppPrefs, "schema_version">>):
 // ---- Theme discovery -------------------------------------------------------
 //
 // V1: hard-coded roster + tolerant fetch. A future PR can replace this with
-// a build-time-emitted `/assets/themes/index.json` without touching callers.
+// a build-time-emitted `/assets/themes/index.json` (a discovery manifest at
+// the same URL root the motifs sit at) without touching callers.
 
 const KNOWN_THEME_IDS: readonly string[] = ["origami", "tropical-fruits"];
 

@@ -6,7 +6,9 @@ settings:
 
 importers:
 
-  .:
+  .: {}
+
+  apps/frontend:
     dependencies:
       zod:
         specifier: ^3.23.0

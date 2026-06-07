@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-// Theme manifest contract. Lives at `assets/themes/<id>/manifest.json` and is
-// validated at build time when the asset pipeline (PR 5) lifts the theme into
-// `public/assets/themes/<id>/`. The renderer consumes the published copy.
+// Theme manifest contract. Lives at `public/assets/themes/<id>/manifest.json`
+// and is fetched at runtime by the theme-loader. The browser fetches motifs
+// directly from the same folder via `/assets/themes/<id>/motif-N.svg`.
 //
 // Invariant: the `motifs` table has exactly the run-groups required by the
 // game's balance config (currently 6, with a 7th seat reserved for hard mode).

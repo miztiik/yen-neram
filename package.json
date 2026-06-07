@@ -1,9 +1,7 @@
 {
-  "name": "yen-neram",
+  "name": "yen-neram-monorepo",
   "version": "0.1.0",
-  "description": "Yen-Neram - static-bundle multi-game shell. First game: 5-in-a-row.",
   "private": true,
-  "type": "module",
   "license": "CC0-1.0",
   "packageManager": "pnpm@9.0.0",
   "engines": {
@@ -11,35 +9,15 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
-    "predev": "node tools/copy-themes.mjs",
-    "dev": "vite",
-    "prebuild": "node tools/copy-themes.mjs",
-    "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
-    "test:e2e": "playwright test",
-    "lint": "eslint . --max-warnings=0",
-    "lint:fix": "eslint . --fix",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
-    "typecheck": "tsc --noEmit"
-  },
-  "devDependencies": {
-    "@playwright/test": "^1.48.0",
-    "@types/node": "^25.9.2",
-    "@typescript-eslint/eslint-plugin": "^8.12.0",
-    "@typescript-eslint/parser": "^8.12.0",
-    "autoprefixer": "^10.4.0",
-    "eslint": "^9.13.0",
-    "postcss": "^8.4.0",
-    "prettier": "^3.3.0",
-    "tailwindcss": "^3.4.0",
-    "typescript": "^5.6.0",
-    "vite": "^5.4.0",
-    "vitest": "^2.1.0"
-  },
-  "dependencies": {
-    "zod": "^3.23.0"
+    "dev": "pnpm -F frontend dev",
+    "build": "pnpm -F frontend build",
+    "preview": "pnpm -F frontend preview",
+    "test": "pnpm -r run test",
+    "test:e2e": "pnpm -F frontend test:e2e",
+    "lint": "pnpm -r run lint",
+    "lint:fix": "pnpm -r run lint:fix",
+    "format": "pnpm -r run format",
+    "format:check": "pnpm -r run format:check",
+    "typecheck": "pnpm -r run typecheck"
   }
 }
