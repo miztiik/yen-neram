@@ -12,7 +12,7 @@ User approval supersedes every agent and every rule in this file. Amend conflict
 
 ## 0a. Non-Goals
 
-- **Accessibility** (a11y / ARIA / WCAG / axe-core / contrast-ratio tooling / screen-reader hints). Descoped at project level. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement. Re-scope by editing this entry.
+- ~~**Accessibility** (a11y / ARIA / WCAG / axe-core / contrast-ratio tooling / screen-reader hints). Descoped at project level. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement. Re-scope by editing this entry.~~ However, **basic ARIA + keyboard nav are IN scope** as of v2 production polish: visible focus rings, labelled controls, semantic landmarks, keyboard reachability of every interactive surface, screen-reader-friendly button names. The line is: design-level a11y choices (label your buttons, use real semantics) are encouraged; framework / audit tooling is not. Still descoped: no a11y deps, no automated audits, no doctrine pass that gates merges on WCAG levels. See [docs/architecture/decisions/0013-basic-a11y-keyboard-and-aria.md](docs/architecture/decisions/0013-basic-a11y-keyboard-and-aria.md).
 - **Production backend.** See Holy Law #1.
 - **Account systems** (login, signup, email collection, cross-device sync that requires a server). Game state is `localStorage` / `IndexedDB` only.
 - **Push notifications.** The player decides when to play.

@@ -1,8 +1,10 @@
 # ADR-0007: No service worker in v1
 
 **Last Updated**: 2026-06-07
-**Status**: Accepted
+**Status**: Superseded by ADR-0015 (2026-06-07)
 **Born in**: PR 1 (`chore/scaffolding-and-adrs`)
+
+> Superseded by [ADR-0015](0015-service-worker-pwa.md): the user chose to land a service worker in v2 wave 3 (before game #2), so the deferral trigger named below no longer applies.
 
 ## Context
 

@@ -1,8 +1,14 @@
 # ADR-0008: License is CC0 1.0 Universal (code and assets)
 
 **Last Updated**: 2026-06-07
-**Status**: Accepted
+**Status**: Superseded by ADR-0016 (2026-06-07)
 **Born in**: PR 1 (`chore/scaffolding-and-adrs`)
+
+> **Superseded note (2026-06-07)**: User chose to remove the LICENSE file
+> in v2 wave 3. The code is now all-rights-reserved by default; see
+> ADR-0016. Theme asset manifests retain their per-asset license metadata,
+> which remains valuable for asset provenance even when the codebase is
+> not openly licensed.
 
 ## Context
 

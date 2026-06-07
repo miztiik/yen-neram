@@ -1,0 +1,164 @@
+.yn-board-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+.yn-cell-bg {
+  fill: #ffffff;
+  stroke: #fdba74;
+  stroke-width: 0.6;
+}
+.yn-cell-reachable .yn-cell-bg {
+  fill: #fed7aa;
+}
+.yn-cell-focused .yn-cell-bg {
+  stroke: var(--yn-accent);
+  stroke-width: 2;
+}
+.yn-motif {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition:
+    transform 200ms ease-out,
+    opacity 200ms ease-in-out;
+}
+.yn-preview-motif {
+  opacity: 0.4;
+  pointer-events: none;
+}
+.yn-cell-selected .yn-motif {
+  animation: yn-pulse 2s ease-in-out infinite;
+  filter: drop-shadow(0 0 4px currentColor);
+}
+.yn-cell-clearing .yn-motif {
+  animation: yn-clear 400ms ease-out forwards;
+}
+.yn-cell-shake {
+  animation: yn-shake 200ms ease-in-out;
+}
+.yn-cell-landing .yn-motif {
+  animation: yn-land 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes yn-pulse {
+  0%,
+  100% {
+    transform: scale(1) translateY(0);
+  }
+  50% {
+    transform: scale(1.06) translateY(-1px);
+  }
+}
+@keyframes yn-clear {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0);
+    opacity: 0;
+  }
+}
+@keyframes yn-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  75% {
+    transform: translateX(3px);
+  }
+}
+@keyframes yn-land {
+  0% {
+    transform: scale(0.3);
+  }
+  50% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-cell-selected .yn-motif,
+  .yn-cell-clearing .yn-motif,
+  .yn-cell-shake,
+  .yn-cell-landing .yn-motif {
+    animation-duration: 1ms !important;
+  }
+}
+/* Juice-splash overlay for clears (per design freeze 2026-06-07: vibrant Fruit Ninja celebration). */
+.yn-splash {
+  pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+  opacity: 0;
+}
+.yn-splash.yn-splash-firing {
+  animation: yn-splash 500ms ease-out forwards;
+}
+@keyframes yn-splash {
+  0% {
+    transform: scale(0.2);
+    opacity: 0.9;
+  }
+  40% {
+    opacity: 0.7;
+  }
+  100% {
+    transform: scale(2.5);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-splash.yn-splash-firing {
+    animation-duration: 1ms !important;
+  }
+}
+/* Long-press path preview: dashed polyline through cell centres of the BFS
+   path; CSS keyframes fade it in and out so the gesture leaves no DOM
+   residue once the animation ends. */
+.yn-path-preview {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--yn-accent);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 4 3;
+  opacity: 0;
+  animation: yn-path-preview 1500ms ease-out forwards;
+}
+@keyframes yn-path-preview {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* Theme hot-swap fade: opacity drops to 0 over 100ms, the image hrefs are
+   replaced, then the class is removed and the base .yn-motif transition
+   restores opacity to 1 over 200ms. */
+.yn-theme-swapping .yn-motif {
+  opacity: 0;
+  transition: opacity 100ms ease-in-out !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-path-preview {
+    animation-duration: 1ms !important;
+  }
+  .yn-theme-swapping .yn-motif {
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Warm-vibrant chrome palette (Jony pass 2026-06-07, vibrancy bump).
+   Juicy mango page bg + cream lifted cards + saturated orange rim +
+   deep terracotta ink + vibrant orange CTA. The page bg deliberately
+   PUNCHES against the cream cards (90+ brightness delta) so the
+   surface hierarchy reads at a glance. Splash-pink (board-view.css)
+   stays as the celebration moment; pink + vibrant orange are
+   complementary on the warm side of the wheel. Tokens are consumed
+   via Tailwind via tailwind.config.ts and directly via var() inside
+   renderer-owned SVG (board-view.css). */
+:root {
+  --yn-bg-deep: #fdba74;
+  --yn-bg-tile: #fff7ed;
+  --yn-tile-border: #fb923c;
+  --yn-ink: #7c2d12;
+  --yn-muted: #9a3412;
+  --yn-accent: #ea580c;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    background: var(--yn-bg-deep);
+    color: var(--yn-ink);
+  }
+}
+
+/* Subtle dot-grid texture for the game board background. Terracotta dots
+   on vibrant mango — opacity 0.10 so the dots stay visible against the
+   brighter bg without competing with the motifs. */
+.yn-board-bg {
+  background-color: var(--yn-bg-deep);
+  background-image: radial-gradient(circle, rgba(124, 45, 18, 0.1) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+}
+
+/* Visually-hidden utility for screen-reader-only text (ADR-0013). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Visible focus ring for keyboard users (does NOT show on mouse interaction). */
+:focus-visible {
+  outline: 2px solid var(--yn-accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
