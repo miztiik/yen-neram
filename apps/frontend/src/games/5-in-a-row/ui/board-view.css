@@ -11,7 +11,7 @@
   stroke-width: 0.3;
 }
 .yn-cell-reachable .yn-cell-bg {
-  fill: #fed7aa;
+  fill: #fef3c7;
 }
 .yn-cell-focused .yn-cell-bg {
   stroke: var(--yn-accent);
@@ -29,8 +29,8 @@
   pointer-events: none;
 }
 .yn-cell-selected .yn-motif {
-  animation: yn-pulse 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 4px currentColor);
+  animation: yn-pulse 1.4s ease-in-out infinite;
+  filter: drop-shadow(0 0 6px var(--yn-accent)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
 }
 .yn-cell-clearing .yn-motif {
   animation: yn-clear 400ms ease-out forwards;

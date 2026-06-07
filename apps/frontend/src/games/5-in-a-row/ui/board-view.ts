@@ -533,11 +533,12 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   svg.addEventListener("pointerup", onPointerUp);
   svg.addEventListener("pointercancel", onPointerCancel);
 
-  const onSvgFocus = (): void => {
-    if (focusedCoord === null) focusedCoord = { row: 0, col: 0 };
-    updateFocusVisual();
-  };
-
+  // Keyboard-focus visual is progressive: a mouse click that lands focus
+  // on the SVG (e.g. clicking a cell) MUST NOT paint the focused-cell
+  // indicator (it was painting an out-of-context orange box at (0,0) on
+  // every click). The indicator only appears the moment the user presses
+  // their first arrow key — same UX pattern as data-tables and trees
+  // across modern apps.
   const onSvgKeyDown = (e: KeyboardEvent): void => {
     if (focusedCoord === null) focusedCoord = { row: 0, col: 0 };
     let handled = true;
@@ -576,7 +577,6 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   };
 
-  svg.addEventListener("focus", onSvgFocus);
   svg.addEventListener("keydown", onSvgKeyDown);
 
   function destroy(): void {
@@ -586,7 +586,6 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     svg.removeEventListener("pointermove", onPointerMove);
     svg.removeEventListener("pointerup", onPointerUp);
     svg.removeEventListener("pointercancel", onPointerCancel);
-    svg.removeEventListener("focus", onSvgFocus);
     svg.removeEventListener("keydown", onSvgKeyDown);
     if (svg.parentNode !== null) {
       svg.parentNode.removeChild(svg);
