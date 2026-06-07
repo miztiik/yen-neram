@@ -203,3 +203,273 @@
     transition-duration: 1ms !important;
   }
 }
+
+/* ============================================================
+ * REWARD-LOOP THEATRE (ADR-0017, "Stacked Wave")
+ * ------------------------------------------------------------
+ * Two coupled surfaces:
+ *  1. The score chip (cream pill, hero number, count-up via
+ *     CSS @property + counter()).
+ *  2. The bonus-wave overlay (fixed-positioned pill stack that
+ *     rises from the cleared-cells centroid, ending in a delta
+ *     badge that flies into the score chip).
+ *
+ * All animations are compositor-only (transform / opacity /
+ * filter). No layout-triggering properties.
+ * ============================================================ */
+
+/* Register --yn-score-count as a typed integer so the browser can
+ * smoothly transition between values; counter() then re-evaluates
+ * the integer at every paint tick. Chrome 85+ / Safari 16.4+ /
+ * Firefox 128+ (all newer than the Snapdragon-6-series target). */
+@property --yn-score-count {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+@property --yn-best-count {
+  syntax: "<integer>";
+  initial-value: 0;
+  inherits: false;
+}
+
+/* The hero score number. Element renders as `.yn-score-display`;
+ * its ::after pulls the live integer through counter(). The
+ * transition on --yn-score-count is set INLINE by the JS each
+ * time the score updates (so duration can scale with delta).
+ *
+ * Default `--yn-score-count` is 0 at first paint; JS bumps it
+ * after the first frame so the very first render isn't a tween
+ * from 0 (which would feel disorienting on a resumed save). */
+.yn-score-display {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  /* Without explicit min-width the chip width breathes between
+   * 1-digit and 4-digit scores. 4.5ch covers up to "9999" with
+   * tabular-nums and stays centred for smaller scores. */
+  min-width: 2.5ch;
+  text-align: center;
+  /* counter-reset is HERE on the parent (not in ::after) so it
+   * reads the inline `--yn-score-count` directly, without relying
+   * on inheritance into the pseudo (the @property is registered
+   * `inherits: false` so pseudo-element inheritance would always
+   * snap to the initial value 0). */
+  counter-reset: yn-score var(--yn-score-count);
+}
+.yn-score-display::after {
+  content: counter(yn-score);
+}
+/* Mirror for the BEST chip beside the score. Same trick. */
+.yn-best-display {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  min-width: 1.5ch;
+  text-align: right;
+  counter-reset: yn-best var(--yn-best-count);
+}
+.yn-best-display::after {
+  content: counter(yn-best);
+}
+
+/* Score-chip celebration envelope. Class toggled on the chip
+ * for the duration of one count-up. Number scales briefly, the
+ * pill emits a peak-and-fade accent glow. Compositor-only. */
+.yn-score-chip {
+  transition: filter 320ms ease-out;
+}
+.yn-score-chip.yn-score-celebrating {
+  animation: yn-score-glow var(--yn-score-glow-ms, 700ms) ease-out;
+}
+.yn-score-chip.yn-score-celebrating .yn-score-display {
+  animation: yn-score-pop var(--yn-score-glow-ms, 700ms) ease-out;
+}
+@keyframes yn-score-glow {
+  0% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+  30% {
+    filter: drop-shadow(0 0 16px rgba(234, 88, 12, 0.55));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 transparent);
+  }
+}
+@keyframes yn-score-pop {
+  0% {
+    transform: scale(1);
+    color: var(--yn-ink, #7c2d12);
+  }
+  30% {
+    transform: scale(1.08);
+    color: var(--yn-accent, #ea580c);
+  }
+  100% {
+    transform: scale(1);
+    color: var(--yn-ink, #7c2d12);
+  }
+}
+
+/* BEST chip pulses ONLY when the just-resolved placement beat
+ * the session best. JS adds .yn-best-bumping for one animation. */
+.yn-best-chip {
+  transition:
+    transform 160ms ease-out,
+    box-shadow 160ms ease-out;
+}
+.yn-best-chip.yn-best-bumping {
+  animation: yn-best-bump var(--yn-best-bump-ms, 1000ms) ease-out;
+}
+@keyframes yn-best-bump {
+  0% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+  }
+  20% {
+    transform: scale(1.12);
+    box-shadow: 0 0 0 6px rgba(234, 88, 12, 0.35);
+  }
+  100% {
+    transform: scale(1);
+    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+  }
+}
+
+/* ------------------------------------------------------------
+ * Bonus-wave overlay container. Pointer-events disabled so it
+ * never intercepts taps. position:fixed so cleared-cells centroid
+ * coordinates (computed via getBoundingClientRect from the SVG)
+ * map directly to overlay coordinates without any parent transform
+ * stack interference.
+ * ------------------------------------------------------------ */
+.yn-bonus-wave {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 40;
+  overflow: visible;
+}
+
+/* Individual bonus pill. The renderer sets `top`, `left`, and
+ * `--yn-pill-stagger-ms` inline per pill; CSS does the rest. */
+.yn-bonus-pill {
+  position: absolute;
+  transform: translate3d(-50%, calc(40px + var(--yn-pill-stack-offset, 0px)), 0);
+  opacity: 0;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: var(--yn-bg-tile, #fff7ed);
+  border: 1px solid var(--yn-tile-border, #fb923c);
+  color: var(--yn-ink, #7c2d12);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 6px rgba(124, 45, 18, 0.15);
+  animation: yn-pill-rise-hold-exit calc(var(--yn-pill-life-ms, 800ms)) ease-out
+    var(--yn-pill-stagger-ms, 0ms) forwards;
+}
+/* The cascade pill renders with an accent-tinted background so a
+ * 3-step cascade reads as three escalating beats, not as repeating
+ * filler. Background only -- no text-colour change (kept terracotta
+ * for legibility on warm bg). */
+.yn-bonus-pill--cascade {
+  background: color-mix(in oklab, var(--yn-accent, #ea580c) 14%, var(--yn-bg-tile, #fff7ed));
+  border-color: var(--yn-accent, #ea580c);
+}
+/* The final delta badge is bigger, accent-filled, cream text. It
+ * flies INTO the score chip instead of fading up. The fly vector
+ * is supplied as CSS variables (`--yn-fly-dx`, `--yn-fly-dy`) by
+ * the renderer at spawn time -- the target moves with the chrome
+ * (resize, rotate, settings drawer width) so a static keyframe
+ * can't bake the destination. */
+.yn-bonus-pill--delta {
+  font-size: 20px;
+  padding: 6px 16px;
+  font-weight: 800;
+  background: var(--yn-accent, #ea580c);
+  color: var(--yn-bg-tile, #fff7ed);
+  border-color: var(--yn-accent, #ea580c);
+  box-shadow: 0 4px 12px rgba(234, 88, 12, 0.35);
+  animation:
+    yn-pill-rise calc(var(--yn-pill-rise-ms, 220ms)) ease-out var(--yn-pill-stagger-ms, 0ms)
+      forwards,
+    yn-pill-fly-to-score calc(var(--yn-pill-fly-ms, 280ms)) cubic-bezier(0.4, 0, 0.2, 1)
+      calc(
+        var(--yn-pill-stagger-ms, 0ms) + var(--yn-pill-rise-ms, 220ms) +
+          var(--yn-pill-hold-ms, 380ms)
+      )
+      forwards;
+}
+@keyframes yn-pill-rise-hold-exit {
+  0% {
+    transform: translate3d(-50%, calc(40px + var(--yn-pill-stack-offset, 0px)), 0);
+    opacity: 0;
+  }
+  /* Rise (~220ms of 800ms total = 27.5%). */
+  27.5% {
+    transform: translate3d(-50%, var(--yn-pill-stack-offset, 0px), 0);
+    opacity: 1;
+  }
+  /* Hold (next 380ms = 75% mark). */
+  75% {
+    transform: translate3d(-50%, var(--yn-pill-stack-offset, 0px), 0);
+    opacity: 1;
+  }
+  /* Fade-up exit. */
+  100% {
+    transform: translate3d(-50%, calc(var(--yn-pill-stack-offset, 0px) - 12px), 0);
+    opacity: 0;
+  }
+}
+@keyframes yn-pill-rise {
+  0% {
+    transform: translate3d(-50%, calc(40px + var(--yn-pill-stack-offset, 0px)), 0);
+    opacity: 0;
+  }
+  100% {
+    transform: translate3d(-50%, var(--yn-pill-stack-offset, 0px), 0);
+    opacity: 1;
+  }
+}
+@keyframes yn-pill-fly-to-score {
+  0% {
+    transform: translate3d(-50%, var(--yn-pill-stack-offset, 0px), 0) scale(1);
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translate3d(
+        calc(-50% + var(--yn-fly-dx, 0px)),
+        calc(var(--yn-pill-stack-offset, 0px) + var(--yn-fly-dy, 0px)),
+        0
+      )
+      scale(0.4);
+    opacity: 0;
+  }
+}
+
+/* Reduced-motion path: pills appear instantly, hold briefly, fade.
+ * No fly, no stagger, no count-up tween. The delta is still
+ * communicated; the theatre is cut. */
+@media (prefers-reduced-motion: reduce) {
+  .yn-bonus-pill,
+  .yn-bonus-pill--delta {
+    animation-duration: 1ms !important;
+    animation-delay: 0ms !important;
+  }
+  .yn-score-chip.yn-score-celebrating,
+  .yn-score-chip.yn-score-celebrating .yn-score-display,
+  .yn-best-chip.yn-best-bumping {
+    animation-duration: 1ms !important;
+  }
+  /* The integer transition is disabled by overriding the inline
+   * transition the JS sets; this clamps the count-up to a jump. */
+  .yn-score-display {
+    transition: none !important;
+  }
+}

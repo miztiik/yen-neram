@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { scoreChain, scoreSingleClear } from "@/games/5-in-a-row/engine/index.js";
+import { breakdownChain, breakdownClear } from "@/games/5-in-a-row/engine/score.js";
 
 const BALANCE = {
   length_multipliers: { "5": 1, "6": 1.5, "7": 2, "8": 3, "9": 5 },
@@ -93,5 +94,100 @@ describe("scoreChain", () => {
   it("chain of three 5-clears applies cascade indices 0, 1, 2: 5 + 15 + 25 = 45", () => {
     const r = clearResult(5, 5, 1);
     expect(scoreChain([r, r, r], BALANCE)).toBe(45);
+  });
+});
+
+describe("breakdownClear", () => {
+  it("plain 5-clear: identity multipliers, points = scoreSingleClear", () => {
+    const r = clearResult(5, 5, 1);
+    const b = breakdownClear(r, 0, BALANCE);
+    expect(b.length).toBe(5);
+    expect(b.lineCount).toBe(1);
+    expect(b.cellCount).toBe(5);
+    expect(b.length_mult).toBe(1);
+    expect(b.intersection_mult).toBe(1);
+    expect(b.cascade_mult).toBe(1);
+    expect(b.cascadeIndex).toBe(0);
+    expect(b.points).toBe(5);
+  });
+
+  it("7-clear intersection cascade-1: 7 * 2 * 1.5 * 3 = 63", () => {
+    const b = breakdownClear(clearResult(7, 7, 2), 1, BALANCE);
+    expect(b.length_mult).toBe(2);
+    expect(b.intersection_mult).toBe(1.5);
+    expect(b.cascade_mult).toBe(3); // 1 + 1 * 2
+    expect(b.points).toBe(63);
+  });
+
+  it("9-clear intersection cascade-3: 9 * 5 * 1.5 * 7 = 472.5 -> rounds to 473", () => {
+    const b = breakdownClear(clearResult(9, 9, 2), 3, BALANCE);
+    expect(b.length_mult).toBe(5);
+    expect(b.intersection_mult).toBe(1.5);
+    expect(b.cascade_mult).toBe(7); // 1 + 3 * 2
+    expect(b.points).toBe(473);
+  });
+
+  it("empty result returns zero points and zero counts", () => {
+    const empty = { cells: new Set<string>(), lineCount: 0, longestLineLength: 0 };
+    const b = breakdownClear(empty, 0, BALANCE);
+    expect(b.cellCount).toBe(0);
+    expect(b.points).toBe(0);
+  });
+
+  it("points field is identical to scoreSingleClear for all sample shapes", () => {
+    // Parity guarantee: the breakdown helper must never disagree with the
+    // existing scoring entry point on the final integer (callers may use
+    // both in the same code path; drift would silently flip the score).
+    const shapes: ReadonlyArray<readonly [number, number, number, number]> = [
+      [5, 5, 1, 0],
+      [6, 6, 1, 0],
+      [7, 7, 1, 0],
+      [8, 8, 1, 0],
+      [9, 9, 1, 0],
+      [9, 5, 2, 0],
+      [5, 5, 1, 1],
+      [5, 5, 1, 2],
+      [4, 4, 1, 0],
+      [10, 10, 1, 0],
+      [7, 7, 2, 1],
+      [9, 9, 2, 3],
+    ];
+    for (const [cells, longest, lines, idx] of shapes) {
+      const r = clearResult(cells, longest, lines);
+      expect(breakdownClear(r, idx, BALANCE).points).toBe(scoreSingleClear(r, idx, BALANCE));
+    }
+  });
+});
+
+describe("breakdownChain", () => {
+  it("empty chain returns empty array", () => {
+    expect(breakdownChain([], BALANCE)).toEqual([]);
+  });
+
+  it("chain order matches input order and cascadeIndex advances", () => {
+    const r = clearResult(5, 5, 1);
+    const out = breakdownChain([r, r, r], BALANCE);
+    expect(out.length).toBe(3);
+    const out0 = out[0];
+    const out1 = out[1];
+    const out2 = out[2];
+    if (out0 === undefined || out1 === undefined || out2 === undefined) {
+      throw new Error("missing chain step");
+    }
+    expect(out0.cascadeIndex).toBe(0);
+    expect(out1.cascadeIndex).toBe(1);
+    expect(out2.cascadeIndex).toBe(2);
+    expect(out0.cascade_mult).toBe(1);
+    expect(out1.cascade_mult).toBe(3);
+    expect(out2.cascade_mult).toBe(5);
+  });
+
+  it("chain points sum equals scoreChain", () => {
+    const a = clearResult(5, 5, 1);
+    const b = clearResult(7, 7, 2);
+    const c = clearResult(6, 6, 1);
+    const chain = [a, b, c];
+    const sum = breakdownChain(chain, BALANCE).reduce((acc, x) => acc + x.points, 0);
+    expect(sum).toBe(scoreChain(chain, BALANCE));
   });
 });
