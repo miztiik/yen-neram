@@ -31,6 +31,12 @@ const MOVE_THRESHOLD_PX = 8;
 const SLIDE_MS = 150;
 const LAND_MS = 200;
 const SHAKE_MS = 200;
+// Lifetime of the per-blocker red wash. Slightly longer than the shake
+// so the eye lands on the blockers AFTER the destination's red flash --
+// reads as "this is why you couldn't move there". 380ms is the keyframe
+// duration in board-view.css `yn-cell-bg-blocker-flash`; this constant
+// is the safety-fallback for animationend not firing.
+const BLOCKER_FLASH_MS = 380;
 const CLEAR_MS = 400;
 const SPLASH_TAIL_MS = 150;
 const SPLASH_RADIUS = 14;
@@ -65,6 +71,11 @@ export type BoardView = {
   setReachabilityHints(reachable: ReadonlySet<string>): void;
   clearReachabilityHints(): void;
   showShake(coord: Coord): Promise<void>;
+  // Brief red wash on the listed cells' backgrounds, used to highlight
+  // pieces that fence in a tapped-but-unreachable destination. Fire-and-
+  // forget (no promise) -- the shake animation governs the input gate;
+  // this is decorative reinforcement that plays in parallel.
+  showBlockersFlash(coords: readonly Coord[]): void;
   showPathTrace(path: readonly Coord[]): Promise<void>;
   showPathPreview(path: readonly Coord[]): void;
   clearPathPreview(): void;
@@ -286,6 +297,31 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       await awaitClassAnimation(g, "yn-cell-shake", SHAKE_MS);
     } finally {
       busyCount -= 1;
+    }
+  }
+
+  // Brief red flash on the listed cells' backgrounds. Fire-and-forget by
+  // design: the destination's shake is the input gate; blocker flashes
+  // play in parallel as visual reinforcement of WHY the destination was
+  // unreachable. Class is removed via the same animationend pattern as
+  // awaitClassAnimation but we don't await -- so no busyCount touch.
+  function showBlockersFlash(coords: readonly Coord[]): void {
+    for (const c of coords) {
+      const g = getCellG(c.row, c.col);
+      if (g === null) continue;
+      // Restart the animation if it's already running on this cell
+      // (rare but possible if two shakes overlap on edge cases).
+      g.classList.remove("yn-cell-blocker-flash");
+      void g.getBoundingClientRect();
+      g.classList.add("yn-cell-blocker-flash");
+      const onEnd = (): void => {
+        g.classList.remove("yn-cell-blocker-flash");
+        g.removeEventListener("animationend", onEnd);
+      };
+      g.addEventListener("animationend", onEnd, { once: true });
+      // Safety fallback if the animationend never fires (tab hidden,
+      // reduce-motion media query drops the keyframe to 1ms, etc).
+      window.setTimeout(onEnd, BLOCKER_FLASH_MS + 80);
     }
   }
 
@@ -632,6 +668,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     setReachabilityHints,
     clearReachabilityHints,
     showShake,
+    showBlockersFlash,
     showPathTrace,
     showPathPreview,
     clearPathPreview,

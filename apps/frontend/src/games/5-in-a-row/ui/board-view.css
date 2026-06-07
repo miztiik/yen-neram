@@ -79,6 +79,18 @@
 .yn-cell-shake {
   animation: yn-shake 200ms ease-in-out;
 }
+/* Red tint on the shaken cell's background so the shake reads as "no"
+ * not just motion. Compositor-friendly: changes the SVG fill attr which
+ * the browser short-paints without invalidating layout. Paired with
+ * .yn-cell-blocker-flash applied to the pieces that fence in the tapped
+ * destination, so the player learns the rule (pieces in the way block
+ * movement) without text. Added 2026-06-08. */
+.yn-cell-shake .yn-cell-bg {
+  animation: yn-cell-bg-red-flash 200ms ease-in-out;
+}
+.yn-cell-blocker-flash .yn-cell-bg {
+  animation: yn-cell-bg-blocker-flash 380ms ease-out;
+}
 .yn-cell-landing .yn-motif {
   animation: yn-land 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -113,6 +125,34 @@
     transform: translateX(3px);
   }
 }
+/* Red wash on the cell background of an unreachable destination. Returns
+ * to white at the end so the cell paints normally on the next render.
+ * Red is red-300 (#fca5a5) at peak -- saturated enough to read as "no" on
+ * a cream board, soft enough to not assault a player making a routine
+ * mistake. */
+@keyframes yn-cell-bg-red-flash {
+  0%,
+  100% {
+    fill: #ffffff;
+  }
+  50% {
+    fill: #fca5a5;
+  }
+}
+/* Lighter wash on the blocking pieces so the player's eye reads
+ * "destination + blockers" together. Pieces themselves are not shaken
+ * (only the destination cell is); only their backing tile flashes. */
+@keyframes yn-cell-bg-blocker-flash {
+  0% {
+    fill: #fca5a5;
+  }
+  60% {
+    fill: #fecaca;
+  }
+  100% {
+    fill: #ffffff;
+  }
+}
 @keyframes yn-land {
   0% {
     transform: scale(0.3);
@@ -128,6 +168,8 @@
   .yn-cell-selected .yn-motif,
   .yn-cell-clearing .yn-motif,
   .yn-cell-shake,
+  .yn-cell-shake .yn-cell-bg,
+  .yn-cell-blocker-flash .yn-cell-bg,
   .yn-cell-landing .yn-motif {
     animation-duration: 1ms !important;
   }
@@ -311,15 +353,40 @@
   }
 }
 
-/* BEST chip pulses ONLY when the just-resolved placement beat
- * the session best. JS adds .yn-best-bumping for one animation. */
+/* BEST chip pulses ONLY when the live score crosses the all-time best
+ * for the current mode (revised 2026-06-08 -- previously: when the score
+ * beat the session best). JS adds .yn-best-bumping for one animation
+ * on the cross transition. After crossing, the chip carries
+ * .yn-best-chip--crossed for the rest of the game: accent-filled
+ * colourway, swapped label ("New Best") that signals the player is
+ * actively setting a new record. */
 .yn-best-chip {
   transition:
     transform 160ms ease-out,
-    box-shadow 160ms ease-out;
+    box-shadow 160ms ease-out,
+    background-color 220ms ease-out,
+    border-color 220ms ease-out,
+    color 220ms ease-out;
 }
 .yn-best-chip.yn-best-bumping {
   animation: yn-best-bump var(--yn-best-bump-ms, 1000ms) ease-out;
+}
+/* NEW BEST colourway: warm accent fill so the chip becomes a visible
+ * marker on the HUD that the player is currently in record-breaking
+ * territory. Overrides the cream resting state via specificity (the
+ * class is appended at the same level). */
+.yn-best-chip.yn-best-chip--crossed {
+  background-color: var(--yn-accent, #ea580c);
+  border-color: var(--yn-accent, #ea580c);
+  color: #ffffff;
+}
+.yn-best-chip.yn-best-chip--crossed .yn-best-display {
+  color: #ffffff;
+}
+/* The label sub-element keeps its own muted style by default; force it
+ * to white when crossed so it stays readable against the accent fill. */
+.yn-best-chip.yn-best-chip--crossed > span:first-child {
+  color: rgba(255, 255, 255, 0.92);
 }
 @keyframes yn-best-bump {
   0% {

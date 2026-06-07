@@ -65,11 +65,26 @@ export function derivePills(
   return pills;
 }
 
-// True when the wave should be SUPPRESSED entirely (tier-1 floor: plain
-// length-5 single clear, no bonuses). Reason: the pink cell-splash overlay
-// (see board-view.css `.yn-splash`) is already the tier-1 reward; an extra
-// "+5" pill on every clear would flatten tiers 2-4. Per Palm's tier ladder
-// in ADR-0017.
+// Classifier for the tier-1 floor: TRUE when the breakdown chain has no
+// LENGTH (length<6), no INTERSECT (lineCount<2), and no CASCADE
+// (cascadeIndex<1) pills to emit -- i.e. derivePills would return at most
+// the final +delta badge with no named bonuses.
+//
+// Originally (ADR-0017, 2026-06-07) this gated the bonus-wave OFF for
+// tier-1 entirely: the pink cell-splash was treated as the whole tier-1
+// reward and no flying +N badge was rendered. That was a misjudgement
+// (per the 2026-06-08 amendment): the +N badge is FEEDBACK ("the score
+// went up by this much because of this clear"), not just celebration,
+// and suppressing it left the score chip ticking up with no visible
+// cause. The wave now plays on every scoring clear regardless of tier;
+// only the NAMED bonus pills are tier-2-and-above ornaments (which is
+// already enforced by derivePills via length>=6, lineCount>=2, and
+// cascadeIndex>=1 gates).
+//
+// The function is kept for any future UI surface that wants to ask
+// "would this clear have emitted any named bonus pills?" without
+// re-deriving the pill array (e.g. analytics, sound design, an alt
+// theme). It is unit-tested as the tier-1 floor definition.
 export function isSilentTier(breakdowns: readonly ClearBreakdown[]): boolean {
   if (breakdowns.length === 0) return true;
   if (breakdowns.length > 1) return false; // any cascade is at least tier-2

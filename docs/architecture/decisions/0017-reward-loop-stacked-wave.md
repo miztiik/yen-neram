@@ -1,7 +1,7 @@
 # ADR-0017: Reward-loop is a "stacked wave" with named bonus pills
 
-**Last Updated**: 2026-06-07
-**Status**: Accepted
+**Last Updated**: 2026-06-08
+**Status**: Accepted (amended 2026-06-08)
 **Born in**: v2 wave 4 (`feat/v2`)
 **Affects**: `apps/frontend/src/games/5-in-a-row/`
 
@@ -176,6 +176,137 @@ are explicitly refused. The named bonus IS the celebration.
   DURATION only.
 - **Cheerleader text** (`AMAZING!`): refused. The lazy mobile-game
   tax; the named bonus rendered well IS the celebration.
+
+## 2026-06-08 amendment: BEST chip rebind + tier-1 wave always plays
+
+User feedback (2026-06-08, after one session of real play):
+
+> "what is the best = score? what are we trying to say? and for bonus
+> clearance we are moving something like +15 to the score correct?
+> why cant we do that for all clearances?"
+
+Two coupled mistakes from the original design surfaced in the same
+session and are amended here.
+
+### Mistake 1: session-best chip is a tautology in this game
+
+The original `bestEl` tracked an IN-MEMORY session best, bumped every
+time the live score went up. In a game where the score is
+monotonically increasing within a single run (no rounds, no resets,
+no per-round score), `sessionBest === state.score` is an identity --
+the chip can NEVER diverge from the score chip during play. It only
+ever changes value AT THE MOMENT the score increases, and after that
+it shows the same number as the hero. The chip is showing the player
+their current score, twice.
+
+**Fix**: the BEST chip now tracks `save.high_scores[mode][0]?.score`
+read once at mount (all-time best for the current mode). It shows a
+PERSISTENT target to chase across sessions -- the Candy Crush /
+Angry Birds "score to beat" pattern that has been the casual-game
+default for 15+ years. When the live score CROSSES the stored
+all-time best during play, the chip:
+- swaps its label from "Best" to "New Best",
+- flips colourway from cream pill to accent-filled,
+- pulses once on the cross transition,
+- tracks `state.score` live for the rest of the game so the player
+  watches the milestone climb.
+
+The chip is hidden iff `allTimeBestAtMount === 0` AND not yet
+crossed -- there is nothing to chase and nothing to celebrate. As
+soon as a stored best exists, the chip surfaces it on every mount
+of every mode that has a high score, including in the empty initial
+state where the player sees "Best 0" disappear in favour of just
+seeing their first run grow.
+
+Implementation: `renderBestChip(score, justCrossed)` +
+`updateBestOnScoreChange(score)` in `index.ts`, plus a CSS
+`.yn-best-chip--crossed` modifier in `board-view.css`. The
+`--yn-best-count` CSS @property + counter() tween is unchanged.
+
+### Mistake 2: suppressing the +delta on tier-1 hid the cause-and-effect
+
+The original `isSilentTier` gate suppressed the entire bonus-wave
+overlay (including the flying +N delta badge) when the clear was the
+tier-1 floor (length 5, no bonuses). The rationale was "the pink
+cell-splash is the tier-1 reward; an extra +5 pill on every clear
+would flatten tiers 2-4." That conflated TWO different roles of the
+wave:
+- The pink cell-splash is **celebration** (the cell exploded;
+  pleasing visual).
+- The flying +N pill is **feedback** (the score chip is about to
+  increase by N because of this clear).
+
+Suppressing the pill removed the feedback signal but kept the
+celebration. The player saw the splash, saw the chip tick up, and
+had no visual link between the two -- the chip just changed by some
+amount, by some unstated mechanism. Per Jony worldview #5 ("every
+player input gets a visible result on the next frame"), this is the
+result-without-cause that the wave was designed to fix.
+
+**Fix**: the wave now plays on EVERY scoring clear regardless of
+tier. The named bonus pills (LENGTH N, INTERSECT, CASCADE) remain
+tier-2-and-above ornaments via the existing `derivePills` gates
+(length>=6, lineCount>=2, cascadeIndex>=1) -- so a tier-1 clear
+shows only the +N delta pill flying into the score chip, and a
+tier-3 clear shows the full stack as before. The cause-and-effect
+beat is now uniform across all tiers; what changes between tiers is
+the NUMBER of pills, not the presence of the wave.
+
+`isSilentTier` is retained as a pure classifier for any future UI
+surface that wants to ask "would this clear have emitted any named
+bonus pills?" without re-deriving the pill array, but is no longer
+used to suppress the wave. Its game-host call site in `index.ts`
+becomes `const waveSuppressed = pills.length === 0;` (i.e. only
+suppressed when there's NO score change at all, which only happens
+on empty/invalid clears).
+
+### Updated tier ladder
+
+| Tier | Triggers | Recognition |
+| --- | --- | --- |
+| 1 BASE | length 5, no bonuses | cell-splash + flying +N badge + count-up + chip glow |
+| 2+    | any length >= 6, OR intersection, OR cascade depth >= 1 | cell-splash + stack of named bonus pills + flying +N badge + count-up + chip glow |
+
+### Side benefit: red-tint shake + blocker flash on illegal moves
+
+Bundled into the same amendment because it is the same altitude
+(HUD clarity and feedback). The existing 200ms shake on an
+unreachable destination was motion-only and conveyed neither WHY
+the move failed nor what to try next. The shake now also flashes
+the destination cell red (`yn-cell-bg-red-flash` keyframe) and the
+4-adjacent filled neighbours of the destination flash a softer red
+(`yn-cell-bg-blocker-flash`, 380ms). The "pieces in your way block
+movement" rule is learned visually within one or two failed taps.
+New how-to-play section "Legal and illegal moves" documents the
+rule in text for the player who prefers to read.
+
+### Files touched by the amendment
+
+- MOD `apps/frontend/src/games/5-in-a-row/index.ts` -- BEST chip
+  logic (allTimeBestAtMount, crossedAllTimeBest, renderBestChip,
+  updateBestOnScoreChange); blocker flash on shake sites; +delta
+  always plays (waveSuppressed simplification).
+- MOD `apps/frontend/src/games/5-in-a-row/ui/bonus-pills.ts` --
+  docstring on isSilentTier updated to reflect its new role.
+- MOD `apps/frontend/src/games/5-in-a-row/ui/board-view.ts` --
+  showBlockersFlash method + BLOCKER_FLASH_MS constant.
+- MOD `apps/frontend/src/games/5-in-a-row/ui/board-view.css` --
+  yn-cell-bg-red-flash + yn-cell-bg-blocker-flash keyframes;
+  .yn-best-chip--crossed colourway + label transitions.
+- MOD `apps/frontend/src/games/5-in-a-row/ui/how-to-play.ts` --
+  new "Legal and illegal moves" section; Tips section mentions the
+  BEST chip target-to-chase.
+- MOD `apps/frontend/src/games/5-in-a-row/ui/leaderboard.ts` --
+  Jony font pass: bigger title with accent on "Scores"; podium
+  rows (top 3) get heavier weight and accent rank colour.
+- MOD `apps/frontend/tests/unit/5-in-a-row/bonus-pills.test.ts` --
+  describe block renamed to reflect "tier-1 floor classifier"
+  meaning; assertions unchanged (the function behaviour did not
+  change, only its role).
+- MOD `apps/frontend/tests/e2e/full-flow.spec.ts` -- three new
+  e2e tests: BEST chip hidden on fresh save; BEST chip shows
+  stored all-time best with correct label; how-to-play modal
+  contains the "Legal and illegal moves" section.
 
 ## See also
 
