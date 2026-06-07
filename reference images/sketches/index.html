@@ -1,0 +1,184 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Motif sketches - Yen-Neram</title>
+<style>
+  :root {
+    --bg: #f5f5f4;
+    --tile: #ffffff;
+    --tile-border: #e7e5e4;
+    --ink: #1f2937;
+    --muted: #78716c;
+    --accent: #c026d3;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: var(--bg); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+  body { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { padding: 16px 0 24px; border-bottom: 1px solid var(--tile-border); margin-bottom: 24px; }
+  header h1 { font-size: 22px; margin: 0 0 4px; font-weight: 600; }
+  header p { margin: 0; font-size: 13px; color: var(--muted); line-height: 1.5; }
+  section { margin: 0 0 36px; }
+  section h2 { font-size: 16px; font-weight: 600; margin: 0 0 4px; }
+  section .lede { font-size: 12px; color: var(--muted); margin: 0 0 14px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 6px; align-items: flex-end; }
+  .row .label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; width: 44px; flex-shrink: 0; align-self: center; }
+  .tile { background: var(--tile); border: 1px solid var(--tile-border); border-radius: 4px; padding: 8px; display: inline-flex; flex-direction: column; align-items: center; gap: 4px; }
+  .tile img { display: block; }
+  .tile .name { font-size: 9px; color: var(--muted); text-align: center; max-width: 56px; line-height: 1.2; }
+  .row.size-36 .tile img { width: 36px; height: 36px; }
+  .row.size-72 .tile img { width: 72px; height: 72px; }
+  .row.size-72 .tile .name { max-width: 80px; font-size: 10px; }
+  footer { font-size: 12px; color: var(--muted); padding-top: 18px; border-top: 1px solid var(--tile-border); }
+  footer a { color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Motif silhouette sketches</h1>
+  <p>Yen-Neram - five candidate silhouette sets + 5 placeholder tiles. Each set rendered at 36px (target on-device cell size) and 72px (closer inspection). Pick one set during PR 2 review.</p>
+</header>
+
+<section>
+  <h2>Set A - Gemstones</h2>
+  <p class="lede">Faceted polygonal cuts; straight edges only. Palm: default theme.</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="gemstones/diamond.svg" alt=""><span class="name">diamond</span></span>
+    <span class="tile"><img src="gemstones/ruby-square.svg" alt=""><span class="name">ruby</span></span>
+    <span class="tile"><img src="gemstones/emerald-rectangle.svg" alt=""><span class="name">emerald</span></span>
+    <span class="tile"><img src="gemstones/sapphire-trapezium.svg" alt=""><span class="name">sapphire</span></span>
+    <span class="tile"><img src="gemstones/amethyst-hex.svg" alt=""><span class="name">amethyst</span></span>
+    <span class="tile"><img src="gemstones/topaz-pentagon.svg" alt=""><span class="name">topaz</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="gemstones/diamond.svg" alt=""><span class="name">diamond</span></span>
+    <span class="tile"><img src="gemstones/ruby-square.svg" alt=""><span class="name">ruby</span></span>
+    <span class="tile"><img src="gemstones/emerald-rectangle.svg" alt=""><span class="name">emerald</span></span>
+    <span class="tile"><img src="gemstones/sapphire-trapezium.svg" alt=""><span class="name">sapphire</span></span>
+    <span class="tile"><img src="gemstones/amethyst-hex.svg" alt=""><span class="name">amethyst</span></span>
+    <span class="tile"><img src="gemstones/topaz-pentagon.svg" alt=""><span class="name">topaz</span></span>
+  </div>
+</section>
+
+<section>
+  <h2>Set B - Glyphs</h2>
+  <p class="lede">Secular universal symbols. Palm: colourblind-strongest set.</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="glyphs/star.svg" alt=""><span class="name">star</span></span>
+    <span class="tile"><img src="glyphs/crescent.svg" alt=""><span class="name">crescent</span></span>
+    <span class="tile"><img src="glyphs/spiral.svg" alt=""><span class="name">spiral</span></span>
+    <span class="tile"><img src="glyphs/leaf.svg" alt=""><span class="name">leaf</span></span>
+    <span class="tile"><img src="glyphs/eye.svg" alt=""><span class="name">eye</span></span>
+    <span class="tile"><img src="glyphs/arrow.svg" alt=""><span class="name">arrow</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="glyphs/star.svg" alt=""><span class="name">star</span></span>
+    <span class="tile"><img src="glyphs/crescent.svg" alt=""><span class="name">crescent</span></span>
+    <span class="tile"><img src="glyphs/spiral.svg" alt=""><span class="name">spiral</span></span>
+    <span class="tile"><img src="glyphs/leaf.svg" alt=""><span class="name">leaf</span></span>
+    <span class="tile"><img src="glyphs/eye.svg" alt=""><span class="name">eye</span></span>
+    <span class="tile"><img src="glyphs/arrow.svg" alt=""><span class="name">arrow</span></span>
+  </div>
+</section>
+
+<section>
+  <h2>Set C - Pure Geometric</h2>
+  <p class="lede">Six primary shapes, no ornamentation. Jony: engine-friendly default.</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="pure-geometric/circle.svg" alt=""><span class="name">circle</span></span>
+    <span class="tile"><img src="pure-geometric/triangle.svg" alt=""><span class="name">triangle</span></span>
+    <span class="tile"><img src="pure-geometric/square.svg" alt=""><span class="name">square</span></span>
+    <span class="tile"><img src="pure-geometric/diamond.svg" alt=""><span class="name">diamond</span></span>
+    <span class="tile"><img src="pure-geometric/hexagon.svg" alt=""><span class="name">hexagon</span></span>
+    <span class="tile"><img src="pure-geometric/six-point-star.svg" alt=""><span class="name">6-star</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="pure-geometric/circle.svg" alt=""><span class="name">circle</span></span>
+    <span class="tile"><img src="pure-geometric/triangle.svg" alt=""><span class="name">triangle</span></span>
+    <span class="tile"><img src="pure-geometric/square.svg" alt=""><span class="name">square</span></span>
+    <span class="tile"><img src="pure-geometric/diamond.svg" alt=""><span class="name">diamond</span></span>
+    <span class="tile"><img src="pure-geometric/hexagon.svg" alt=""><span class="name">hexagon</span></span>
+    <span class="tile"><img src="pure-geometric/six-point-star.svg" alt=""><span class="name">6-star</span></span>
+  </div>
+</section>
+
+<section>
+  <h2>Set D - Origami Animals</h2>
+  <p class="lede">Paper-fold aesthetic; 2-4 flat triangular planes. Palm: the set that gets the screenshot.</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="origami/crane.svg" alt=""><span class="name">crane</span></span>
+    <span class="tile"><img src="origami/fish.svg" alt=""><span class="name">fish</span></span>
+    <span class="tile"><img src="origami/fox.svg" alt=""><span class="name">fox</span></span>
+    <span class="tile"><img src="origami/frog.svg" alt=""><span class="name">frog</span></span>
+    <span class="tile"><img src="origami/butterfly.svg" alt=""><span class="name">butterfly</span></span>
+    <span class="tile"><img src="origami/turtle.svg" alt=""><span class="name">turtle</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="origami/crane.svg" alt=""><span class="name">crane</span></span>
+    <span class="tile"><img src="origami/fish.svg" alt=""><span class="name">fish</span></span>
+    <span class="tile"><img src="origami/fox.svg" alt=""><span class="name">fox</span></span>
+    <span class="tile"><img src="origami/frog.svg" alt=""><span class="name">frog</span></span>
+    <span class="tile"><img src="origami/butterfly.svg" alt=""><span class="name">butterfly</span></span>
+    <span class="tile"><img src="origami/turtle.svg" alt=""><span class="name">turtle</span></span>
+  </div>
+</section>
+
+<section>
+  <h2>Set E - Tropical Fruits</h2>
+  <p class="lede">Flat vector illustration; bold silhouettes. Palm: warmest tone. (lime + kiwi may blur at 36px.)</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="tropical-fruits/mango.svg" alt=""><span class="name">mango</span></span>
+    <span class="tile"><img src="tropical-fruits/banana.svg" alt=""><span class="name">banana</span></span>
+    <span class="tile"><img src="tropical-fruits/dragonfruit.svg" alt=""><span class="name">dragon</span></span>
+    <span class="tile"><img src="tropical-fruits/lime.svg" alt=""><span class="name">lime</span></span>
+    <span class="tile"><img src="tropical-fruits/blueberry.svg" alt=""><span class="name">blueberry</span></span>
+    <span class="tile"><img src="tropical-fruits/kiwi.svg" alt=""><span class="name">kiwi</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="tropical-fruits/mango.svg" alt=""><span class="name">mango</span></span>
+    <span class="tile"><img src="tropical-fruits/banana.svg" alt=""><span class="name">banana</span></span>
+    <span class="tile"><img src="tropical-fruits/dragonfruit.svg" alt=""><span class="name">dragon</span></span>
+    <span class="tile"><img src="tropical-fruits/lime.svg" alt=""><span class="name">lime</span></span>
+    <span class="tile"><img src="tropical-fruits/blueberry.svg" alt=""><span class="name">blueberry</span></span>
+    <span class="tile"><img src="tropical-fruits/kiwi.svg" alt=""><span class="name">kiwi</span></span>
+  </div>
+</section>
+
+<section>
+  <h2>Placeholder tiles (ships regardless of motif pick)</h2>
+  <p class="lede">Five generic abstract shapes for the 5 "coming soon" home tiles. Anonymous, dimmed, inert.</p>
+  <div class="row size-36">
+    <span class="label">36 px</span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-1.svg" alt=""><span class="name">bars</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-2.svg" alt=""><span class="name">vortex</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-3.svg" alt=""><span class="name">nested</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-4.svg" alt=""><span class="name">dotgrid</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-5.svg" alt=""><span class="name">zigzag</span></span>
+  </div>
+  <div class="row size-72">
+    <span class="label">72 px</span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-1.svg" alt=""><span class="name">bars</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-2.svg" alt=""><span class="name">vortex</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-3.svg" alt=""><span class="name">nested</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-4.svg" alt=""><span class="name">dotgrid</span></span>
+    <span class="tile"><img src="placeholder-tiles/placeholder-5.svg" alt=""><span class="name">zigzag</span></span>
+  </div>
+</section>
+
+<footer>
+  All silhouettes filled with #1f2937 (slate-800) for shape review only. Runtime renderer will swap to currentColor. See <a href="README.md">README.md</a> for context.
+</footer>
+
+</body>
+</html>
