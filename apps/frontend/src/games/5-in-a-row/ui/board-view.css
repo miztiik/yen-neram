@@ -50,7 +50,7 @@
 /* Imperceptible breathing animation on previews. Gated by a class on the
    SVG root so the game host can toggle it at runtime (App pref
    `preview_bounce_enabled`, default on). Peak scale of 1.06 is well inside
-   the headroom even at PREVIEW_SIZE = 22 (22 * 1.06 = 23.3 < 30, the real-
+   the headroom even at PREVIEW_SIZE = 18 (18 * 1.06 = 19.1 < 30, the real-
    piece size cap). Compositor-only (transform), zero layout impact. */
 .yn-preview-bounce .yn-preview-motif {
   animation: yn-preview-breathe 2400ms ease-in-out infinite;
