@@ -16,6 +16,9 @@ const SLIDE_MS = 150;
 const LAND_MS = 200;
 const SHAKE_MS = 200;
 const CLEAR_MS = 400;
+const SPLASH_TAIL_MS = 150;
+const SPLASH_RADIUS = 14;
+const SPLASH_FILL = "rgba(244, 114, 182, 0.5)";
 
 export type BoardViewOptions = {
   readonly motifSymbolUrl: string;
@@ -93,7 +96,15 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   svg.setAttribute("width", "100%");
   svg.setAttribute("height", "100%");
   svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  svg.setAttribute("tabindex", "0");
+  svg.setAttribute("role", "grid");
+  svg.setAttribute(
+    "aria-label",
+    "9 by 9 game board, use arrow keys to navigate, space or enter to select",
+  );
   svg.classList.add("yn-board-svg");
+
+  const pendingSplashTimers = new Set<number>();
 
   const cellGs: SVGGElement[][] = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
@@ -103,6 +114,8 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       g.setAttribute("transform", `translate(${String(c * CELL_SIZE)}, ${String(r * CELL_SIZE)})`);
       g.setAttribute("data-r", String(r));
       g.setAttribute("data-c", String(c));
+      g.setAttribute("role", "gridcell");
+      g.setAttribute("aria-label", `Empty cell at row ${String(r + 1)}, column ${String(c + 1)}`);
       const bg = document.createElementNS(SVG_NS, "rect");
       bg.setAttribute("class", "yn-cell-bg");
       bg.setAttribute("x", "0");
@@ -114,6 +127,23 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       row.push(g);
     }
     cellGs.push(row);
+  }
+
+  // Keyboard navigation: tabindex makes the SVG focusable; arrows move a
+  // visible focus indicator across cells; Space/Enter dispatch as a tap on
+  // the focused cell; Escape clears the focus indicator. focusedCoord
+  // persists across re-renders so a screen-reader user keeps their place.
+  let focusedCoord: Coord | null = null;
+  function updateFocusVisual(): void {
+    for (const row of cellGs) {
+      for (const g of row) {
+        g.classList.remove("yn-cell-focused");
+      }
+    }
+    if (focusedCoord !== null) {
+      const g = getCellG(focusedCoord.row, focusedCoord.col);
+      if (g !== null) g.classList.add("yn-cell-focused");
+    }
   }
 
   function getCellG(row: number, col: number): SVGGElement | null {
@@ -170,12 +200,20 @@ export function createBoardView(options: BoardViewOptions): BoardView {
           } else {
             g.classList.remove("yn-cell-selected");
           }
+          g.setAttribute(
+            "aria-label",
+            `Piece type ${String(cell.runGroup)} at row ${String(r + 1)}, column ${String(c + 1)}`,
+          );
         } else {
           g.classList.remove("yn-cell-selected");
           const previewKind = previewMap.get(cellKey(r, c));
           if (previewKind !== undefined) {
             g.appendChild(createMotifImage(previewKind, true));
           }
+          g.setAttribute(
+            "aria-label",
+            `Empty cell at row ${String(r + 1)}, column ${String(c + 1)}`,
+          );
         }
       }
     }
@@ -217,6 +255,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
 
   async function showClearFlash(cells: ReadonlySet<string>): Promise<void> {
     const promises: Promise<void>[] = [];
+    const splashEls: SVGCircleElement[] = [];
     for (const key of cells) {
       const parts = key.split(",");
       const r = Number(parts[0]);
@@ -224,8 +263,43 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
       const g = getCellG(r, c);
       if (g === null) continue;
+
+      // Spawn a splash circle as a SIBLING of the cell <g> on the SVG root so
+      // it paints above the grid and is not clipped by sibling z-order.
+      const splash = document.createElementNS(SVG_NS, "circle");
+      splash.setAttribute("class", "yn-splash");
+      splash.setAttribute("cx", String(c * CELL_SIZE + CELL_SIZE / 2));
+      splash.setAttribute("cy", String(r * CELL_SIZE + CELL_SIZE / 2));
+      splash.setAttribute("r", String(SPLASH_RADIUS));
+      splash.setAttribute("fill", SPLASH_FILL);
+      splash.setAttribute("data-splash-temp", "1");
+      svg.appendChild(splash);
+      splashEls.push(splash);
+
       promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS));
     }
+
+    if (splashEls.length > 0) {
+      // Toggle the firing class on the next frame so the browser commits the
+      // initial styles before the keyframes start (zero rAF loop, one-shot).
+      requestAnimationFrame(() => {
+        for (const s of splashEls) {
+          s.classList.add("yn-splash-firing");
+        }
+      });
+
+      // Teardown happens in the background after the splash completes; the
+      // function's Promise still resolves at the clear-flash boundary below.
+      const cleanupTimer = window.setTimeout(() => {
+        pendingSplashTimers.delete(cleanupTimer);
+        const stale = svg.querySelectorAll('[data-splash-temp="1"]');
+        for (const el of Array.from(stale)) {
+          if (el.parentNode !== null) el.parentNode.removeChild(el);
+        }
+      }, CLEAR_MS + SPLASH_TAIL_MS);
+      pendingSplashTimers.add(cleanupTimer);
+    }
+
     await Promise.all(promises);
   }
 
@@ -325,6 +399,14 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       cancelPressTimer();
       pressCoord = null;
       longPressFired = false;
+      for (const t of pendingSplashTimers) {
+        window.clearTimeout(t);
+      }
+      pendingSplashTimers.clear();
+      const stale = svg.querySelectorAll('[data-splash-temp="1"]');
+      for (const el of Array.from(stale)) {
+        if (el.parentNode !== null) el.parentNode.removeChild(el);
+      }
     }
   };
 
@@ -359,12 +441,60 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   svg.addEventListener("pointerup", onPointerUp);
   svg.addEventListener("pointercancel", onPointerCancel);
 
+  const onSvgFocus = (): void => {
+    if (focusedCoord === null) focusedCoord = { row: 0, col: 0 };
+    updateFocusVisual();
+  };
+
+  const onSvgKeyDown = (e: KeyboardEvent): void => {
+    if (focusedCoord === null) focusedCoord = { row: 0, col: 0 };
+    let handled = true;
+    switch (e.key) {
+      case "ArrowUp":
+        focusedCoord = { row: Math.max(0, focusedCoord.row - 1), col: focusedCoord.col };
+        break;
+      case "ArrowDown":
+        focusedCoord = {
+          row: Math.min(BOARD_SIZE - 1, focusedCoord.row + 1),
+          col: focusedCoord.col,
+        };
+        break;
+      case "ArrowLeft":
+        focusedCoord = { row: focusedCoord.row, col: Math.max(0, focusedCoord.col - 1) };
+        break;
+      case "ArrowRight":
+        focusedCoord = {
+          row: focusedCoord.row,
+          col: Math.min(BOARD_SIZE - 1, focusedCoord.col + 1),
+        };
+        break;
+      case " ":
+      case "Enter":
+        options.onCellTap(focusedCoord);
+        break;
+      case "Escape":
+        focusedCoord = null;
+        break;
+      default:
+        handled = false;
+    }
+    if (handled) {
+      e.preventDefault();
+      updateFocusVisual();
+    }
+  };
+
+  svg.addEventListener("focus", onSvgFocus);
+  svg.addEventListener("keydown", onSvgKeyDown);
+
   function destroy(): void {
     cancelPressTimer();
     svg.removeEventListener("pointerdown", onPointerDown);
     svg.removeEventListener("pointermove", onPointerMove);
     svg.removeEventListener("pointerup", onPointerUp);
     svg.removeEventListener("pointercancel", onPointerCancel);
+    svg.removeEventListener("focus", onSvgFocus);
+    svg.removeEventListener("keydown", onSvgKeyDown);
     if (svg.parentNode !== null) {
       svg.parentNode.removeChild(svg);
     }

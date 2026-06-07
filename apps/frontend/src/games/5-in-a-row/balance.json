@@ -23,6 +23,7 @@
     "land_bounce_ms": 200,
     "shake_ms": 200,
     "clear_flash_ms": 400,
+    "splash_ms": 500,
     "score_popup_ms": 250
   }
 }

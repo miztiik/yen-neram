@@ -54,6 +54,8 @@ const mount: GameMount = async (container, options) => {
 
   const root = document.createElement("div");
   root.className = "flex flex-col h-full bg-yn-bg";
+  root.setAttribute("role", "application");
+  root.setAttribute("aria-label", "5 in a Row game");
 
   const topBar = document.createElement("div");
   topBar.className =
@@ -61,9 +63,11 @@ const mount: GameMount = async (container, options) => {
   const scoreEl = document.createElement("div");
   scoreEl.className = "text-yn-ink font-semibold tabular-nums";
   scoreEl.textContent = "Score: 0";
+  scoreEl.setAttribute("aria-live", "polite");
   const previewEl = document.createElement("div");
   previewEl.className = "text-xs text-yn-muted tabular-nums";
   previewEl.textContent = "Next: ...";
+  previewEl.setAttribute("aria-live", "polite");
   topBar.append(scoreEl, previewEl);
 
   const boardArea = document.createElement("div");
@@ -93,6 +97,7 @@ const mount: GameMount = async (container, options) => {
     "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border opacity-50 cursor-not-allowed";
   undoBtn.textContent = "Undo";
   undoBtn.disabled = true;
+  undoBtn.setAttribute("aria-disabled", "true");
   const pauseBtn = document.createElement("button");
   pauseBtn.type = "button";
   pauseBtn.className =

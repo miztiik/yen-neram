@@ -14,7 +14,9 @@ const TILE_SHIPPED_CLASSES = "hover:bg-slate-700 hover:border-yn-accent cursor-p
 export function mountPortal(container: HTMLElement, options: PortalOptions): () => void {
   container.replaceChildren();
 
-  const root = document.createElement("div");
+  const root = document.createElement("main");
+  root.setAttribute("role", "main");
+  root.setAttribute("aria-label", "Yen-Neram games");
   // min-h-full + py-8 + justify-start so content scrolls naturally on short
   // viewports (landscape phone, dev preview). On taller viewports the content
   // hugs the top with breathing room.
@@ -24,6 +26,11 @@ export function mountPortal(container: HTMLElement, options: PortalOptions): () 
   title.className = "text-3xl font-bold text-yn-ink";
   title.textContent = "Yen-Neram";
   root.appendChild(title);
+
+  const srHeading = document.createElement("h2");
+  srHeading.className = "sr-only";
+  srHeading.textContent = "Pick a game to play";
+  root.appendChild(srHeading);
 
   const subtitle = document.createElement("p");
   subtitle.className = "text-sm text-yn-muted";
@@ -81,6 +88,8 @@ function buildTile(entry: GameManifestEntry, router: Router): HTMLButtonElement 
     });
   } else {
     button.disabled = true;
+    button.setAttribute("aria-disabled", "true");
+    button.setAttribute("aria-label", "Coming soon");
   }
 
   return button;
