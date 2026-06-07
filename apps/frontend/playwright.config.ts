@@ -19,7 +19,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: "pnpm preview --port 4173 --strictPort",
+    command: "pnpm preview --port 4173 --strictPort --host 127.0.0.1",
     url: "http://127.0.0.1:4173",
     reuseExistingServer: !process.env["CI"],
     timeout: 120_000,
