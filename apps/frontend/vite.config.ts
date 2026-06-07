@@ -2,6 +2,8 @@ import { defineConfig } from "vitest/config";
 import type { PluginOption } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
+import { copyFileSync } from "node:fs";
+import { resolve as pathResolve } from "node:path";
 
 // Mimics GitHub Pages SPA fallback during `vite preview` and `vite dev`:
 // when a requested path has no file extension and is not a known asset,
@@ -46,6 +48,21 @@ function spaFallback(): PluginOption {
 // Set GH_PAGES_BASE=/<repo>/ for project-page deploys; default "/" for user/org page or local dev.
 const REPO_BASE = process.env["GH_PAGES_BASE"] ?? "/";
 
+// Production-only: stamp dist/404.html as a byte-identical copy of the BUILT
+// dist/index.html (which has hashed-asset script + CSS tags + the right base
+// prefix). This makes GitHub Pages serve the SPA shell on any deep-link 404,
+// which is the only navigation-fallback mechanism GH Pages supports. Per ADR-0001.
+function spa404Stamp(): PluginOption {
+  return {
+    name: "yn-spa-404-stamp",
+    apply: "build",
+    closeBundle() {
+      const outDir = pathResolve(fileURLToPath(new URL("./dist", import.meta.url)));
+      copyFileSync(pathResolve(outDir, "index.html"), pathResolve(outDir, "404.html"));
+    },
+  };
+}
+
 export default defineConfig({
   // Root-relative base so deep-route SPA loads (e.g. /play/5-in-a-row/)
   // resolve asset URLs from the deploy root, not the current path. For a
@@ -55,6 +72,7 @@ export default defineConfig({
   base: REPO_BASE,
   plugins: [
     spaFallback(),
+    spa404Stamp(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",

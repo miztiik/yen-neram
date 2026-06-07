@@ -11,6 +11,7 @@ import {
   attemptMove,
   createInitialTurnState,
   selectCell,
+  deselect,
   type BalanceLike,
   type TurnState,
 } from "./ui/turn-loop.js";
@@ -396,7 +397,14 @@ const mount: GameMount = async (container, options) => {
     if (isAnimating) return;
     boardView.clearPathPreview();
     if (getCell(state.board, coord.row, coord.col) !== null) {
-      state = selectCell(state, coord);
+      // Tap-the-same-cell-again toggles deselection. Standard pattern in
+      // every cell-grid game: pick up a piece, change your mind, tap it
+      // again to put it back down.
+      const isAlreadySelected =
+        state.selected !== null &&
+        state.selected.row === coord.row &&
+        state.selected.col === coord.col;
+      state = isAlreadySelected ? deselect(state) : selectCell(state, coord);
       render();
       if (state.selected !== null) {
         boardView.setReachabilityHints(findReachableCells(state.board, state.selected));
