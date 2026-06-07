@@ -74,7 +74,7 @@ test.describe("full v1 flow", () => {
 
     const before = await snapshot();
 
-    await page.getByRole("button", { name: /^Back$/ }).click();
+    await page.getByRole("button", { name: /^Back to home$/ }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();
 

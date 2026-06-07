@@ -41,7 +41,7 @@ test.describe("shell smoke", () => {
 
     // The game UI signal: the board SVG paints + a Back button is reachable.
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole("button", { name: /^Back$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /^Back to home$/ })).toBeVisible();
   });
 
   test("back from the game restores the portal", async ({ page }) => {
@@ -49,7 +49,7 @@ test.describe("shell smoke", () => {
 
     await page.getByRole("button", { name: "5 in a Row" }).click();
 
-    const backButton = page.getByRole("button", { name: /^Back$/ });
+    const backButton = page.getByRole("button", { name: /^Back to home$/ });
     await expect(backButton).toBeVisible({ timeout: 5_000 });
 
     await backButton.click();

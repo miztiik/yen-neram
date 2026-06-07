@@ -75,30 +75,60 @@ const mount: GameMount = async (container, options) => {
 
   const topBar = document.createElement("div");
   topBar.className =
-    "flex justify-between items-center px-4 sm:px-6 md:px-8 py-3 bg-yn-tile border-b border-yn-border";
+    "flex justify-between items-center gap-3 px-3 sm:px-5 py-2 bg-yn-tile/95 backdrop-blur border-b border-yn-border";
+
+  // Score chip: SCORE label above big number in an accent-filled pill.
+  // The number itself is the meaning; "Score:" prefix was 1990s.
   const scoreEl = document.createElement("div");
-  scoreEl.className = "text-yn-ink font-semibold tabular-nums";
-  scoreEl.textContent = "Score: 0";
+  scoreEl.className =
+    "flex items-center gap-2 px-3 py-1 rounded-full bg-yn-accent text-white shadow-sm tabular-nums";
   scoreEl.setAttribute("aria-live", "polite");
+  scoreEl.setAttribute("aria-label", "Score 0");
+  const scoreLabel = document.createElement("span");
+  scoreLabel.className = "text-[10px] uppercase tracking-wider opacity-80";
+  scoreLabel.textContent = "Score";
+  const scoreValue = document.createElement("span");
+  scoreValue.className = "text-base font-bold tabular-nums";
+  scoreValue.textContent = "0";
+  scoreEl.append(scoreLabel, scoreValue);
+
+  // Streak chip: cream pill with day count. Hidden at 0 (no streak to brag).
   const streakEl = document.createElement("div");
-  streakEl.className = "text-xs text-yn-muted tabular-nums";
+  streakEl.className =
+    "flex items-center gap-1 px-2.5 py-1 rounded-full bg-yn-bg border border-yn-border text-yn-muted text-xs tabular-nums";
   streakEl.setAttribute("aria-live", "polite");
+  streakEl.style.display = "none";
+
+  // Timer chip: cream pill with mono mm:ss. Hidden outside timed mode.
   const timerEl = document.createElement("div");
-  timerEl.className = "text-yn-ink font-semibold tabular-nums";
+  timerEl.className =
+    "flex items-center gap-1 px-3 py-1 rounded-full bg-yn-bg border border-yn-border text-yn-ink font-semibold tabular-nums";
   // Coalesced updates only at second boundaries (see renderTimer) so
   // "polite" announcements don't flood the screen reader at 10Hz.
   timerEl.setAttribute("aria-live", "polite");
   timerEl.setAttribute("aria-label", "Time remaining");
   if (mode !== "timed") timerEl.style.display = "none";
+
+  // Next chip: 3 mini motif thumbnails in a pill. Replaces "Next: 4 3 1"
+  // which was unreadable (run-group integers). Thumbnails are populated
+  // by render() once the theme has loaded.
   const previewEl = document.createElement("div");
-  previewEl.className = "text-xs text-yn-muted tabular-nums";
-  previewEl.textContent = "Next: ...";
-  previewEl.setAttribute("aria-live", "polite");
+  previewEl.className =
+    "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yn-bg border border-yn-border";
+  previewEl.setAttribute("aria-label", "Next pieces");
+  const previewLabel = document.createElement("span");
+  previewLabel.className = "text-[10px] uppercase tracking-wider text-yn-muted mr-0.5";
+  previewLabel.textContent = "Next";
+  previewEl.appendChild(previewLabel);
+  const nextPipsEl = document.createElement("div");
+  nextPipsEl.className = "flex items-center gap-1";
+  previewEl.appendChild(nextPipsEl);
+
   topBar.append(scoreEl, streakEl, timerEl, previewEl);
 
   const boardArea = document.createElement("div");
   boardArea.className =
-    "flex-1 min-h-0 flex items-center justify-center p-4 sm:p-6 md:p-8 yn-board-bg overflow-hidden";
+    "flex-1 min-h-0 flex items-center justify-center p-2 yn-board-bg overflow-hidden";
   const boardWrap = document.createElement("div");
   // aspect-square + max-w-[720px] + max-h-full lets the browser pick the
   // smaller of (parent.width, parent.height, 720) and keeps the board square
@@ -114,27 +144,32 @@ const mount: GameMount = async (container, options) => {
 
   const bottomBar = document.createElement("div");
   bottomBar.className =
-    "flex justify-between items-center px-4 sm:px-6 md:px-8 py-3 bg-yn-tile border-t border-yn-border gap-2";
+    "flex justify-between items-center gap-2 px-3 sm:px-5 py-2 bg-yn-tile/95 backdrop-blur border-t border-yn-border";
   const backBtn = document.createElement("button");
   backBtn.type = "button";
+  // Ghost pill: bg-transparent, border, rounded-full, hover deepens to bg-bg.
   backBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-orange-200 border border-yn-border";
-  backBtn.textContent = "Back";
+    "px-4 py-1.5 rounded-full text-yn-ink text-sm font-medium border border-yn-border hover:bg-yn-bg transition-colors";
+  backBtn.textContent = "\u2190 Back";
+  backBtn.setAttribute("aria-label", "Back to home");
   backBtn.addEventListener("click", () => {
     window.history.back();
   });
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
   undoBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border opacity-50 cursor-not-allowed";
-  undoBtn.textContent = "Undo";
+    "px-4 py-1.5 rounded-full text-yn-muted text-sm font-medium border border-yn-border opacity-50 cursor-not-allowed";
+  undoBtn.textContent = "\u21BA Undo";
   undoBtn.disabled = true;
   undoBtn.setAttribute("aria-disabled", "true");
   const pauseBtn = document.createElement("button");
   pauseBtn.type = "button";
+  // Primary pill: accent-filled. Pause is the high-frequency action; it
+  // earns the visual weight.
   pauseBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-orange-200 border border-yn-border";
+    "px-5 py-1.5 rounded-full bg-yn-accent text-white text-sm font-semibold shadow-sm hover:bg-orange-700 transition-colors";
   pauseBtn.textContent = "Pause";
+  pauseBtn.setAttribute("aria-label", "Pause and open settings");
   bottomBar.append(backBtn, undoBtn, pauseBtn);
 
   root.append(topBar, boardArea, bottomBar);
@@ -199,7 +234,12 @@ const mount: GameMount = async (container, options) => {
 
   const renderStreak = (): void => {
     const current = save.streak?.current ?? 0;
-    streakEl.textContent = `Streak: ${String(current)}`;
+    if (current <= 0) {
+      streakEl.style.display = "none";
+      return;
+    }
+    streakEl.style.display = "";
+    streakEl.textContent = `${String(current)}-day streak`;
     streakEl.setAttribute("aria-label", `${String(current)}-day streak`);
   };
 
@@ -213,9 +253,24 @@ const mount: GameMount = async (container, options) => {
     timerEl.textContent = `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
   };
 
+  const renderNextPips = (): void => {
+    nextPipsEl.replaceChildren();
+    for (const p of state.nextPreview) {
+      const src = theme.motifFiles[String(p.kind)];
+      if (src === undefined || src.length === 0) continue;
+      const img = document.createElement("img");
+      img.className = "w-5 h-5 sm:w-6 sm:h-6 rounded-sm";
+      img.src = src;
+      img.alt = `Piece type ${String(p.kind)}`;
+      img.setAttribute("draggable", "false");
+      nextPipsEl.appendChild(img);
+    }
+  };
+
   const render = (): void => {
-    scoreEl.textContent = `Score: ${String(state.score)}`;
-    previewEl.textContent = "Next: " + state.nextPreview.map((p) => String(p.kind)).join(" ");
+    scoreValue.textContent = String(state.score);
+    scoreEl.setAttribute("aria-label", `Score ${String(state.score)}`);
+    renderNextPips();
     boardView.setBoard(state.board, state.nextPreview, state.selected);
     renderStreak();
     renderTimer();
