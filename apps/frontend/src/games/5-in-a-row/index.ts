@@ -32,6 +32,13 @@ import {
 } from "./ui/settings-drawer.js";
 import { openHowToPlay } from "./ui/how-to-play.js";
 import { openLeaderboard } from "./ui/leaderboard.js";
+import {
+  computeIsNewBest,
+  openGameOverModal,
+  type GameOverContext,
+  type ModeMeta,
+  type TopThreeRow,
+} from "./ui/game-over-modal.js";
 
 type ExtendedBalance = BalanceLike & { readonly top_scores_max: number };
 const balanceConfig = balanceJson as unknown as ExtendedBalance;
@@ -170,6 +177,11 @@ const mount: GameMount = async (container, options) => {
   let timerId: number | null = null;
   let timerDisplayedSec = -1;
   let gameOverModalClose: (() => void) | null = null;
+  // Cumulative time added by timed-mode clear bonuses since this game began.
+  // Not persisted to the save schema (per design freeze 2026-06-07); only
+  // surfaced in the game-over modal as "60s + Xs bonus". Reset implicitly on
+  // reload because the closure goes away.
+  let bonusesEarnedMs = 0;
 
   const boardView = createBoardView({
     motifSymbolUrl: "",
@@ -222,12 +234,27 @@ const mount: GameMount = async (container, options) => {
     writeSave(next);
   }
 
-  function recordHighScore(): void {
-    const entry = { score: state.score, timestamp_iso: new Date().toISOString() };
+  type HighScoreEntry = { readonly score: number; readonly timestamp_iso: string };
+  type RecordedScore = {
+    readonly entry: HighScoreEntry;
+    readonly isNewPersonalBest: boolean;
+  };
+
+  function highScoresForCurrentMode(): readonly HighScoreEntry[] {
+    if (mode === "max-points") return save.high_scores.max_points;
+    if (mode === "timed") return save.high_scores.timed;
+    return save.high_scores.infinite;
+  }
+
+  function recordHighScore(): RecordedScore {
+    const entry: HighScoreEntry = {
+      score: state.score,
+      timestamp_iso: new Date().toISOString(),
+    };
+    const oldScores = highScoresForCurrentMode();
+    const isNewPersonalBest = computeIsNewBest(entry.score, oldScores);
     const cap = balanceConfig.top_scores_max;
-    const insertEntry = (
-      arr: readonly { score: number; timestamp_iso: string }[],
-    ): { score: number; timestamp_iso: string }[] =>
+    const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
       [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
     let next_high_scores = save.high_scores;
     if (mode === "max-points") {
@@ -244,6 +271,51 @@ const mount: GameMount = async (container, options) => {
     save = { ...save, high_scores: next_high_scores, in_progress: null, streak: nextStreak };
     writeSave(save);
     renderStreak();
+    return { entry, isNewPersonalBest };
+  }
+
+  function buildModeMeta(): ModeMeta {
+    if (state.modeState.kind === "max-points") {
+      return { kind: "max-points", seedDate: state.modeState.seed_date };
+    }
+    if (state.modeState.kind === "timed") {
+      return { kind: "timed", msWindow: state.modeState.ms_window, bonusesEarnedMs };
+    }
+    return { kind: "infinite" };
+  }
+
+  function presentGameOver(record: RecordedScore): void {
+    if (gameOverModalClose !== null) return;
+    const topThree: TopThreeRow[] = highScoresForCurrentMode()
+      .slice(0, 3)
+      .map((e) => ({
+        score: e.score,
+        timestamp_iso: e.timestamp_iso,
+        isThisGame:
+          e.score === record.entry.score && e.timestamp_iso === record.entry.timestamp_iso,
+      }));
+    const streak =
+      save.streak === null ? null : { current: save.streak.current, longest: save.streak.longest };
+    const ctx: GameOverContext = {
+      mode,
+      score: state.score,
+      isNewPersonalBest: record.isNewPersonalBest,
+      topThree,
+      modeMeta: buildModeMeta(),
+      streak,
+    };
+    gameOverModalClose = openGameOverModal(container, ctx, {
+      onPlayAgain() {
+        writeSave(makeFreshSave(mode));
+        window.location.reload();
+      },
+      onBackToHome() {
+        window.history.back();
+      },
+      onShowFullLeaderboard() {
+        modalClose = openLeaderboard(container, { initialMode: save.mode });
+      },
+    });
   }
 
   function onCellLongPress(coord: Coord): void {
@@ -299,16 +371,21 @@ const mount: GameMount = async (container, options) => {
         await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
       if (isGameOver(state)) {
-        recordHighScore();
+        const recorded = recordHighScore();
         stopTimer();
-        if (state.modeState.kind === "timed") openTimedGameOverModal();
+        presentGameOver(recorded);
       } else {
         if (mode === "timed" && outcome.clears.length > 0) {
           let longest = 0;
           for (const c of outcome.clears) {
             if (c.longestLineLength > longest) longest = c.longestLineLength;
           }
+          const beforeRemaining =
+            state.modeState.kind === "timed" ? state.modeState.ms_remaining : 0;
           const newModeState = extendTimeForClear(state.modeState, longest);
+          if (newModeState.kind === "timed") {
+            bonusesEarnedMs += newModeState.ms_remaining - beforeRemaining;
+          }
           state = { ...state, modeState: newModeState };
           // Refresh the displayed time after a bonus so the player sees
           // the bump immediately rather than waiting for the next tick.
@@ -344,8 +421,8 @@ const mount: GameMount = async (container, options) => {
     renderTimer();
     if (next <= 0) {
       stopTimer();
-      recordHighScore();
-      openTimedGameOverModal();
+      const recorded = recordHighScore();
+      presentGameOver(recorded);
     }
   }
 
@@ -370,55 +447,6 @@ const mount: GameMount = async (container, options) => {
     }
   }
   document.addEventListener("visibilitychange", onVisibilityChange);
-
-  function openTimedGameOverModal(): void {
-    if (gameOverModalClose !== null) return;
-    const overlay = document.createElement("div");
-    overlay.className = "fixed inset-0 z-50 flex items-center justify-center bg-black/60";
-    const card = document.createElement("div");
-    card.className =
-      "bg-yn-tile rounded-xl p-6 max-w-[400px] w-full m-4 flex flex-col gap-4 items-center text-center";
-    card.setAttribute("role", "dialog");
-    card.setAttribute("aria-label", "Time's up");
-    const heading = document.createElement("h2");
-    heading.className = "text-xl font-semibold text-yn-ink";
-    heading.textContent = "Time's up";
-    const scoreLine = document.createElement("p");
-    scoreLine.className = "text-yn-ink text-lg";
-    scoreLine.textContent = `Final score: ${String(state.score)}`;
-    const buttons = document.createElement("div");
-    buttons.className = "flex gap-2 w-full";
-    const playAgain = document.createElement("button");
-    playAgain.type = "button";
-    playAgain.className =
-      "flex-1 px-4 py-2 rounded-lg bg-yn-accent text-white font-semibold text-sm";
-    playAgain.textContent = "Play again";
-    const home = document.createElement("button");
-    home.type = "button";
-    home.className =
-      "flex-1 px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border text-sm";
-    home.textContent = "Home";
-    buttons.append(playAgain, home);
-    card.append(heading, scoreLine, buttons);
-    overlay.appendChild(card);
-    const ownerBody = container.ownerDocument?.body ?? document.body;
-    ownerBody.appendChild(overlay);
-    const close = (): void => {
-      overlay.remove();
-      gameOverModalClose = null;
-    };
-    playAgain.addEventListener("click", () => {
-      close();
-      writeSave(makeFreshSave("timed"));
-      window.location.reload();
-    });
-    home.addEventListener("click", () => {
-      close();
-      window.location.assign("/");
-    });
-    playAgain.focus();
-    gameOverModalClose = close;
-  }
 
   if (mode === "timed") startTimer();
 

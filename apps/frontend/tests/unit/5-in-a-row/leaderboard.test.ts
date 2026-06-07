@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatTimestamp, insertScore } from "@/games/5-in-a-row/ui/leaderboard.js";
+import { computeIsNewBest } from "@/games/5-in-a-row/ui/game-over-modal.js";
 
 const FULL_TEN = [
   { score: 100, timestamp_iso: "2025-01-01T00:00:00.000Z" },
@@ -126,5 +127,34 @@ describe("formatTimestamp", () => {
     const result = formatTimestamp(localJan1.toISOString());
     expect(result).toContain("Jan");
     expect(result).toContain("1");
+  });
+});
+
+describe("computeIsNewBest", () => {
+  it("empty list -> true (first score ever is vacuously a new best)", () => {
+    expect(computeIsNewBest(0, [])).toBe(true);
+    expect(computeIsNewBest(42, [])).toBe(true);
+  });
+
+  it("score strictly greater than every entry -> true", () => {
+    expect(computeIsNewBest(100, [{ score: 50 }, { score: 99 }])).toBe(true);
+  });
+
+  it("score equal to an existing entry -> false (tie does not beat)", () => {
+    expect(computeIsNewBest(100, [{ score: 100 }, { score: 50 }])).toBe(false);
+  });
+
+  it("score below at least one existing entry -> false", () => {
+    expect(computeIsNewBest(40, [{ score: 50 }])).toBe(false);
+    expect(computeIsNewBest(99, [{ score: 50 }, { score: 100 }])).toBe(false);
+  });
+
+  it("reads only the score field (extra entry fields are ignored)", () => {
+    const entries = [
+      { score: 30, timestamp_iso: "2025-01-01T00:00:00.000Z" },
+      { score: 60, timestamp_iso: "2025-01-02T00:00:00.000Z" },
+    ];
+    expect(computeIsNewBest(70, entries)).toBe(true);
+    expect(computeIsNewBest(60, entries)).toBe(false);
   });
 });

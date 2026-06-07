@@ -1,5 +1,6 @@
 import { defineConfig } from "vitest/config";
 import type { PluginOption } from "vite";
+import { VitePWA } from "vite-plugin-pwa";
 import { fileURLToPath, URL } from "node:url";
 
 // Mimics GitHub Pages SPA fallback during `vite preview` and `vite dev`:
@@ -52,7 +53,24 @@ export default defineConfig({
   // this via the GH_PAGES_BASE env var (see ADR-0010); for local dev +
   // preview + e2e the site sits at /.
   base: REPO_BASE,
-  plugins: [spaFallback()],
+  plugins: [
+    spaFallback(),
+    VitePWA({
+      registerType: "autoUpdate",
+      injectRegister: "auto",
+      devOptions: {
+        enabled: false,
+      },
+      workbox: {
+        globPatterns: ["**/*.{html,js,css,svg,webmanifest,json}"],
+        globIgnores: ["**/sw.js", "**/workbox-*.js", "**/*.map"],
+        runtimeCaching: [],
+        navigateFallback: "/index.html",
+        navigateFallbackDenylist: [/^\/assets\//, /\.\w+$/],
+      },
+      manifest: false,
+    }),
+  ],
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),

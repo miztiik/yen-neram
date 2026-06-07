@@ -30,7 +30,7 @@ Enforced in CI via `size-limit` (see [apps/frontend/.size-limit.json](apps/front
 
 ## License
 
-CC0 1.0 Universal. See [LICENSE](LICENSE).
+No `LICENSE` file. Per [ADR-0016](docs/architecture/decisions/0016-license-removed.md) the codebase is all-rights-reserved by default. Theme assets retain per-manifest licenses.
 
 ## See also
 
