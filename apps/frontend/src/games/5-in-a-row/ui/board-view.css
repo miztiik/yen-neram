@@ -7,8 +7,8 @@
 }
 .yn-cell-bg {
   fill: #ffffff;
-  stroke: #fdba74;
-  stroke-width: 0.6;
+  stroke: rgba(124, 45, 18, 0.08);
+  stroke-width: 0.3;
 }
 .yn-cell-reachable .yn-cell-bg {
   fill: #fed7aa;

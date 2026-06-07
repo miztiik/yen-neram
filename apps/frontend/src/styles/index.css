@@ -32,13 +32,25 @@
   }
 }
 
-/* Subtle dot-grid texture for the game board background. Terracotta dots
-   on vibrant mango — opacity 0.10 so the dots stay visible against the
-   brighter bg without competing with the motifs. */
+/* Board area background: ambient fruit-silhouette pattern + dot grid +
+   subtle radial warmth. The pattern is a data-URI SVG with a few fruit
+   shapes positioned across a 240px tile, alpha 0.08 so it never
+   competes with the actual cells but gives the empty mango surface a
+   tropical-confetti character (Palm + Jony 2026-06-07). */
 .yn-board-bg {
   background-color: var(--yn-bg-deep);
-  background-image: radial-gradient(circle, rgba(124, 45, 18, 0.1) 1px, transparent 1.5px);
-  background-size: 16px 16px;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 240 240' width='240' height='240'><g fill='%237c2d12' fill-opacity='0.08'><circle cx='34' cy='42' r='14'/><ellipse cx='160' cy='62' rx='22' ry='8' transform='rotate(-18 160 62)'/><path d='M198 168 l-14 28 l28 0 z'/><circle cx='84' cy='178' r='10'/><ellipse cx='128' cy='128' rx='12' ry='14'/><circle cx='208' cy='28' r='6'/><path d='M44 130 l-10 20 l20 0 z'/><ellipse cx='66' cy='80' rx='10' ry='6' transform='rotate(20 66 80)'/></g></svg>"),
+    radial-gradient(circle, rgba(124, 45, 18, 0.1) 1px, transparent 1.5px),
+    radial-gradient(ellipse at top, rgba(255, 247, 237, 0.4) 0%, transparent 60%);
+  background-size:
+    240px 240px,
+    16px 16px,
+    100% 100%;
+  background-position:
+    0 0,
+    0 0,
+    center top;
 }
 
 /* Visually-hidden utility for screen-reader-only text (ADR-0013). */
@@ -54,9 +66,17 @@
   border-width: 0;
 }
 
-/* Visible focus ring for keyboard users (does NOT show on mouse interaction). */
+/* Visible focus ring for keyboard users (does NOT show on mouse interaction).
+   Scoped to skip the SVG board: the board has its own per-cell
+   yn-cell-focused indicator wired to keyboard arrow nav; the global
+   ring would paint a remarkable orange box around the whole grid on
+   every click in some browsers' :focus-visible heuristic. */
 :focus-visible {
   outline: 2px solid var(--yn-accent);
   outline-offset: 2px;
   border-radius: 6px;
+}
+.yn-board-svg:focus,
+.yn-board-svg:focus-visible {
+  outline: none;
 }

@@ -108,7 +108,7 @@ test.describe("game smoke", () => {
   test("back button returns to home", async ({ page }) => {
     await page.goto("/play/5-in-a-row/");
 
-    const backButton = page.getByRole("button", { name: /^Back$/ });
+    const backButton = page.getByRole("button", { name: /^Back to home$/ });
     await expect(backButton).toBeVisible({ timeout: 5_000 });
 
     await backButton.click();
