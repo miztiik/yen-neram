@@ -25,17 +25,13 @@ function listMotifFiles(): string[] {
 describe("SVGO pipeline contract (per ADR-0011)", () => {
   const files = listMotifFiles();
 
+  // Note: per-motif byte cap was removed 2026-06-07 (see ADR-0011 amendment).
+  // The pipeline still optimises SVGs in place and the well-formed checks
+  // below catch SVGs that defeated SVGO. Bundle-wide weight is governed by
+  // the size-limit gate (perf-budget.md), not a per-file cap.
+
   it("at least one motif SVG on disk", () => {
     expect(files.length).toBeGreaterThan(0);
-  });
-
-  it("every motif SVG is under 3000 bytes after optimisation", () => {
-    const oversize: string[] = [];
-    for (const file of files) {
-      const size = statSync(file).size;
-      if (size >= 3000) oversize.push(`${file}: ${size}b`);
-    }
-    expect(oversize, oversize.join("\n")).toEqual([]);
   });
 
   it("every motif SVG is well-formed (starts with <svg, ends with </svg>)", () => {

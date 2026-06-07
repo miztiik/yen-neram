@@ -192,6 +192,12 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   }
 
   function setBoard(board: Board, preview: readonly PreviewItem[], selected: Coord | null): void {
+    // Reveal the grid only while a piece is picked up. CSS class on the SVG
+    // root drives a board-wide `.yn-cell-bg { stroke: ... }` rule so the
+    // default board reads as one clean white area, and selecting a piece
+    // surfaces the cell structure for movement planning.
+    svg.classList.toggle("yn-has-selection", selected !== null);
+
     const previewMap = new Map<string, number>();
     for (const p of preview) {
       previewMap.set(cellKey(p.row, p.col), p.kind);
