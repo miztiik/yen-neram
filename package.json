@@ -11,7 +11,9 @@
     "pnpm": ">=9.0.0"
   },
   "scripts": {
+    "predev": "node tools/copy-themes.mjs",
     "dev": "vite",
+    "prebuild": "node tools/copy-themes.mjs",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",

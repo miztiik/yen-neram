@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "origami",
+  "display_name": "Origami",
+  "description": "Paper-fold animals; calm planar aesthetic.",
+  "license": "CC0-1.0",
+  "background": {
+    "fill": "#0f172a",
+    "grid": "#1e293b"
+  },
+  "motifs": {
+    "1": { "file": "motif-1.svg", "name": "crane" },
+    "2": { "file": "motif-2.svg", "name": "fish" },
+    "3": { "file": "motif-3.svg", "name": "fox" },
+    "4": { "file": "motif-4.svg", "name": "frog" },
+    "5": { "file": "motif-5.svg", "name": "butterfly" },
+    "6": { "file": "motif-6.svg", "name": "turtle" }
+  }
+}

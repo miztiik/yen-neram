@@ -22,7 +22,7 @@ test.describe("shell smoke", () => {
     }
   });
 
-  test("clicking the shipped tile routes to /play/5-in-a-row/ and loads the game stub", async ({
+  test("clicking the shipped tile routes to /play/5-in-a-row/ and loads the game", async ({
     page,
   }) => {
     await page.goto("/");
@@ -31,18 +31,18 @@ test.describe("shell smoke", () => {
 
     await expect(page).toHaveURL(/.*\/play\/5-in-a-row\/$/);
 
-    await expect(page.getByRole("heading", { name: /5-in-a-Row/i })).toBeVisible();
-
-    await expect(page.getByRole("button", { name: /Back to home/i })).toBeVisible();
+    // The game UI signal: the board SVG paints + a Back button is reachable.
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.getByRole("button", { name: /^Back$/ })).toBeVisible();
   });
 
-  test("back to home from the game restores the portal", async ({ page }) => {
+  test("back from the game restores the portal", async ({ page }) => {
     await page.goto("/");
 
     await page.getByRole("button", { name: "5 in a Row" }).click();
 
-    const backButton = page.getByRole("button", { name: /Back to home/i });
-    await expect(backButton).toBeVisible();
+    const backButton = page.getByRole("button", { name: /^Back$/ });
+    await expect(backButton).toBeVisible({ timeout: 5_000 });
 
     await backButton.click();
 
@@ -56,7 +56,7 @@ test.describe("shell smoke", () => {
   }) => {
     await page.goto("/play/5-in-a-row/");
 
-    await expect(page.getByRole("heading", { name: /5-in-a-Row/i })).toBeVisible();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
   });
 
   test("clicking a placeholder tile does nothing (URL unchanged, disabled button)", async ({
