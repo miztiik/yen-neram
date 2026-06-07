@@ -44,8 +44,11 @@ export type BoardView = {
   clearReachabilityHints(): void;
   showShake(coord: Coord): Promise<void>;
   showPathTrace(path: readonly Coord[]): Promise<void>;
+  showPathPreview(path: readonly Coord[]): void;
+  clearPathPreview(): void;
   showClearFlash(cells: ReadonlySet<string>): Promise<void>;
   showLandBounce(coord: Coord): Promise<void>;
+  setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void>;
   destroy(): void;
 };
 
@@ -106,6 +109,13 @@ export function createBoardView(options: BoardViewOptions): BoardView {
 
   const pendingSplashTimers = new Set<number>();
 
+  // Mutable refs so theme hot-swap can replace the active motif map without
+  // tearing down the board. `busyCount` lets setTheme wait for any in-flight
+  // animation method to settle before swapping image hrefs.
+  let currentMotifFiles: Readonly<Record<string, string>> = options.motifFiles;
+  let currentPathPreview: SVGPolylineElement | null = null;
+  let busyCount = 0;
+
   const cellGs: SVGGElement[][] = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
     const row: SVGGElement[] = [];
@@ -155,9 +165,10 @@ export function createBoardView(options: BoardViewOptions): BoardView {
 
   function createMotifImage(runGroup: number, isPreview: boolean): SVGImageElement {
     const img = document.createElementNS(SVG_NS, "image");
-    const href = options.motifFiles[String(runGroup)] ?? "";
+    const href = currentMotifFiles[String(runGroup)] ?? "";
     img.setAttribute("href", href);
     img.setAttribute("class", isPreview ? "yn-preview-motif" : "yn-motif");
+    img.setAttribute("data-run-group", String(runGroup));
     const size = isPreview ? PREVIEW_SIZE : MOTIF_SIZE;
     const offset = (CELL_SIZE - size) / 2;
     img.setAttribute("width", String(size));
@@ -244,63 +255,78 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   async function showShake(coord: Coord): Promise<void> {
     const g = getCellG(coord.row, coord.col);
     if (g === null) return;
-    await awaitClassAnimation(g, "yn-cell-shake", SHAKE_MS);
+    busyCount += 1;
+    try {
+      await awaitClassAnimation(g, "yn-cell-shake", SHAKE_MS);
+    } finally {
+      busyCount -= 1;
+    }
   }
 
   async function showLandBounce(coord: Coord): Promise<void> {
     const g = getCellG(coord.row, coord.col);
     if (g === null) return;
-    await awaitClassAnimation(g, "yn-cell-landing", LAND_MS);
+    busyCount += 1;
+    try {
+      await awaitClassAnimation(g, "yn-cell-landing", LAND_MS);
+    } finally {
+      busyCount -= 1;
+    }
   }
 
   async function showClearFlash(cells: ReadonlySet<string>): Promise<void> {
-    const promises: Promise<void>[] = [];
-    const splashEls: SVGCircleElement[] = [];
-    for (const key of cells) {
-      const parts = key.split(",");
-      const r = Number(parts[0]);
-      const c = Number(parts[1]);
-      if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
-      const g = getCellG(r, c);
-      if (g === null) continue;
+    busyCount += 1;
+    try {
+      const promises: Promise<void>[] = [];
+      const splashEls: SVGCircleElement[] = [];
+      for (const key of cells) {
+        const parts = key.split(",");
+        const r = Number(parts[0]);
+        const c = Number(parts[1]);
+        if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
+        const g = getCellG(r, c);
+        if (g === null) continue;
 
-      // Spawn a splash circle as a SIBLING of the cell <g> on the SVG root so
-      // it paints above the grid and is not clipped by sibling z-order.
-      const splash = document.createElementNS(SVG_NS, "circle");
-      splash.setAttribute("class", "yn-splash");
-      splash.setAttribute("cx", String(c * CELL_SIZE + CELL_SIZE / 2));
-      splash.setAttribute("cy", String(r * CELL_SIZE + CELL_SIZE / 2));
-      splash.setAttribute("r", String(SPLASH_RADIUS));
-      splash.setAttribute("fill", SPLASH_FILL);
-      splash.setAttribute("data-splash-temp", "1");
-      svg.appendChild(splash);
-      splashEls.push(splash);
+        // Spawn a splash circle as a SIBLING of the cell <g> on the SVG root so
+        // it paints above the grid and is not clipped by sibling z-order.
+        const splash = document.createElementNS(SVG_NS, "circle");
+        splash.setAttribute("class", "yn-splash");
+        splash.setAttribute("cx", String(c * CELL_SIZE + CELL_SIZE / 2));
+        splash.setAttribute("cy", String(r * CELL_SIZE + CELL_SIZE / 2));
+        splash.setAttribute("r", String(SPLASH_RADIUS));
+        splash.setAttribute("fill", SPLASH_FILL);
+        splash.setAttribute("data-splash-temp", "1");
+        svg.appendChild(splash);
+        splashEls.push(splash);
 
-      promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS));
+        promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS));
+      }
+
+      if (splashEls.length > 0) {
+        // Toggle the firing class on the next frame so the browser commits the
+        // initial styles before the keyframes start (zero rAF loop, one-shot).
+        requestAnimationFrame(() => {
+          for (const s of splashEls) {
+            s.classList.add("yn-splash-firing");
+          }
+        });
+
+        // Teardown happens in the background after the splash completes; the
+        // function's Promise still resolves at the clear-flash boundary below.
+        const cleanupTimer = window.setTimeout(() => {
+          pendingSplashTimers.delete(cleanupTimer);
+          const stale = svg.querySelectorAll('[data-splash-temp="1"]');
+          for (const el of Array.from(stale)) {
+            if (el.parentNode !== null) el.parentNode.removeChild(el);
+          }
+        }, CLEAR_MS + SPLASH_TAIL_MS);
+        pendingSplashTimers.add(cleanupTimer);
+      }
+
+      await Promise.all(promises);
+    } finally {
+      busyCount -= 1;
     }
-
-    if (splashEls.length > 0) {
-      // Toggle the firing class on the next frame so the browser commits the
-      // initial styles before the keyframes start (zero rAF loop, one-shot).
-      requestAnimationFrame(() => {
-        for (const s of splashEls) {
-          s.classList.add("yn-splash-firing");
-        }
-      });
-
-      // Teardown happens in the background after the splash completes; the
-      // function's Promise still resolves at the clear-flash boundary below.
-      const cleanupTimer = window.setTimeout(() => {
-        pendingSplashTimers.delete(cleanupTimer);
-        const stale = svg.querySelectorAll('[data-splash-temp="1"]');
-        for (const el of Array.from(stale)) {
-          if (el.parentNode !== null) el.parentNode.removeChild(el);
-        }
-      }, CLEAR_MS + SPLASH_TAIL_MS);
-      pendingSplashTimers.add(cleanupTimer);
-    }
-
-    await Promise.all(promises);
   }
 
   async function showPathTrace(path: readonly Coord[]): Promise<void> {
@@ -313,51 +339,117 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     const motif = fromG.querySelector(".yn-motif");
     if (motif === null) return;
 
-    // Clone the source motif as a temporary overlay on the SVG root so it paints
-    // above every cell and isn't clipped by sibling z-order.
-    const overlay = motif.cloneNode(true) as SVGImageElement;
-    overlay.classList.remove("yn-motif");
-    overlay.setAttribute("class", "yn-motif-overlay");
-    const startX = from.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-    const startY = from.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-    const endX = to.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-    const endY = to.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-    overlay.setAttribute("x", String(startX));
-    overlay.setAttribute("y", String(startY));
-    svg.appendChild(overlay);
+    busyCount += 1;
+    try {
+      // Clone the source motif as a temporary overlay on the SVG root so it paints
+      // above every cell and isn't clipped by sibling z-order.
+      const overlay = motif.cloneNode(true) as SVGImageElement;
+      overlay.classList.remove("yn-motif");
+      overlay.setAttribute("class", "yn-motif-overlay");
+      const startX = from.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
+      const startY = from.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
+      const endX = to.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
+      const endY = to.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
+      overlay.setAttribute("x", String(startX));
+      overlay.setAttribute("y", String(startY));
+      svg.appendChild(overlay);
 
-    (motif as SVGElement).style.visibility = "hidden";
+      (motif as SVGElement).style.visibility = "hidden";
 
-    const dx = endX - startX;
-    const dy = endY - startY;
+      const dx = endX - startX;
+      const dy = endY - startY;
 
-    await new Promise<void>((resolve) => {
-      let done = false;
-      const finish = (): void => {
-        if (done) return;
-        done = true;
-        if (overlay.parentNode !== null) {
-          overlay.parentNode.removeChild(overlay);
+      await new Promise<void>((resolve) => {
+        let done = false;
+        const finish = (): void => {
+          if (done) return;
+          done = true;
+          if (overlay.parentNode !== null) {
+            overlay.parentNode.removeChild(overlay);
+          }
+          (motif as SVGElement).style.visibility = "";
+          resolve();
+        };
+        try {
+          const animation = overlay.animate(
+            [
+              { transform: "translate(0px, 0px)" },
+              { transform: `translate(${String(dx)}px, ${String(dy)}px)` },
+            ],
+            { duration: SLIDE_MS, easing: "ease-in-out", fill: "forwards" },
+          );
+          animation.addEventListener("finish", finish, { once: true });
+          animation.addEventListener("cancel", finish, { once: true });
+        } catch {
+          finish();
+          return;
         }
-        (motif as SVGElement).style.visibility = "";
-        resolve();
-      };
-      try {
-        const animation = overlay.animate(
-          [
-            { transform: "translate(0px, 0px)" },
-            { transform: `translate(${String(dx)}px, ${String(dy)}px)` },
-          ],
-          { duration: SLIDE_MS, easing: "ease-in-out", fill: "forwards" },
-        );
-        animation.addEventListener("finish", finish, { once: true });
-        animation.addEventListener("cancel", finish, { once: true });
-      } catch {
-        finish();
-        return;
+        window.setTimeout(finish, SLIDE_MS + 80);
+      });
+    } finally {
+      busyCount -= 1;
+    }
+  }
+
+  function showPathPreview(path: readonly Coord[]): void {
+    clearPathPreview();
+    if (path.length < 2) return;
+    const polyline = document.createElementNS(SVG_NS, "polyline");
+    const points = path
+      .map(
+        (c) =>
+          `${String(c.col * CELL_SIZE + CELL_SIZE / 2)},${String(c.row * CELL_SIZE + CELL_SIZE / 2)}`,
+      )
+      .join(" ");
+    polyline.setAttribute("points", points);
+    polyline.setAttribute("class", "yn-path-preview");
+    const onEnd = (): void => {
+      if (polyline.parentNode !== null) {
+        polyline.parentNode.removeChild(polyline);
       }
-      window.setTimeout(finish, SLIDE_MS + 80);
-    });
+      if (currentPathPreview === polyline) {
+        currentPathPreview = null;
+      }
+    };
+    polyline.addEventListener("animationend", onEnd, { once: true });
+    svg.appendChild(polyline);
+    currentPathPreview = polyline;
+  }
+
+  function clearPathPreview(): void {
+    if (currentPathPreview !== null) {
+      if (currentPathPreview.parentNode !== null) {
+        currentPathPreview.parentNode.removeChild(currentPathPreview);
+      }
+      currentPathPreview = null;
+    }
+  }
+
+  async function setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void> {
+    // Wait briefly for any in-flight animation method to settle; if still busy
+    // after the cap, force the swap anyway (a stuck animation must not block
+    // the player from changing themes).
+    const MAX_WAIT_MS = 1000;
+    const POLL_MS = 50;
+    let waited = 0;
+    while (busyCount > 0 && waited < MAX_WAIT_MS) {
+      await new Promise<void>((resolve) => window.setTimeout(resolve, POLL_MS));
+      waited += POLL_MS;
+    }
+    // Update internal ref so future spawns use the new theme.
+    currentMotifFiles = motifFiles;
+    svg.classList.add("yn-theme-swapping");
+    // Wait for the fade-out (CSS opacity transition: 100ms).
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 110));
+    const imgs = svg.querySelectorAll<SVGImageElement>(".yn-motif, .yn-preview-motif");
+    for (const img of Array.from(imgs)) {
+      const rg = img.getAttribute("data-run-group");
+      if (rg === null) continue;
+      img.setAttribute("href", currentMotifFiles[rg] ?? "");
+    }
+    svg.classList.remove("yn-theme-swapping");
+    // Wait through most of the fade-in to settle at ~250ms total.
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 140));
   }
 
   // Input handling: tap + long-press with movement-cancel.
@@ -489,6 +581,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
 
   function destroy(): void {
     cancelPressTimer();
+    clearPathPreview();
     svg.removeEventListener("pointerdown", onPointerDown);
     svg.removeEventListener("pointermove", onPointerMove);
     svg.removeEventListener("pointerup", onPointerUp);
@@ -507,8 +600,11 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     clearReachabilityHints,
     showShake,
     showPathTrace,
+    showPathPreview,
+    clearPathPreview,
     showClearFlash,
     showLandBounce,
+    setTheme,
     destroy,
   };
 }

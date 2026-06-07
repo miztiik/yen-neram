@@ -1,0 +1,20 @@
+[
+  {
+    "name": "all JS bundles (shell + game chunks combined)",
+    "path": "dist/assets/*.js",
+    "limit": "50 KB",
+    "gzip": true
+  },
+  {
+    "name": "all CSS bundles",
+    "path": "dist/assets/*.css",
+    "limit": "10 KB",
+    "gzip": true
+  },
+  {
+    "name": "first-playable-frame total",
+    "path": ["dist/index.html", "dist/assets/*.js", "dist/assets/*.css"],
+    "limit": "150 KB",
+    "gzip": true
+  }
+]

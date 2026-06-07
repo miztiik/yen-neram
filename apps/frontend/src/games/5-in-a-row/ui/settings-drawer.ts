@@ -31,6 +31,11 @@ export type SettingsActions = {
   readonly onModeSwitch: () => Promise<void> | void;
   readonly onShowHowToPlay: () => void;
   readonly onShowLeaderboard: () => void;
+  // Fired when the drawer closes for any reason (X button, Escape,
+  // backdrop click, or programmatic close). Lets the caller resume
+  // anything it paused for the duration of the drawer (e.g., the
+  // timed-mode countdown). Optional so existing callers don't break.
+  readonly onClose?: () => void;
 };
 
 export type AvailableTheme = {
@@ -50,7 +55,7 @@ export const AppPrefsSchema = z
     reduce_motion: z.boolean().optional(),
     path_preview_enabled: z.boolean().optional(),
     show_next_preview: z.boolean().optional(),
-    last_mode: z.enum(["infinite", "max-points"]).nullable().optional(),
+    last_mode: z.enum(["infinite", "max-points", "timed"]).nullable().optional(),
   })
   .strict();
 
@@ -312,6 +317,7 @@ export function openSettingsDrawer(
     document.removeEventListener("keydown", onKey);
     backdrop.remove();
     drawer.remove();
+    if (actions.onClose !== undefined) actions.onClose();
   };
   const onKey = (e: KeyboardEvent): void => {
     if (e.key === "Escape") {

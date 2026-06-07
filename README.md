@@ -19,6 +19,15 @@ pnpm build
 - Architecture decisions: [docs/architecture/decisions/](docs/architecture/decisions/)
 - Concepts: [docs/concepts/](docs/concepts/)
 
+## Bundle budgets
+
+Enforced in CI via `size-limit` (see [apps/frontend/.size-limit.json](apps/frontend/.size-limit.json)).
+
+- Shell cap: 50 KB gzipped (per [CLAUDE.md](CLAUDE.md) section 1, Holy Law 2).
+- First-playable-frame cap: 150 KB gzipped (v1 cap).
+- Check locally: `pnpm -F frontend size`
+- Debug a regression: `pnpm -F frontend size:why`
+
 ## License
 
 CC0 1.0 Universal. See [LICENSE](LICENSE).

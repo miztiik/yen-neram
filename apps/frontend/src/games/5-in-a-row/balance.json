@@ -17,6 +17,12 @@
   "cascade_bonus": 2,
   "top_scores_max": 10,
   "long_press_ms": 500,
+  "timed": {
+    "window_ms": 60000,
+    "extend_5_ms": 5000,
+    "extend_6_ms": 10000,
+    "extend_7plus_ms": 15000
+  },
   "animation": {
     "select_pulse_ms": 600,
     "slide_ms": 150,

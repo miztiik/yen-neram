@@ -15,7 +15,7 @@ export type PreviewItem = {
   readonly kind: RunGroup;
 };
 
-export type GameMode = "infinite" | "max-points";
+export type GameMode = "infinite" | "max-points" | "timed";
 
 export type ModeState =
   | { readonly kind: "infinite" }
@@ -23,4 +23,15 @@ export type ModeState =
       readonly kind: "max-points";
       readonly target: number;
       readonly seed_date: string;
+    }
+  | {
+      readonly kind: "timed";
+      readonly ms_remaining: number;
+      readonly ms_window: number;
     };
+
+export type Streak = {
+  readonly current: number;
+  readonly longest: number;
+  readonly last_played_date: string;
+};

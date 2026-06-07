@@ -9,7 +9,7 @@ import { MODE_CONTRACTS } from "../modes/index.js";
 const LAST_MODE_KEY = "yn:game:5-in-a-row:last-mode";
 
 function isGameMode(value: string | null): value is GameMode {
-  return value === "infinite" || value === "max-points";
+  return value === "infinite" || value === "max-points" || value === "timed";
 }
 
 export function getLastMode(): GameMode | null {

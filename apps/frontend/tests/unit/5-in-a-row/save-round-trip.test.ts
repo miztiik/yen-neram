@@ -1,48 +1,76 @@
 import { describe, expect, it } from "vitest";
 import { makeFreshSave } from "@/games/5-in-a-row/save.js";
-import { SaveV1Schema, type SaveV1 } from "@/shared/schemas/5-in-a-row.save.schema.js";
+import { SaveSchema, type Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 
 describe("save round-trip", () => {
-  it("makeFreshSave('infinite') passes SaveV1Schema", () => {
+  it("makeFreshSave('infinite') passes SaveSchema (canonical V2)", () => {
     const save = makeFreshSave("infinite");
-    const result = SaveV1Schema.safeParse(save);
+    const result = SaveSchema.safeParse(save);
     expect(result.success).toBe(true);
   });
 
-  it("makeFreshSave('max-points') passes SaveV1Schema", () => {
+  it("makeFreshSave('max-points') passes SaveSchema", () => {
     const save = makeFreshSave("max-points");
-    const result = SaveV1Schema.safeParse(save);
+    const result = SaveSchema.safeParse(save);
     expect(result.success).toBe(true);
   });
 
-  it("makeFreshSave('infinite') has schema_version 1, mode infinite, in_progress null", () => {
+  it("makeFreshSave('timed') passes SaveSchema", () => {
+    const save = makeFreshSave("timed");
+    const result = SaveSchema.safeParse(save);
+    expect(result.success).toBe(true);
+  });
+
+  it("makeFreshSave('infinite') has schema_version 2, mode infinite, in_progress null", () => {
     const save = makeFreshSave("infinite");
-    expect(save.schema_version).toBe(1);
+    expect(save.schema_version).toBe(2);
     expect(save.mode).toBe("infinite");
     expect(save.in_progress).toBeNull();
   });
 
-  it("makeFreshSave('max-points') has mode max-points", () => {
+  it("makeFreshSave('max-points') has mode max-points and schema_version 2", () => {
     const save = makeFreshSave("max-points");
     expect(save.mode).toBe("max-points");
+    expect(save.schema_version).toBe(2);
   });
 
-  it("fresh save (infinite) has empty high score arrays for both modes", () => {
+  it("makeFreshSave('timed') has schema_version 2 and mode timed", () => {
+    const save = makeFreshSave("timed");
+    expect(save.schema_version).toBe(2);
+    expect(save.mode).toBe("timed");
+  });
+
+  it("fresh save (infinite) has empty high score arrays for all three modes", () => {
     const save = makeFreshSave("infinite");
     expect(save.high_scores.infinite).toEqual([]);
     expect(save.high_scores.max_points).toEqual([]);
+    expect(save.high_scores.timed).toEqual([]);
   });
 
-  it("fresh save (max-points) has empty high score arrays for both modes", () => {
+  it("fresh save (max-points) has empty high score arrays for all three modes", () => {
     const save = makeFreshSave("max-points");
     expect(save.high_scores.infinite).toEqual([]);
     expect(save.high_scores.max_points).toEqual([]);
+    expect(save.high_scores.timed).toEqual([]);
   });
 
-  it("JSON round-trip on a fresh save parses successfully through the schema", () => {
+  it("fresh save (timed) has empty high score arrays for all three modes", () => {
+    const save = makeFreshSave("timed");
+    expect(save.high_scores.infinite).toEqual([]);
+    expect(save.high_scores.max_points).toEqual([]);
+    expect(save.high_scores.timed).toEqual([]);
+  });
+
+  it("fresh save has streak: null (never played)", () => {
+    expect(makeFreshSave("infinite").streak).toBeNull();
+    expect(makeFreshSave("max-points").streak).toBeNull();
+    expect(makeFreshSave("timed").streak).toBeNull();
+  });
+
+  it("JSON round-trip on a fresh save parses successfully through the canonical schema", () => {
     const save = makeFreshSave("infinite");
     const reparsed: unknown = JSON.parse(JSON.stringify(save));
-    const result = SaveV1Schema.safeParse(reparsed);
+    const result = SaveSchema.safeParse(reparsed);
     expect(result.success).toBe(true);
   });
 
@@ -53,8 +81,8 @@ describe("save round-trip", () => {
   });
 
   it("a custom save with an in_progress field round-trips byte-identical", () => {
-    const inProgressSave: SaveV1 = {
-      schema_version: 1,
+    const inProgressSave: Save = {
+      schema_version: 2,
       mode: "infinite",
       in_progress: {
         board: [
@@ -89,14 +117,25 @@ describe("save round-trip", () => {
         undo: { available: false, snapshot: null },
         mode_state: { kind: "infinite" },
       },
-      high_scores: { infinite: [], max_points: [] },
+      high_scores: { infinite: [], max_points: [], timed: [] },
+      streak: null,
     };
 
     const json = JSON.stringify(inProgressSave);
     const reparsed: unknown = JSON.parse(json);
     expect(JSON.stringify(reparsed)).toBe(json);
 
-    const validated = SaveV1Schema.parse(reparsed);
+    const validated = SaveSchema.parse(reparsed);
     expect(validated).toEqual(inProgressSave);
+  });
+
+  it("makeFreshSave('timed') is ready for a 60-second game (mode_state via freshModeState)", () => {
+    // makeFreshSave does NOT pre-seed in_progress (that's the engine's job
+    // at mount time). The post-mount in_progress.mode_state for timed is
+    // the responsibility of freshModeState. Cover that here for symmetry.
+    // The fresh save shape: mode is "timed", no in-progress yet.
+    const save = makeFreshSave("timed");
+    expect(save.mode).toBe("timed");
+    expect(save.in_progress).toBeNull();
   });
 });

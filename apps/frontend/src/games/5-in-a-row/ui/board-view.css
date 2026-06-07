@@ -21,7 +21,9 @@
 .yn-motif {
   transform-box: fill-box;
   transform-origin: center;
-  transition: transform 200ms ease-out;
+  transition:
+    transform 200ms ease-out,
+    opacity 200ms ease-in-out;
 }
 .yn-preview-motif {
   opacity: 0.4;
@@ -116,5 +118,48 @@
 @media (prefers-reduced-motion: reduce) {
   .yn-splash.yn-splash-firing {
     animation-duration: 1ms !important;
+  }
+}
+/* Long-press path preview: dashed polyline through cell centres of the BFS
+   path; CSS keyframes fade it in and out so the gesture leaves no DOM
+   residue once the animation ends. */
+.yn-path-preview {
+  pointer-events: none;
+  fill: none;
+  stroke: var(--yn-accent);
+  stroke-width: 1.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 4 3;
+  opacity: 0;
+  animation: yn-path-preview 1500ms ease-out forwards;
+}
+@keyframes yn-path-preview {
+  0% {
+    opacity: 0;
+  }
+  10% {
+    opacity: 0.85;
+  }
+  70% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+/* Theme hot-swap fade: opacity drops to 0 over 100ms, the image hrefs are
+   replaced, then the class is removed and the base .yn-motif transition
+   restores opacity to 1 over 200ms. */
+.yn-theme-swapping .yn-motif {
+  opacity: 0;
+  transition: opacity 100ms ease-in-out !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-path-preview {
+    animation-duration: 1ms !important;
+  }
+  .yn-theme-swapping .yn-motif {
+    transition-duration: 1ms !important;
   }
 }

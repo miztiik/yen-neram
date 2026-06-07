@@ -1,8 +1,8 @@
 // Top-10 leaderboard modal for 5-in-a-row.
-// Mode-tabs (Infinite / Max-Points) over save.high_scores[mode].
+// Mode-tabs (Infinite / Max-Points / Timed) over save.high_scores[mode].
 // Pure helpers (formatTimestamp, insertScore) are exported for unit tests.
 
-import type { SaveV1 } from "@/shared/schemas/5-in-a-row.save.schema.js";
+import type { Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 import type { GameMode } from "../types.js";
 import { readSave } from "../save.js";
 
@@ -62,15 +62,17 @@ export function insertScore(
 }
 
 function entriesForMode(
-  save: SaveV1 | null,
+  save: Save | null,
   mode: GameMode,
 ): ReadonlyArray<{ score: number; timestamp_iso: string }> {
   if (save === null) return [];
-  return mode === "infinite" ? save.high_scores.infinite : save.high_scores.max_points;
+  if (mode === "infinite") return save.high_scores.infinite;
+  if (mode === "timed") return save.high_scores.timed;
+  return save.high_scores.max_points;
 }
 
 export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOptions): () => void {
-  const save: SaveV1 | null = readSave();
+  const save: Save | null = readSave();
   let currentMode: GameMode = options?.initialMode ?? "infinite";
 
   const overlay = document.createElement("div");
@@ -98,8 +100,13 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
   maxPointsTab.type = "button";
   maxPointsTab.textContent = "Max-Points";
 
+  const timedTab = document.createElement("button");
+  timedTab.type = "button";
+  timedTab.textContent = "Timed";
+
   tabBar.appendChild(infiniteTab);
   tabBar.appendChild(maxPointsTab);
+  tabBar.appendChild(timedTab);
 
   const listArea = document.createElement("div");
   listArea.className = "flex-1 min-h-[12rem]";
@@ -166,6 +173,10 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
       currentMode === "max-points"
         ? `${baseTabClass} border-yn-accent text-yn-ink`
         : `${baseTabClass} border-yn-border text-yn-muted`;
+    timedTab.className =
+      currentMode === "timed"
+        ? `${baseTabClass} border-yn-accent text-yn-ink`
+        : `${baseTabClass} border-yn-border text-yn-muted`;
 
     listArea.replaceChildren();
     const entries = entriesForMode(save, currentMode);
@@ -195,6 +206,10 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
   });
   maxPointsTab.addEventListener("click", () => {
     currentMode = "max-points";
+    render();
+  });
+  timedTab.addEventListener("click", () => {
+    currentMode = "timed";
     render();
   });
   document.addEventListener("keydown", onKeyDown);
