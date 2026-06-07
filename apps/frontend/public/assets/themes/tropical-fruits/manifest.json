@@ -9,11 +9,11 @@
     "grid": "#1e293b"
   },
   "motifs": {
-    "1": { "file": "motif-1.svg", "name": "watermelon" },
-    "2": { "file": "motif-2.svg", "name": "pineapple" },
-    "3": { "file": "motif-3.svg", "name": "strawberry" },
-    "4": { "file": "motif-4.svg", "name": "apple" },
+    "1": { "file": "motif-1.png", "name": "watermelon" },
+    "2": { "file": "motif-2.png", "name": "kiwi" },
+    "3": { "file": "motif-3.png", "name": "strawberry" },
+    "4": { "file": "motif-4.png", "name": "apple" },
     "5": { "file": "motif-5.svg", "name": "banana" },
-    "6": { "file": "motif-6.svg", "name": "mango" }
+    "6": { "file": "motif-6.png", "name": "lemon" }
   }
 }
