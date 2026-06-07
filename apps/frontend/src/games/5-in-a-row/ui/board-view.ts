@@ -8,7 +8,12 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 const BOARD_SIZE = 9;
 const CELL_SIZE = 40;
 const VIEW_SIZE = BOARD_SIZE * CELL_SIZE; // 360
-const MOTIF_SIZE = 36;
+// Motif occupies 75% of the cell (30 of 40 SVG units), leaving a 5-unit
+// margin on every side. The 25% headroom is the budget for shrink/grow
+// bounce animations (`yn-pulse`, `yn-land`) defined in board-view.css --
+// peak scale of 1.30 reaches the cell edge exactly. Applies uniformly to
+// every theme since all motifs render through the same <image> sizing.
+const MOTIF_SIZE = 30;
 const PREVIEW_SIZE = 16;
 const LONG_PRESS_MS = 500;
 const MOVE_THRESHOLD_PX = 8;
@@ -192,12 +197,6 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   }
 
   function setBoard(board: Board, preview: readonly PreviewItem[], selected: Coord | null): void {
-    // Reveal the grid only while a piece is picked up. CSS class on the SVG
-    // root drives a board-wide `.yn-cell-bg { stroke: ... }` rule so the
-    // default board reads as one clean white area, and selecting a piece
-    // surfaces the cell structure for movement planning.
-    svg.classList.toggle("yn-has-selection", selected !== null);
-
     const previewMap = new Map<string, number>();
     for (const p of preview) {
       previewMap.set(cellKey(p.row, p.col), p.kind);
