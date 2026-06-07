@@ -145,9 +145,7 @@ test.describe("full v1 flow", () => {
     await expect(page.getByText(/No scores yet/i)).toBeVisible({ timeout: 2_000 });
   });
 
-  test("preview bounce: default on, toggles off via Settings, pref persists", async ({
-    page,
-  }) => {
+  test("preview bounce: default on, toggles off via Settings, pref persists", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
 
