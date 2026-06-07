@@ -7,7 +7,10 @@ import { fileURLToPath, URL } from "node:url";
 // In production on GitHub Pages, the equivalent happens via 404.html being a
 // byte-identical copy of index.html (per ADR-0001).
 function spaFallback(): PluginOption {
-  const rewrite = (req: { url?: string | undefined; headers?: { accept?: string | undefined } }): void => {
+  const rewrite = (req: {
+    url?: string | undefined;
+    headers?: { accept?: string | undefined };
+  }): void => {
     const url = req.url;
     if (url === undefined) return;
     const pathOnly = url.split("?")[0] ?? "";

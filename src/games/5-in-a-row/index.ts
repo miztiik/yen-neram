@@ -5,7 +5,7 @@ import { readSave, writeSave, makeFreshSave } from "./save.js";
 import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath } from "./engine/pathfind.js";
-import type { Coord } from "./types.js";
+import type { Coord, GameMode } from "./types.js";
 import { createBoardView } from "./ui/board-view.js";
 import {
   attemptMove,
@@ -15,12 +15,40 @@ import {
   type TurnState,
 } from "./ui/turn-loop.js";
 import { loadTheme } from "./ui/theme-loader.js";
+import { freshModeState, isGameOver, seedForMode } from "./modes/index.js";
+import { getLastMode, setLastMode, showModePicker } from "./ui/mode-picker.js";
+import {
+  discoverAvailableThemes,
+  openSettingsDrawer,
+  readAppPrefs,
+  updateAppPref,
+  type SettingsState,
+} from "./ui/settings-drawer.js";
+import { openHowToPlay } from "./ui/how-to-play.js";
 
-const balanceConfig = balanceJson as unknown as BalanceLike;
+type ExtendedBalance = BalanceLike & { readonly top_scores_max: number };
+const balanceConfig = balanceJson as unknown as ExtendedBalance;
 const HINT_LINGER_MS = 1500;
 const DEFAULT_THEME_ID = "tropical-fruits";
+const REDUCE_MOTION_CLASS = "prefers-reduced-motion-override";
 
 const mount: GameMount = async (container, options) => {
+  container.replaceChildren();
+
+  let save: SaveV1 = readSave() ?? makeFreshSave("infinite");
+
+  let mode: GameMode;
+  if (save.in_progress !== null) {
+    mode = save.mode;
+  } else {
+    mode = getLastMode() ?? (await showModePicker(container));
+  }
+  setLastMode(mode);
+  if (save.mode !== mode) {
+    save = { ...save, mode };
+    writeSave(save);
+  }
+
   container.replaceChildren();
 
   const root = document.createElement("div");
@@ -67,23 +95,32 @@ const mount: GameMount = async (container, options) => {
   const pauseBtn = document.createElement("button");
   pauseBtn.type = "button";
   pauseBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border opacity-50 cursor-not-allowed";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-slate-700 border border-yn-border";
   pauseBtn.textContent = "Pause";
-  pauseBtn.disabled = true;
   bottomBar.append(backBtn, undoBtn, pauseBtn);
 
   root.append(topBar, boardArea, bottomBar);
   container.appendChild(root);
 
-  const themeId = options.theme ?? DEFAULT_THEME_ID;
-  const theme = await loadTheme(themeId);
+  const appPrefs = readAppPrefs();
+  const themeId = options.theme ?? appPrefs.selected_theme ?? DEFAULT_THEME_ID;
+  const [theme, availableThemes] = await Promise.all([
+    loadTheme(themeId),
+    discoverAvailableThemes(),
+  ]);
 
-  let save: SaveV1 = readSave() ?? makeFreshSave("infinite");
+  const settingsState: SettingsState = {
+    themeId: theme.id,
+    reduceMotion: appPrefs.reduce_motion ?? false,
+    pathPreviewEnabled: appPrefs.path_preview_enabled ?? true,
+    showNextPreview: appPrefs.show_next_preview ?? true,
+  };
+  document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, settingsState.reduceMotion);
+  if (!settingsState.showNextPreview) previewEl.style.display = "none";
+
   const restoredSeed = save.in_progress?.turn_seed;
   const turnSeed =
-    restoredSeed !== undefined && restoredSeed !== null
-      ? restoredSeed
-      : Math.floor(Math.random() * 0xffffffff);
+    restoredSeed !== undefined && restoredSeed !== null ? restoredSeed : seedForMode(mode);
   const rng = createRng(turnSeed);
 
   let state: TurnState;
@@ -99,7 +136,7 @@ const mount: GameMount = async (container, options) => {
       modeState: ip.mode_state,
     };
   } else {
-    state = createInitialTurnState(rng, { kind: "infinite" }, balanceConfig);
+    state = createInitialTurnState(rng, freshModeState(mode), balanceConfig);
   }
 
   let isAnimating = false;
@@ -145,6 +182,27 @@ const mount: GameMount = async (container, options) => {
     };
     save = next;
     writeSave(next);
+  }
+
+  function recordHighScore(): void {
+    const entry = { score: state.score, timestamp_iso: new Date().toISOString() };
+    const cap = balanceConfig.top_scores_max;
+    const next_high_scores =
+      mode === "max-points"
+        ? {
+            ...save.high_scores,
+            max_points: [...save.high_scores.max_points, entry]
+              .sort((a, b) => b.score - a.score)
+              .slice(0, cap),
+          }
+        : {
+            ...save.high_scores,
+            infinite: [...save.high_scores.infinite, entry]
+              .sort((a, b) => b.score - a.score)
+              .slice(0, cap),
+          };
+    save = { ...save, high_scores: next_high_scores, in_progress: null };
+    writeSave(save);
   }
 
   function onCellLongPress(coord: Coord): void {
@@ -197,7 +255,11 @@ const mount: GameMount = async (container, options) => {
       if (outcome.spawnedAt.length > 0) {
         await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
-      persist();
+      if (isGameOver(state)) {
+        recordHighScore();
+      } else {
+        persist();
+      }
     } finally {
       isAnimating = false;
     }
@@ -206,10 +268,57 @@ const mount: GameMount = async (container, options) => {
   render();
   persist();
 
+  let drawerClose: (() => void) | null = null;
+  let modalClose: (() => void) | null = null;
+  pauseBtn.addEventListener("click", () => {
+    drawerClose = openSettingsDrawer(container, { ...settingsState }, availableThemes, {
+      onThemeChange(nextThemeId) {
+        // TODO: hot-swap when boardView.setTheme lands. v1: persist selection;
+        // the next mount reads selected_theme from yn:app and loads from there.
+        settingsState.themeId = nextThemeId;
+        updateAppPref({ selected_theme: nextThemeId });
+      },
+      onReduceMotionChange(enabled) {
+        settingsState.reduceMotion = enabled;
+        document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, enabled);
+        updateAppPref({ reduce_motion: enabled });
+      },
+      onPathPreviewChange(enabled) {
+        settingsState.pathPreviewEnabled = enabled;
+        updateAppPref({ path_preview_enabled: enabled });
+      },
+      onShowNextPreviewChange(enabled) {
+        settingsState.showNextPreview = enabled;
+        previewEl.style.display = enabled ? "" : "none";
+        updateAppPref({ show_next_preview: enabled });
+      },
+      onResetGame() {
+        writeSave(makeFreshSave(save.mode));
+        window.location.reload();
+      },
+      onClearHighScores() {
+        writeSave({ ...save, high_scores: { infinite: [], max_points: [] } });
+        window.location.reload();
+      },
+      onModeSwitch() {
+        // PR 6 will wire the mode-picker. v1: clear in-progress + last_mode,
+        // bounce to home so the next entry picks a fresh mode.
+        writeSave({ ...save, in_progress: null });
+        updateAppPref({ last_mode: null });
+        window.location.assign("/");
+      },
+      onShowHowToPlay() {
+        modalClose = openHowToPlay(container);
+      },
+    });
+  });
+
   const instance: GameInstance = {
     unmount() {
       for (const id of pendingTimers) window.clearTimeout(id);
       pendingTimers.clear();
+      if (modalClose !== null) modalClose();
+      if (drawerClose !== null) drawerClose();
       boardView.destroy();
       container.replaceChildren();
     },
