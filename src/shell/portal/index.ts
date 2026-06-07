@@ -15,7 +15,10 @@ export function mountPortal(container: HTMLElement, options: PortalOptions): () 
   container.replaceChildren();
 
   const root = document.createElement("div");
-  root.className = "h-full flex flex-col items-center justify-center p-4 gap-6";
+  // min-h-full + py-8 + justify-start so content scrolls naturally on short
+  // viewports (landscape phone, dev preview). On taller viewports the content
+  // hugs the top with breathing room.
+  root.className = "min-h-full flex flex-col items-center justify-start py-8 px-4 gap-6";
 
   const title = document.createElement("h1");
   title.className = "text-3xl font-bold text-yn-ink";
