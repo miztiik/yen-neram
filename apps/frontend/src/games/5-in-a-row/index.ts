@@ -70,13 +70,27 @@ const mount: GameMount = async (container, options) => {
   container.replaceChildren();
 
   const root = document.createElement("div");
-  root.className = "flex flex-col h-full bg-yn-bg";
+  // Responsive 3-cell grid (Jony pass 2026-06-07, side-gutters lift):
+  //   Mobile / portrait tablet: stacked rows (HUD bar / board / actions bar)
+  //   Wide (lg+ = 1024px):      3 columns (HUD col | board | actions col)
+  // yn-board-bg sits on root so the ambient glyph pattern fills the gutters
+  // when the bars become side columns; on mobile the bars cover the pattern
+  // strip behind them anyway, so the visual is unchanged.
+  root.className =
+    "grid h-full yn-board-bg " +
+    "grid-rows-[auto_minmax(0,1fr)_auto] grid-cols-1 " +
+    "lg:grid-rows-1 lg:grid-cols-[minmax(160px,1fr)_minmax(0,800px)_minmax(160px,1fr)]";
   root.setAttribute("role", "application");
   root.setAttribute("aria-label", "5 in a Row game");
 
   const topBar = document.createElement("div");
   topBar.className =
-    "flex justify-between items-center gap-3 px-3 sm:px-5 py-2 bg-yn-tile/95 backdrop-blur border-b border-yn-border";
+    // Mobile: horizontal bar with cream panel chrome
+    "flex flex-row items-center justify-between gap-3 px-3 py-2 " +
+    "bg-yn-tile/95 backdrop-blur border-b border-yn-border " +
+    // Wide: vertical column, chips float on the patterned bg
+    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
+    "lg:bg-transparent lg:backdrop-blur-none lg:border-b-0";
 
   // Score chip: SCORE label above big number in an accent-filled pill.
   // The number itself is the meaning; "Score:" prefix was 1990s.
@@ -128,15 +142,16 @@ const mount: GameMount = async (container, options) => {
   topBar.append(scoreEl, streakEl, timerEl, previewEl);
 
   const boardArea = document.createElement("div");
+  // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
+  // root). Just a flex centerer for the board itself.
   boardArea.className =
-    "flex-1 min-h-0 flex items-center justify-center p-2 yn-board-bg overflow-hidden";
+    "flex items-center justify-center p-2 min-h-0 overflow-hidden";
   const boardWrap = document.createElement("div");
-  // aspect-square + max-w-[720px] + max-h-full lets the browser pick the
-  // smaller of (parent.width, parent.height, 720) and keeps the board square
-  // at every viewport. Phone-portrait stays full-width (the prior 480 cap
-  // was leaving headroom on big phones); desktop grows to 720; a landscape
-  // laptop with a short vertical slot shrinks square via max-h-full.
-  boardWrap.className = "aspect-square w-full max-w-[720px] max-h-full";
+  // aspect-square + max-w-[800px] + max-h-full lets the browser pick the
+  // smaller of (parent.width, parent.height, 800) and keeps the board square
+  // at every viewport. Cap bumped 720 -> 800 to match the new middle-column
+  // ceiling on lg+ layouts.
+  boardWrap.className = "aspect-square w-full max-w-[800px] max-h-full";
   const loadingEl = document.createElement("p");
   loadingEl.className = "text-sm text-yn-muted text-center";
   loadingEl.textContent = "Loading theme...";
@@ -145,7 +160,12 @@ const mount: GameMount = async (container, options) => {
 
   const bottomBar = document.createElement("div");
   bottomBar.className =
-    "flex justify-between items-center gap-2 px-3 sm:px-5 py-2 bg-yn-tile/95 backdrop-blur border-t border-yn-border";
+    // Mobile: horizontal bar with cream panel chrome
+    "flex flex-row items-center justify-between gap-2 px-3 py-2 " +
+    "bg-yn-tile/95 backdrop-blur border-t border-yn-border " +
+    // Wide: vertical column, buttons float on the patterned bg
+    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
+    "lg:bg-transparent lg:backdrop-blur-none lg:border-t-0";
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   // Ghost pill: bg-transparent, border, rounded-full, hover deepens to bg-bg.
