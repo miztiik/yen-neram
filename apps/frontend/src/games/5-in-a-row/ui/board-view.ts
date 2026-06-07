@@ -14,15 +14,17 @@ const VIEW_SIZE = BOARD_SIZE * CELL_SIZE; // 360
 // peak scale of 1.30 reaches the cell edge exactly. Applies uniformly to
 // every theme since all motifs render through the same <image> sizing.
 const MOTIF_SIZE = 30;
-// Preview motifs render at 55% of the cell (22 of 40 SVG units); real
-// pieces fill 75% (MOTIF_SIZE = 30). The 20-unit gap between preview and
+// Preview motifs render at 45% of the cell (18 of 40 SVG units); real
+// pieces fill 75% (MOTIF_SIZE = 30). The 12-unit gap between preview and
 // real keeps the "next vs placed" cue legible while previews stay readable
-// at a glance (previous value 16 was too small to recognise on Snapdragon-
-// 6-series screens). The optional `yn-preview-breathe` animation (CSS,
-// gated by `previewBounceEnabled`) peaks at scale 1.06 -> 22 * 1.06 = 23.3
+// at a glance. Size journey: 16 (original, too faint) -> 22 (too close to
+// real, lost the hierarchy) -> 18 (this); the visibility win is now
+// carried mostly by `.yn-preview-motif { opacity: 0.7 }` (was 0.4) in
+// board-view.css. The optional `yn-preview-breathe` animation (CSS,
+// gated by `previewBounceEnabled`) peaks at scale 1.06 -> 18 * 1.06 = 19.1
 // SVG units, well below MOTIF_SIZE, so it never overlaps an adjacent
 // placed piece.
-const PREVIEW_SIZE = 22;
+const PREVIEW_SIZE = 18;
 const PREVIEW_BOUNCE_CLASS = "yn-preview-bounce";
 const LONG_PRESS_MS = 500;
 const MOVE_THRESHOLD_PX = 8;
