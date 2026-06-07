@@ -144,8 +144,7 @@ const mount: GameMount = async (container, options) => {
   const boardArea = document.createElement("div");
   // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
   // root). Just a flex centerer for the board itself.
-  boardArea.className =
-    "flex items-center justify-center p-2 min-h-0 overflow-hidden";
+  boardArea.className = "flex items-center justify-center p-2 min-h-0 overflow-hidden";
   const boardWrap = document.createElement("div");
   // aspect-square + max-w-[800px] + max-h-full lets the browser pick the
   // smaller of (parent.width, parent.height, 800) and keeps the board square
