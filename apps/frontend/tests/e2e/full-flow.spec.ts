@@ -145,6 +145,43 @@ test.describe("full v1 flow", () => {
     await expect(page.getByText(/No scores yet/i)).toBeVisible({ timeout: 2_000 });
   });
 
+  test("preview bounce: default on, toggles off via Settings, pref persists", async ({
+    page,
+  }) => {
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+
+    const board = page.locator("svg.yn-board-svg");
+    await expect(board).toBeVisible({ timeout: 5_000 });
+
+    // Default: SVG root carries the bounce class so the CSS keyframe runs
+    // on every preview motif. App pref absent => default-on at the call site.
+    await expect(board).toHaveClass(/yn-preview-bounce/, { timeout: 2_000 });
+
+    // Toggle off.
+    await page.getByRole("button", { name: "Pause" }).click();
+    const drawer = page.getByRole("dialog", { name: "Settings" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    // Locate the row by its span label (makeToggle puts the label in a
+    // <span>; the toggle button sits next to it inside a shared <div> row).
+    const bounceRow = drawer.locator("div", {
+      has: page.getByText("Preview bounce", { exact: true }),
+    });
+    const bounceToggle = bounceRow.getByRole("switch");
+    await expect(bounceToggle).toHaveAttribute("aria-checked", "true");
+    await bounceToggle.click();
+    await expect(bounceToggle).toHaveAttribute("aria-checked", "false");
+
+    // Class is removed live (no reload needed).
+    await expect(board).not.toHaveClass(/yn-preview-bounce/, { timeout: 1_000 });
+
+    // Pref persists to `yn:app`.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:app"));
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored ?? "{}") as { preview_bounce_enabled?: boolean };
+    expect(parsed.preview_bounce_enabled).toBe(false);
+  });
+
   test("long-pressing an empty cell does not crash the game", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
