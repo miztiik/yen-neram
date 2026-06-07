@@ -77,7 +77,7 @@ git push
 
 Run the gates appropriate to the surface before merge. Reference: [CLAUDE.md](../../CLAUDE.md) §9 (DoD) + §12 (UI Verification) + §13 (Test Coverage Policy).
 
-The gate *commands* depend on the stack picks (build tool, test runner, type-check tool, lint), which land alongside the first real PR per CLAUDE.md §3. The gate *categories* are stable:
+The gate _commands_ depend on the stack picks (build tool, test runner, type-check tool, lint), which land alongside the first real PR per CLAUDE.md §3. The gate _categories_ are stable:
 
 1. **Schema / contract validation** - every persisted shape (save format, level data, asset manifest) validates against its schema.
 2. **Unit + contract tests** - per CLAUDE.md §13. Real fixtures, no mocks.

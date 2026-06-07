@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Game board dark texture (per design freeze 2026-06-07). */
+:root {
+  --yn-bg-deep: #0f172a;
+  --yn-bg-tile: #1e293b;
+  --yn-tile-border: #334155;
+  --yn-ink: #e2e8f0;
+  --yn-muted: #94a3b8;
+  --yn-accent: #f472b6;
+}
+
+@layer base {
+  html,
+  body,
+  #app {
+    height: 100%;
+  }
+  body {
+    background: var(--yn-bg-deep);
+    color: var(--yn-ink);
+  }
+}
+
+/* Subtle dot-grid texture for the game board background. */
+.yn-board-bg {
+  background-color: var(--yn-bg-deep);
+  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1.5px);
+  background-size: 16px 16px;
+}

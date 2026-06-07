@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "id": "tropical-fruits",
+  "display_name": "Tropical Fruits",
+  "description": "Vibrant glossy fruits; Fruit Ninja energy.",
+  "license": "CC0-1.0",
+  "background": {
+    "fill": "#0f172a",
+    "grid": "#1e293b"
+  },
+  "motifs": {
+    "1": { "file": "motif-1.svg", "name": "watermelon" },
+    "2": { "file": "motif-2.svg", "name": "pineapple" },
+    "3": { "file": "motif-3.svg", "name": "strawberry" },
+    "4": { "file": "motif-4.svg", "name": "apple" },
+    "5": { "file": "motif-5.svg", "name": "banana" },
+    "6": { "file": "motif-6.svg", "name": "mango" }
+  }
+}

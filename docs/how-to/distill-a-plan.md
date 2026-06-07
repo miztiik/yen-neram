@@ -21,14 +21,14 @@ Do NOT run for in-flight rows. Distillation only happens after the finding has s
 
 For each finding in the closed row's narrative, apply the routing rules in [../reference/documentation-structure.md](../reference/documentation-structure.md#routing-rules-decide-a-new-statements-home) and route to ONE home:
 
-| Finding shape | Destination | Example |
-| --- | --- | --- |
+| Finding shape                                                                                    | Destination                                                                                                                                                 | Example                                                                                                                  |
+| ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
 | Decision with credible rejected alternatives + non-trivial reversal cost + cross-cuts subsystems | **ADR** under `docs/architecture/decisions/NNNN-*.md`, plus a `## Design rationale` + `## Rejected alternatives` section in the subsystem doc that cites it | "Why Rapier WASM instead of cannon-es for the physics engine?" -> ADR + cite from `docs/architecture/runtime/physics.md` |
-| Current shape / layout / contract of one subsystem | **Subsystem doc** under `docs/architecture/<area>/<slug>.md` | "How is the save format laid out on disk?" -> `docs/architecture/save-format/layout.md` |
-| Vocabulary term used in multiple subsystems | **Concept doc** under `docs/concepts/<slug>.md` | "What is the asset pipeline?" -> `docs/concepts/asset-pipeline.md` |
-| Operator runbook / step-by-step procedure | **How-to doc** under `docs/how-to/<verb>-<slug>.md` | "How do I add a new level?" -> `docs/how-to/add-a-level.md` |
-| Agent-only execution lesson (gotcha, recurring trap, tool quirk) | **`/memories/lessons.md`** (memory tool) | "the cosmetic gh-merge confirmation pattern"; "PowerShell BOM bites `git commit -F`" |
-| Per-PR audit trail | **Stays in the plan-doc `CLOSED` sub-section** | Diff stat, gate results, discoveries specific to this PR's execution |
+| Current shape / layout / contract of one subsystem                                               | **Subsystem doc** under `docs/architecture/<area>/<slug>.md`                                                                                                | "How is the save format laid out on disk?" -> `docs/architecture/save-format/layout.md`                                  |
+| Vocabulary term used in multiple subsystems                                                      | **Concept doc** under `docs/concepts/<slug>.md`                                                                                                             | "What is the asset pipeline?" -> `docs/concepts/asset-pipeline.md`                                                       |
+| Operator runbook / step-by-step procedure                                                        | **How-to doc** under `docs/how-to/<verb>-<slug>.md`                                                                                                         | "How do I add a new level?" -> `docs/how-to/add-a-level.md`                                                              |
+| Agent-only execution lesson (gotcha, recurring trap, tool quirk)                                 | **`/memories/lessons.md`** (memory tool)                                                                                                                    | "the cosmetic gh-merge confirmation pattern"; "PowerShell BOM bites `git commit -F`"                                     |
+| Per-PR audit trail                                                                               | **Stays in the plan-doc `CLOSED` sub-section**                                                                                                              | Diff stat, gate results, discoveries specific to this PR's execution                                                     |
 
 If a finding fits two destinations, pick the more durable one (ADR > subsystem > concept > how-to > lesson). If it fits none, it probably is not durable - leave it in the plan-doc `CLOSED` sub-section and move on.
 
@@ -76,7 +76,7 @@ This preserves the audit trail (someone reading the plan-doc later sees what was
 
 ### Step 4 - agent-only lessons go to `/memories/lessons.md`
 
-Use the memory tool. Findings that are about *how to do agent work* (PR-shipping gotchas, command-line quirks, parallelisation traps, recurring failure modes) belong in user memory, not in `docs/`. The line is: `docs/` is for project knowledge a developer would read; `/memories/lessons.md` is for agent execution craft.
+Use the memory tool. Findings that are about _how to do agent work_ (PR-shipping gotchas, command-line quirks, parallelisation traps, recurring failure modes) belong in user memory, not in `docs/`. The line is: `docs/` is for project knowledge a developer would read; `/memories/lessons.md` is for agent execution craft.
 
 ### Step 5 - declare the plan-doc closed
 

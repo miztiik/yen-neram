@@ -43,20 +43,20 @@ In-memory `Path` objects for local I/O may stay platform-native. Rule applies at
 
 ## 3. Repository Topology
 
-| Directory       | Status     | Purpose |
-| --------------- | ---------- | ------- |
-| `CLAUDE.md`     | created    | This file |
-| `README.md`     | TBD        | Entry point |
-| `docs/`         | partial    | Canonical knowledge (Diataxis tiers, 3-level depth) |
-| `.github/agents/` | created  | Persona advisors (Carmack, Fowler, Jony, Palm, Player) |
-| `config/`       | TBD        | Human-edited tunable knobs (game balance, level thresholds) |
-| `src/`          | TBD        | Game source. Exact layout (TypeScript / Svelte / vanilla, components/, scenes/) decided by Fowler + Carmack on the first real PR. |
-| `assets/`       | TBD        | Source assets pre-pipeline (raw textures, models, sounds). Never read directly by the game. |
-| `tools/`        | TBD        | Build-time asset pipeline (`gltf-pipeline`, `basisu`, sound compression). |
-| `public/`       | TBD        | Static files served as-is (`index.html`, favicon, web manifest, service worker). |
-| `dist/`         | gitignored | Built bundle for GitHub Pages. |
-| `tests/`        | TBD        | Unit / contract / integration / e2e tests (section 13). |
-| `TODO/` `notes/`| optional   | Working scratchpads - non-authoritative. |
+| Directory         | Status     | Purpose                                                                                                                           |
+| ----------------- | ---------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| `CLAUDE.md`       | created    | This file                                                                                                                         |
+| `README.md`       | TBD        | Entry point                                                                                                                       |
+| `docs/`           | partial    | Canonical knowledge (Diataxis tiers, 3-level depth)                                                                               |
+| `.github/agents/` | created    | Persona advisors (Carmack, Fowler, Jony, Palm, Player)                                                                            |
+| `config/`         | TBD        | Human-edited tunable knobs (game balance, level thresholds)                                                                       |
+| `src/`            | TBD        | Game source. Exact layout (TypeScript / Svelte / vanilla, components/, scenes/) decided by Fowler + Carmack on the first real PR. |
+| `assets/`         | TBD        | Source assets pre-pipeline (raw textures, models, sounds). Never read directly by the game.                                       |
+| `tools/`          | TBD        | Build-time asset pipeline (`gltf-pipeline`, `basisu`, sound compression).                                                         |
+| `public/`         | TBD        | Static files served as-is (`index.html`, favicon, web manifest, service worker).                                                  |
+| `dist/`           | gitignored | Built bundle for GitHub Pages.                                                                                                    |
+| `tests/`          | TBD        | Unit / contract / integration / e2e tests (section 13).                                                                           |
+| `TODO/` `notes/`  | optional   | Working scratchpads - non-authoritative.                                                                                          |
 
 Folders are created only when real code is about to land. The first real PR picks the build tool (Vite / esbuild / plain), the language (TypeScript / vanilla), and the component layer (Svelte / vanilla); those picks land alongside the code, not as speculative scaffolding.
 
@@ -81,14 +81,14 @@ Folders are created only when real code is about to land. The first real PR pick
 
 ## 6. Correction Levels
 
-| Level | Scope | Workflow |
-| :---: | --- | --- |
-|  0 | Comments, typos, log strings | Direct fix |
-|  1 | 1 file, ~50 lines, isolated bug | Direct fix |
-|  2 | 1-2 files, explicit behavior change | Plan -> execute once scope is clear |
-|  3 | 2-3 files, cross-cutting | Plan -> phased execution |
-|  4 | 4+ files, structural | Propose breakdown first |
-|  5 | Core design / save format / renderer / physics-engine pick | Design consultation only - pause work |
+| Level | Scope                                                      | Workflow                              |
+| :---: | ---------------------------------------------------------- | ------------------------------------- |
+|   0   | Comments, typos, log strings                               | Direct fix                            |
+|   1   | 1 file, ~50 lines, isolated bug                            | Direct fix                            |
+|   2   | 1-2 files, explicit behavior change                        | Plan -> execute once scope is clear   |
+|   3   | 2-3 files, cross-cutting                                   | Plan -> phased execution              |
+|   4   | 4+ files, structural                                       | Propose breakdown first               |
+|   5   | Core design / save format / renderer / physics-engine pick | Design consultation only - pause work |
 
 When in doubt, choose the higher level.
 
@@ -206,12 +206,12 @@ No pytest / vitest / playwright test fetches the network at runtime - use local 
 
 Five persona advisors live under `.github/agents/`, each at a distinct altitude:
 
-| Agent | File | Altitude |
-| --- | --- | --- |
-| Player | `player.agent.md` | mental model of the median casual-game player |
-| Jony (UI/UX) | `jony.agent.md` | game chrome (HUD, menu, modal, settings) |
-| Palm (Casual Design) | `palm.agent.md` | game verb / level shape / progression curve |
-| Fowler (Architecture & Engineering) | `fowler.agent.md` | architecture + contracts + commits + tests |
-| Carmack (Engine & Runtime) | `carmack.agent.md` | renderer + physics + asset pipeline + frame budget + bundle + offline |
+| Agent                               | File               | Altitude                                                              |
+| ----------------------------------- | ------------------ | --------------------------------------------------------------------- |
+| Player                              | `player.agent.md`  | mental model of the median casual-game player                         |
+| Jony (UI/UX)                        | `jony.agent.md`    | game chrome (HUD, menu, modal, settings)                              |
+| Palm (Casual Design)                | `palm.agent.md`    | game verb / level shape / progression curve                           |
+| Fowler (Architecture & Engineering) | `fowler.agent.md`  | architecture + contracts + commits + tests                            |
+| Carmack (Engine & Runtime)          | `carmack.agent.md` | renderer + physics + asset pipeline + frame budget + bundle + offline |
 
 Rule: adding a new agent requires justifying a distinct altitude not already covered. Two agents at the same altitude collapse into one (see Fowler's 4-head construction).
