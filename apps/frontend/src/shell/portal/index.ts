@@ -9,7 +9,7 @@ export type PortalOptions = {
 const TILE_BASE_CLASSES =
   "aspect-square rounded-xl border border-yn-border bg-yn-tile flex flex-col items-center justify-center gap-2 p-3 transition-transform active:scale-95";
 const TILE_PLACEHOLDER_CLASSES = "opacity-40 cursor-not-allowed";
-const TILE_SHIPPED_CLASSES = "hover:bg-slate-700 hover:border-yn-accent cursor-pointer";
+const TILE_SHIPPED_CLASSES = "hover:bg-orange-200 hover:border-yn-accent cursor-pointer";
 
 export function mountPortal(container: HTMLElement, options: PortalOptions): () => void {
   container.replaceChildren();
@@ -38,7 +38,9 @@ export function mountPortal(container: HTMLElement, options: PortalOptions): () 
   root.appendChild(subtitle);
 
   const grid = document.createElement("div");
-  grid.className = "grid gap-3 w-full max-w-[640px] grid-cols-2 sm:grid-cols-3";
+  // max-w-5xl + up-to-4-column ladder so a wider monitor actually gets used;
+  // on phone it stays 2-up which keeps every tile a fat tap target.
+  grid.className = "grid gap-3 w-full max-w-5xl grid-cols-2 sm:grid-cols-3 md:grid-cols-4 px-4";
 
   for (const entry of options.games) {
     grid.appendChild(buildTile(entry, options.router));

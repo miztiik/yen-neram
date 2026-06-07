@@ -75,7 +75,7 @@ const mount: GameMount = async (container, options) => {
 
   const topBar = document.createElement("div");
   topBar.className =
-    "flex justify-between items-center px-4 py-3 bg-yn-tile border-b border-yn-border";
+    "flex justify-between items-center px-4 sm:px-6 md:px-8 py-3 bg-yn-tile border-b border-yn-border";
   const scoreEl = document.createElement("div");
   scoreEl.className = "text-yn-ink font-semibold tabular-nums";
   scoreEl.textContent = "Score: 0";
@@ -97,9 +97,15 @@ const mount: GameMount = async (container, options) => {
   topBar.append(scoreEl, streakEl, timerEl, previewEl);
 
   const boardArea = document.createElement("div");
-  boardArea.className = "flex-1 flex items-center justify-center p-4 yn-board-bg overflow-hidden";
+  boardArea.className =
+    "flex-1 min-h-0 flex items-center justify-center p-4 sm:p-6 md:p-8 yn-board-bg overflow-hidden";
   const boardWrap = document.createElement("div");
-  boardWrap.className = "w-full max-w-[480px]";
+  // aspect-square + max-w-[720px] + max-h-full lets the browser pick the
+  // smaller of (parent.width, parent.height, 720) and keeps the board square
+  // at every viewport. Phone-portrait stays full-width (the prior 480 cap
+  // was leaving headroom on big phones); desktop grows to 720; a landscape
+  // laptop with a short vertical slot shrinks square via max-h-full.
+  boardWrap.className = "aspect-square w-full max-w-[720px] max-h-full";
   const loadingEl = document.createElement("p");
   loadingEl.className = "text-sm text-yn-muted text-center";
   loadingEl.textContent = "Loading theme...";
@@ -108,11 +114,11 @@ const mount: GameMount = async (container, options) => {
 
   const bottomBar = document.createElement("div");
   bottomBar.className =
-    "flex justify-between items-center px-4 py-3 bg-yn-tile border-t border-yn-border gap-2";
+    "flex justify-between items-center px-4 sm:px-6 md:px-8 py-3 bg-yn-tile border-t border-yn-border gap-2";
   const backBtn = document.createElement("button");
   backBtn.type = "button";
   backBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-slate-700 border border-yn-border";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-orange-200 border border-yn-border";
   backBtn.textContent = "Back";
   backBtn.addEventListener("click", () => {
     window.history.back();
@@ -127,7 +133,7 @@ const mount: GameMount = async (container, options) => {
   const pauseBtn = document.createElement("button");
   pauseBtn.type = "button";
   pauseBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-slate-700 border border-yn-border";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink hover:bg-orange-200 border border-yn-border";
   pauseBtn.textContent = "Pause";
   bottomBar.append(backBtn, undoBtn, pauseBtn);
 

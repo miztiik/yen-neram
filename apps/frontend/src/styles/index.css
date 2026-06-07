@@ -2,14 +2,22 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Game board dark texture (per design freeze 2026-06-07). */
+/* Warm-vibrant chrome palette (Jony pass 2026-06-07, vibrancy bump).
+   Juicy mango page bg + cream lifted cards + saturated orange rim +
+   deep terracotta ink + vibrant orange CTA. The page bg deliberately
+   PUNCHES against the cream cards (90+ brightness delta) so the
+   surface hierarchy reads at a glance. Splash-pink (board-view.css)
+   stays as the celebration moment; pink + vibrant orange are
+   complementary on the warm side of the wheel. Tokens are consumed
+   via Tailwind via tailwind.config.ts and directly via var() inside
+   renderer-owned SVG (board-view.css). */
 :root {
-  --yn-bg-deep: #0f172a;
-  --yn-bg-tile: #1e293b;
-  --yn-tile-border: #334155;
-  --yn-ink: #e2e8f0;
-  --yn-muted: #94a3b8;
-  --yn-accent: #f472b6;
+  --yn-bg-deep: #fdba74;
+  --yn-bg-tile: #fff7ed;
+  --yn-tile-border: #fb923c;
+  --yn-ink: #7c2d12;
+  --yn-muted: #9a3412;
+  --yn-accent: #ea580c;
 }
 
 @layer base {
@@ -24,10 +32,12 @@
   }
 }
 
-/* Subtle dot-grid texture for the game board background. */
+/* Subtle dot-grid texture for the game board background. Terracotta dots
+   on vibrant mango — opacity 0.10 so the dots stay visible against the
+   brighter bg without competing with the motifs. */
 .yn-board-bg {
   background-color: var(--yn-bg-deep);
-  background-image: radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1.5px);
+  background-image: radial-gradient(circle, rgba(124, 45, 18, 0.1) 1px, transparent 1.5px);
   background-size: 16px 16px;
 }
 

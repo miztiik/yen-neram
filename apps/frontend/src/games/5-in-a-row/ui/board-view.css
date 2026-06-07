@@ -1,18 +1,17 @@
 .yn-board-svg {
   display: block;
   width: 100%;
-  height: auto;
-  max-width: 600px;
+  height: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
 }
 .yn-cell-bg {
-  fill: #1e293b;
-  stroke: #334155;
-  stroke-width: 0.5;
+  fill: #ffffff;
+  stroke: #fdba74;
+  stroke-width: 0.6;
 }
 .yn-cell-reachable .yn-cell-bg {
-  fill: #1e3a5f;
+  fill: #fed7aa;
 }
 .yn-cell-focused .yn-cell-bg {
   stroke: var(--yn-accent);

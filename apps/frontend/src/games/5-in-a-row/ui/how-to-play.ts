@@ -86,7 +86,7 @@ export function openHowToPlay(parent: HTMLElement): () => void {
   const gotIt = document.createElement("button");
   gotIt.type = "button";
   gotIt.className =
-    "mt-4 self-end px-4 py-2 rounded-lg bg-yn-accent text-yn-bg font-semibold border border-yn-accent";
+    "mt-4 self-end px-4 py-2 rounded-lg bg-yn-accent text-white font-semibold border border-yn-accent";
   gotIt.textContent = "Got it";
   modal.appendChild(gotIt);
 

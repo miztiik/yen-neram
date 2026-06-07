@@ -157,7 +157,7 @@ function makeDestructiveButton(
   const button = document.createElement("button");
   button.type = "button";
   button.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-accent border border-yn-border hover:bg-slate-700 text-sm self-start";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-accent border border-yn-border hover:bg-orange-200 text-sm self-start";
   button.textContent = label;
   let confirmRow: HTMLElement | null = null;
   button.addEventListener("click", () => {
@@ -210,7 +210,7 @@ export function openSettingsDrawer(
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className =
-    "px-3 py-1 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-slate-700 text-sm";
+    "px-3 py-1 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm";
   closeBtn.textContent = "Close";
   header.appendChild(closeBtn);
 
@@ -263,7 +263,7 @@ export function openSettingsDrawer(
   const modeBtn = document.createElement("button");
   modeBtn.type = "button";
   modeBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-slate-700 text-sm self-start";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-start";
   modeBtn.textContent = "Switch mode";
   modeBtn.addEventListener("click", () => {
     void actions.onModeSwitch();
@@ -274,7 +274,7 @@ export function openSettingsDrawer(
   const helpBtn = document.createElement("button");
   helpBtn.type = "button";
   helpBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-slate-700 text-sm self-start";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-start";
   helpBtn.textContent = "How to play";
   helpBtn.addEventListener("click", () => {
     actions.onShowHowToPlay();
@@ -285,7 +285,7 @@ export function openSettingsDrawer(
   const scoresBtn = document.createElement("button");
   scoresBtn.type = "button";
   scoresBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-slate-700 text-sm self-start";
+    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-start";
   scoresBtn.textContent = "High Scores";
   scoresBtn.addEventListener("click", () => {
     actions.onShowLeaderboard();

@@ -40,8 +40,11 @@ modifying the canonical SVGs IN PLACE.
   canonical location IS the build output for this asset class).
 - A contract test
   (`apps/frontend/tests/contract/svgo-pipeline.test.ts`) asserts each
-  motif is `< 1500b`, well-formed, free of `<?xml>`, `<title>`,
-  `<desc>`.
+  motif is `< 3000b`, well-formed, free of `<?xml>`, `<title>`,
+  `<desc>`. (Bumped from 1500b on 2026-06-07 to accommodate the more
+  detailed tropical-fruits banana motif, which optimises to 2691b
+  after SVGO. 3000b x 6 motifs x ~3 themes = ~54 KB ceiling for all
+  motif art, still trivial vs Holy Law #2 bundle budget.)
 
 This is per-file optimisation only - no sprite-sheet, no atlas, no
 runtime indirection.

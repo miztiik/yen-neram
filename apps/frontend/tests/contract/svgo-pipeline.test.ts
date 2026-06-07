@@ -29,11 +29,11 @@ describe("SVGO pipeline contract (per ADR-0011)", () => {
     expect(files.length).toBeGreaterThan(0);
   });
 
-  it("every motif SVG is under 1500 bytes after optimisation", () => {
+  it("every motif SVG is under 3000 bytes after optimisation", () => {
     const oversize: string[] = [];
     for (const file of files) {
       const size = statSync(file).size;
-      if (size >= 1500) oversize.push(`${file}: ${size}b`);
+      if (size >= 3000) oversize.push(`${file}: ${size}b`);
     }
     expect(oversize, oversize.join("\n")).toEqual([]);
   });

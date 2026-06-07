@@ -41,7 +41,7 @@ export function showModePicker(container: HTMLElement): Promise<GameMode> {
     title.textContent = "Pick a mode";
 
     const grid = document.createElement("div");
-    grid.className = "grid grid-cols-1 sm:grid-cols-2 gap-4 w-full max-w-[480px]";
+    grid.className = "grid grid-cols-1 sm:grid-cols-3 gap-4 w-full max-w-[720px]";
 
     for (const contract of MODE_CONTRACTS) {
       const btn = document.createElement("button");

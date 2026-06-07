@@ -93,7 +93,7 @@ export function openGameOverModal(
   scoreRow.appendChild(scoreEl);
   if (context.isNewPersonalBest) {
     const pip = document.createElement("span");
-    pip.className = "px-2 py-0.5 rounded-full bg-yn-accent text-yn-bg text-xs font-semibold";
+    pip.className = "px-2 py-0.5 rounded-full bg-yn-accent text-white text-xs font-semibold";
     pip.textContent = "New best!";
     scoreRow.appendChild(pip);
   }
@@ -124,7 +124,7 @@ export function openGameOverModal(
     const entry = context.topThree[i];
     const isThisGame = entry?.isThisGame === true;
     row.className = isThisGame
-      ? "flex items-center justify-between py-2 px-2 rounded border border-yn-accent bg-slate-700"
+      ? "flex items-center justify-between py-2 px-2 rounded border border-yn-accent bg-orange-200"
       : "flex items-center justify-between py-2 px-2";
 
     const rank = document.createElement("span");
@@ -165,7 +165,7 @@ export function openGameOverModal(
   const playAgainBtn = document.createElement("button");
   playAgainBtn.type = "button";
   playAgainBtn.className =
-    "flex-1 px-4 py-2 rounded-lg bg-yn-accent text-yn-bg font-semibold text-sm";
+    "flex-1 px-4 py-2 rounded-lg bg-yn-accent text-white font-semibold text-sm";
   playAgainBtn.textContent = "Play again";
   const homeBtn = document.createElement("button");
   homeBtn.type = "button";

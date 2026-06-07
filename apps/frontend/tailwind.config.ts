@@ -5,12 +5,14 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        "yn-bg": "#0f172a",
-        "yn-tile": "#1e293b",
-        "yn-border": "#334155",
-        "yn-ink": "#e2e8f0",
-        "yn-muted": "#94a3b8",
-        "yn-accent": "#f472b6",
+        // Warm-vibrant chrome palette (Jony pass 2026-06-07, vibrancy bump).
+        // Mirrors the CSS vars in src/styles/index.css; keep the two in sync.
+        "yn-bg": "#fdba74",
+        "yn-tile": "#fff7ed",
+        "yn-border": "#fb923c",
+        "yn-ink": "#7c2d12",
+        "yn-muted": "#9a3412",
+        "yn-accent": "#ea580c",
       },
       gridTemplateColumns: {
         portal: "repeat(3, minmax(0, 1fr))",

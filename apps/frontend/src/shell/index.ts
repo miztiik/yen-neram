@@ -96,7 +96,7 @@ function renderUnavailable(
   const home = document.createElement("button");
   home.type = "button";
   home.className =
-    "px-4 py-2 rounded-lg border border-yn-border bg-yn-tile text-yn-ink hover:bg-slate-700 hover:border-yn-accent";
+    "px-4 py-2 rounded-lg border border-yn-border bg-yn-tile text-yn-ink hover:bg-orange-200 hover:border-yn-accent";
   home.textContent = "Back to home";
   home.addEventListener("click", () => {
     router.go({ kind: "home" });
@@ -128,7 +128,7 @@ function renderNotFound(
   const home = document.createElement("button");
   home.type = "button";
   home.className =
-    "px-4 py-2 rounded-lg border border-yn-border bg-yn-tile text-yn-ink hover:bg-slate-700 hover:border-yn-accent";
+    "px-4 py-2 rounded-lg border border-yn-border bg-yn-tile text-yn-ink hover:bg-orange-200 hover:border-yn-accent";
   home.textContent = "Back to home";
   home.addEventListener("click", () => {
     router.go({ kind: "home" });
