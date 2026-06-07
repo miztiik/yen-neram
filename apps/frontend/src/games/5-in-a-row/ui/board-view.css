@@ -37,9 +37,37 @@
     transform 200ms ease-out,
     opacity 200ms ease-in-out;
 }
+/* Preview motifs (next-turn pieces shown on their landing cells) are sized
+   smaller than real pieces in board-view.ts (PREVIEW_SIZE vs MOTIF_SIZE),
+   so the opacity stays high enough to be readable -- the size delta alone
+   carries the "this is a preview, not a placed piece" signal. */
 .yn-preview-motif {
-  opacity: 0.4;
+  opacity: 0.7;
   pointer-events: none;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+/* Imperceptible breathing animation on previews. Gated by a class on the
+   SVG root so the game host can toggle it at runtime (App pref
+   `preview_bounce_enabled`, default on). Peak scale of 1.06 is well inside
+   the headroom even at PREVIEW_SIZE = 22 (22 * 1.06 = 23.3 < 30, the real-
+   piece size cap). Compositor-only (transform), zero layout impact. */
+.yn-preview-bounce .yn-preview-motif {
+  animation: yn-preview-breathe 2400ms ease-in-out infinite;
+}
+@keyframes yn-preview-breathe {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-preview-bounce .yn-preview-motif {
+    animation: none !important;
+  }
 }
 .yn-cell-selected .yn-motif {
   animation: yn-pulse 1.4s ease-in-out infinite;

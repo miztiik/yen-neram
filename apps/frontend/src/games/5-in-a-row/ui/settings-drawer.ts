@@ -20,6 +20,7 @@ export type SettingsState = {
   reduceMotion: boolean;
   pathPreviewEnabled: boolean;
   showNextPreview: boolean;
+  previewBounceEnabled: boolean;
 };
 
 export type SettingsActions = {
@@ -27,6 +28,7 @@ export type SettingsActions = {
   readonly onReduceMotionChange: (enabled: boolean) => void;
   readonly onPathPreviewChange: (enabled: boolean) => void;
   readonly onShowNextPreviewChange: (enabled: boolean) => void;
+  readonly onPreviewBounceChange: (enabled: boolean) => void;
   readonly onResetGame: () => Promise<void> | void;
   readonly onClearHighScores: () => Promise<void> | void;
   readonly onModeSwitch: () => Promise<void> | void;
@@ -56,6 +58,9 @@ export const AppPrefsSchema = z
     reduce_motion: z.boolean().optional(),
     path_preview_enabled: z.boolean().optional(),
     show_next_preview: z.boolean().optional(),
+    // Subtle scale 1.00 -> 1.06 -> 1.00 breathing on preview motifs.
+    // Default on at the call site; persists when the player toggles it off.
+    preview_bounce_enabled: z.boolean().optional(),
     last_mode: z.enum(["infinite", "max-points", "timed"]).nullable().optional(),
   })
   .strict();
@@ -256,6 +261,9 @@ export function openSettingsDrawer(
     makeToggle("Path preview", state.pathPreviewEnabled, (v) => actions.onPathPreviewChange(v)),
     makeToggle("Show next 3 preview", state.showNextPreview, (v) =>
       actions.onShowNextPreviewChange(v),
+    ),
+    makeToggle("Preview bounce", state.previewBounceEnabled, (v) =>
+      actions.onPreviewBounceChange(v),
     ),
   );
 

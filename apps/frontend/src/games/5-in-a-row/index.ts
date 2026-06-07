@@ -208,6 +208,7 @@ const mount: GameMount = async (container, options) => {
     reduceMotion: appPrefs.reduce_motion ?? false,
     pathPreviewEnabled: appPrefs.path_preview_enabled ?? true,
     showNextPreview: appPrefs.show_next_preview ?? true,
+    previewBounceEnabled: appPrefs.preview_bounce_enabled ?? true,
   };
   document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, settingsState.reduceMotion);
   if (!settingsState.showNextPreview) previewEl.style.display = "none";
@@ -249,6 +250,7 @@ const mount: GameMount = async (container, options) => {
     motifFiles: theme.motifFiles,
     onCellTap,
     onCellLongPress,
+    previewBounceEnabled: settingsState.previewBounceEnabled,
   });
   boardWrap.replaceChildren(boardView.element);
 
@@ -588,6 +590,11 @@ const mount: GameMount = async (container, options) => {
         settingsState.showNextPreview = enabled;
         previewEl.style.display = enabled ? "" : "none";
         updateAppPref({ show_next_preview: enabled });
+      },
+      onPreviewBounceChange(enabled) {
+        settingsState.previewBounceEnabled = enabled;
+        boardView.setPreviewBounceEnabled(enabled);
+        updateAppPref({ preview_bounce_enabled: enabled });
       },
       onResetGame() {
         writeSave(makeFreshSave(save.mode));

@@ -14,7 +14,16 @@ const VIEW_SIZE = BOARD_SIZE * CELL_SIZE; // 360
 // peak scale of 1.30 reaches the cell edge exactly. Applies uniformly to
 // every theme since all motifs render through the same <image> sizing.
 const MOTIF_SIZE = 30;
-const PREVIEW_SIZE = 16;
+// Preview motifs render at 55% of the cell (22 of 40 SVG units); real
+// pieces fill 75% (MOTIF_SIZE = 30). The 20-unit gap between preview and
+// real keeps the "next vs placed" cue legible while previews stay readable
+// at a glance (previous value 16 was too small to recognise on Snapdragon-
+// 6-series screens). The optional `yn-preview-breathe` animation (CSS,
+// gated by `previewBounceEnabled`) peaks at scale 1.06 -> 22 * 1.06 = 23.3
+// SVG units, well below MOTIF_SIZE, so it never overlaps an adjacent
+// placed piece.
+const PREVIEW_SIZE = 22;
+const PREVIEW_BOUNCE_CLASS = "yn-preview-bounce";
 const LONG_PRESS_MS = 500;
 const MOVE_THRESHOLD_PX = 8;
 const SLIDE_MS = 150;
@@ -30,6 +39,12 @@ export type BoardViewOptions = {
   readonly motifFiles: Readonly<Record<string, string>>;
   readonly onCellTap: (coord: Coord) => void;
   readonly onCellLongPress: (coord: Coord) => void;
+  // When true, the SVG root carries the `yn-preview-bounce` class so the
+  // CSS keyframe `yn-preview-breathe` runs on preview motifs. Subtle by
+  // design (peak scale 1.06); honoured for non-reduce-motion only via the
+  // CSS media query. Defaults to false at the createBoardView boundary so
+  // forgetting the option does not silently animate.
+  readonly previewBounceEnabled?: boolean;
 };
 
 export type CellVisualState =
@@ -54,6 +69,7 @@ export type BoardView = {
   showClearFlash(cells: ReadonlySet<string>): Promise<void>;
   showLandBounce(coord: Coord): Promise<void>;
   setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void>;
+  setPreviewBounceEnabled(enabled: boolean): void;
   destroy(): void;
 };
 
@@ -111,6 +127,9 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     "9 by 9 game board, use arrow keys to navigate, space or enter to select",
   );
   svg.classList.add("yn-board-svg");
+  if (options.previewBounceEnabled === true) {
+    svg.classList.add(PREVIEW_BOUNCE_CLASS);
+  }
 
   const pendingSplashTimers = new Set<number>();
 
@@ -430,6 +449,14 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
+  function setPreviewBounceEnabled(enabled: boolean): void {
+    if (enabled) {
+      svg.classList.add(PREVIEW_BOUNCE_CLASS);
+    } else {
+      svg.classList.remove(PREVIEW_BOUNCE_CLASS);
+    }
+  }
+
   async function setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void> {
     // Wait briefly for any in-flight animation method to settle; if still busy
     // after the cap, force the swap anyway (a stuck animation must not block
@@ -609,6 +636,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     showClearFlash,
     showLandBounce,
     setTheme,
+    setPreviewBounceEnabled,
     destroy,
   };
 }
