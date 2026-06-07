@@ -468,6 +468,30 @@ const mount: GameMount = async (container, options) => {
     }
   }
 
+  // Click-outside-the-board (on the padded boardArea bg, NOT on the SVG
+  // itself) deselects, mirroring the tap-same-cell-again pattern.
+  boardArea.addEventListener("pointerdown", (e) => {
+    if (e.target !== boardArea) return;
+    if (isAnimating || state.selected === null) return;
+    state = deselect(state);
+    boardView.clearReachabilityHints();
+    boardView.clearPathPreview();
+    render();
+  });
+
+  // Document-level Escape: deselect when no drawer/modal is open.
+  function onDocKeyDown(e: KeyboardEvent): void {
+    if (e.key !== "Escape") return;
+    if (drawerOpen || gameOverModalClose !== null) return;
+    if (state.selected === null) return;
+    e.preventDefault();
+    state = deselect(state);
+    boardView.clearReachabilityHints();
+    boardView.clearPathPreview();
+    render();
+  }
+  document.addEventListener("keydown", onDocKeyDown);
+
   render();
   persist();
 
@@ -581,6 +605,7 @@ const mount: GameMount = async (container, options) => {
     unmount() {
       stopTimer();
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      document.removeEventListener("keydown", onDocKeyDown);
       if (gameOverModalClose !== null) gameOverModalClose();
       if (modalClose !== null) modalClose();
       if (drawerClose !== null) drawerClose();
