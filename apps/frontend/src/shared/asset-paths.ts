@@ -41,4 +41,16 @@ export const assetPaths = {
   themeMotif(themeId: string, file: string): string {
     return join(`assets/themes/${themeId}/${file}`);
   },
+
+  /**
+   * Resolves a path stored inside an authored JSON file (e.g. the
+   * `tile_silhouette` field in games.json) against the document base.
+   * Authors write the paths AS IF the SPA were served from the host
+   * root (`/assets/foo/bar.svg`); this helper strips the leading slash
+   * and joins with `import.meta.env.BASE_URL`. Use this anywhere a path
+   * coming from data (not code) needs to be turned into a URL.
+   */
+  publicAsset(rawPath: string): string {
+    return join(rawPath);
+  },
 } as const;

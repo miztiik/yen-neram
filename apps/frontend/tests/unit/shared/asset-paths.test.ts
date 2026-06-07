@@ -30,6 +30,19 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     );
   });
 
+  it("publicAsset(rawPath) joins authored JSON paths against the base, stripping a leading /", () => {
+    // The shape that comes from games.json -> tile_silhouette: an absolute
+    // path written as if served from host root. The builder must respect
+    // the Vite base (whatever it is at runtime).
+    expect(assetPaths.publicAsset("/assets/portal-tiles/5-in-a-row.svg")).toBe(
+      "/assets/portal-tiles/5-in-a-row.svg",
+    );
+    // Also works for paths authored without a leading slash:
+    expect(assetPaths.publicAsset("assets/portal-tiles/5-in-a-row.svg")).toBe(
+      "/assets/portal-tiles/5-in-a-row.svg",
+    );
+  });
+
   it("does not produce double slashes when relative paths accidentally start with /", () => {
     // The helper strips a leading "/" so e.g. base "/yen-neram/" + "/foo"
     // yields "/yen-neram/foo", not "/yen-neram//foo". Calling the public
@@ -38,5 +51,6 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     expect(assetPaths.games().includes("//")).toBe(false);
     expect(assetPaths.themeManifest("origami").includes("//")).toBe(false);
     expect(assetPaths.themeMotif("origami", "motif-1.svg").includes("//")).toBe(false);
+    expect(assetPaths.publicAsset("/assets/foo/bar.svg").includes("//")).toBe(false);
   });
 });

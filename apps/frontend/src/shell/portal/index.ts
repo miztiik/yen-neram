@@ -1,5 +1,6 @@
 import type { GameManifestEntry } from "@/shared/contracts/game-manifest.js";
 import type { Router } from "@/shell/router/index.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
 export type PortalOptions = {
   readonly router: Router;
@@ -64,7 +65,7 @@ function buildTile(entry: GameManifestEntry, router: Router): HTMLButtonElement 
   if (entry.tile_silhouette !== undefined && entry.tile_silhouette.length > 0) {
     const img = document.createElement("img");
     img.className = "w-12 h-12";
-    img.src = entry.tile_silhouette;
+    img.src = assetPaths.publicAsset(entry.tile_silhouette);
     img.alt = "";
     button.appendChild(img);
   } else {
