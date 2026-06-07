@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+<defs><filter id="ds-fox" x="-30%" y="-30%" width="160%" height="160%">
+<feGaussianBlur in="SourceAlpha" stdDeviation=".5"/>
+<feOffset dx=".3" dy=".8"/>
+<feComponentTransfer><feFuncA type="linear" slope=".4"/></feComponentTransfer>
+<feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+</filter></defs>
+<g filter="url(#ds-fox)">
+<polygon points="16,15 21,10 19,6 13,13" fill="#7c2d12"/>
+<polygon points="8,15 12,13 16,15 12,17" fill="#fb923c"/>
+<polygon points="8,15 12,17 12,20 8,18" fill="#ea580c"/>
+<polygon points="12,17 16,15 16,18 12,20" fill="#7c2d12"/>
+<polygon points="5,12 14,5 16,9 11,10" fill="#fb923c"/>
+<polygon points="5,12 11,10 12,13" fill="#ea580c"/>
+<polygon points="11,10 16,9 12,13" fill="#7c2d12"/>
+<polygon points="10,8 13,6 11,3" fill="#ea580c"/>
+<polygon points="14,5 15,7 16,3" fill="#7c2d12"/>
+</g>
+</svg>
