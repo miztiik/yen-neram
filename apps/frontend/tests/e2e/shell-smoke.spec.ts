@@ -39,20 +39,26 @@ test.describe("shell smoke", () => {
 
     await expect(page).toHaveURL(/.*\/play\/5-in-a-row\/$/);
 
-    // The game UI signal: the board SVG paints + a Back button is reachable.
+    // The game UI signal: the board SVG paints + the Menu button is
+    // reachable on the bottom bar. (Pre-2026-06-08 this asserted the
+    // standalone "Back to home" button; that button is now relocated
+    // under the Menu drawer per ADR-0019.)
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
-    await expect(page.getByRole("button", { name: /^Back to home$/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
   });
 
-  test("back from the game restores the portal", async ({ page }) => {
+  test("back from the game restores the portal (via Menu)", async ({ page }) => {
     await page.goto("/");
 
     await page.getByRole("button", { name: "5 in a Row" }).click();
 
-    const backButton = page.getByRole("button", { name: /^Back to home$/ });
-    await expect(backButton).toBeVisible({ timeout: 5_000 });
-
-    await backButton.click();
+    // Bottom-bar "Back" is gone; reach it via Menu -> Back to home.
+    const menuBtn = page.getByRole("button", { name: "Open menu" });
+    await expect(menuBtn).toBeVisible({ timeout: 5_000 });
+    await menuBtn.click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Back to home" }).click();
 
     await expect(page).toHaveURL(/\/$/);
 

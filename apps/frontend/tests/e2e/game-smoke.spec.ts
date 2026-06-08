@@ -105,13 +105,23 @@ test.describe("game smoke", () => {
     expect(JSON.stringify(after)).toBe(JSON.stringify(before));
   });
 
-  test("back button returns to home", async ({ page }) => {
+  test("back to home is reachable from the Menu drawer", async ({ page }) => {
+    // 2026-06-08: the standalone "Back" bottom-bar button is gone (per
+    // ADR-0019); navigation back to the portal now lives under the
+    // Menu drawer's Navigate section so the bottom bar is Undo + Menu
+    // only. This test pins the new path -- open menu -> Navigate ->
+    // Back to home -> portal renders.
     await page.goto("/play/5-in-a-row/");
 
-    const backButton = page.getByRole("button", { name: /^Back to home$/ });
-    await expect(backButton).toBeVisible({ timeout: 5_000 });
+    const menuBtn = page.getByRole("button", { name: "Open menu" });
+    await expect(menuBtn).toBeVisible({ timeout: 5_000 });
+    await menuBtn.click();
 
-    await backButton.click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+
+    const backToHome = drawer.getByRole("button", { name: "Back to home" });
+    await backToHome.click();
 
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();

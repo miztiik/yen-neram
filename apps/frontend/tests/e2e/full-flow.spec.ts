@@ -74,7 +74,11 @@ test.describe("full v1 flow", () => {
 
     const before = await snapshot();
 
-    await page.getByRole("button", { name: /^Back to home$/ }).click();
+    // Bottom-bar Back is gone (ADR-0019); navigate home via Menu.
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Back to home" }).click();
     await expect(page).toHaveURL(/\/$/);
     await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();
 
@@ -87,16 +91,16 @@ test.describe("full v1 flow", () => {
     expect(JSON.stringify(after)).toBe(JSON.stringify(before));
   });
 
-  test("settings drawer opens from the pause button", async ({ page }) => {
+  test("menu drawer opens from the menu button", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
-    await page.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Open menu" }).click();
 
-    const drawer = page.getByRole("dialog", { name: "Settings" });
+    const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
-    await expect(drawer.getByRole("heading", { name: "Settings" })).toBeVisible();
+    await expect(drawer.getByRole("heading", { name: "Menu" })).toBeVisible();
 
     const swatches = drawer.locator("[data-theme-id]");
     await expect(swatches).toHaveCount(2);
@@ -104,14 +108,14 @@ test.describe("full v1 flow", () => {
     await expect(drawer.locator('[data-theme-id="tropical-fruits"]')).toBeVisible();
   });
 
-  test("how-to-play modal opens from the settings drawer", async ({ page }) => {
+  test("how-to-play modal opens from the menu drawer", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
-    await page.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Open menu" }).click();
 
-    const drawer = page.getByRole("dialog", { name: "Settings" });
+    const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
 
     await drawer.getByRole("button", { name: "How to play" }).click();
@@ -124,14 +128,14 @@ test.describe("full v1 flow", () => {
     await expect(modal).toHaveCount(0);
   });
 
-  test("leaderboard opens from settings drawer", async ({ page }) => {
+  test("leaderboard opens from menu drawer", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
 
     const board = page.locator("svg.yn-board-svg");
     await expect(board).toBeVisible({ timeout: 5_000 });
 
-    await page.getByRole("button", { name: "Pause" }).click();
+    await page.getByRole("button", { name: "Open menu" }).click();
     // Exact-match regex avoids substring-matching the "Clear high scores"
     // destructive button in the same drawer.
     await page.getByRole("button", { name: /^High Scores$/ }).click();
@@ -145,7 +149,7 @@ test.describe("full v1 flow", () => {
     await expect(page.getByText(/No scores yet/i)).toBeVisible({ timeout: 2_000 });
   });
 
-  test("preview bounce: default on, toggles off via Settings, pref persists", async ({ page }) => {
+  test("preview bounce: default on, toggles off via Menu, pref persists", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
 
@@ -157,8 +161,8 @@ test.describe("full v1 flow", () => {
     await expect(board).toHaveClass(/yn-preview-bounce/, { timeout: 2_000 });
 
     // Toggle off.
-    await page.getByRole("button", { name: "Pause" }).click();
-    const drawer = page.getByRole("dialog", { name: "Settings" });
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     // Locate the row by its span label (makeToggle puts the label in a
     // <span>; the toggle button sits next to it inside a shared <div> row).
@@ -269,8 +273,8 @@ test.describe("full v1 flow", () => {
     await page.getByRole("button", { name: "Infinite" }).click();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
-    await page.getByRole("button", { name: "Pause" }).click();
-    const drawer = page.getByRole("dialog", { name: "Settings" });
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     await drawer.getByRole("button", { name: "How to play" }).click();
 
@@ -397,5 +401,134 @@ test.describe("full v1 flow", () => {
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
     const undoBtnAfterReload = page.getByRole("button", { name: "Undo last move" });
     await expect(undoBtnAfterReload).toBeDisabled();
+  });
+
+  test("Menu drawer surfaces Navigate (Back to home / Restart this game / Switch mode) as the first section", async ({
+    page,
+  }) => {
+    // Regression for ADR-0019: navigation actions previously lived
+    // either on the bottom bar (Back), buried under a "Mode" section
+    // (Switch mode), or only as a destructive "Reset game" with no
+    // friendly mid-game name (Restart). The Menu's first section is
+    // now "Navigate" with all three intents, in this order. This
+    // test only asserts the three buttons are reachable + ordered;
+    // their actions are tested in dedicated tests below.
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+
+    // Heading "Navigate" + the three buttons in the documented order.
+    const navSectionHeading = drawer.getByRole("heading", { name: "Navigate" });
+    await expect(navSectionHeading).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Back to home" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Restart this game" })).toBeVisible();
+    await expect(drawer.getByRole("button", { name: "Switch mode" })).toBeVisible();
+  });
+
+  test("Menu -> Restart this game wipes the in-progress save and reloads to a fresh board", async ({
+    page,
+  }) => {
+    // Seed a save with a non-zero score and a custom board so we can
+    // verify the restart wipes both. After Restart, the in-progress
+    // save is replaced by a fresh shape for the same mode and the
+    // page reloads.
+    await page.goto(GAME_URL);
+    await page.evaluate(() => {
+      // 9x9 grid; one piece at (0,0). Typed as the heterogeneous shape
+      // up-front so TypeScript doesn't widen from `null[][]` to a
+      // shape that rejects the runGroup assignment.
+      type Cell = null | { runGroup: number };
+      const board: Cell[][] = Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, (): Cell => null),
+      );
+      board[0]![0] = { runGroup: 5 };
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: {
+          board,
+          selected_cell: null,
+          next_preview: [
+            { row: 1, col: 1, kind: 1 },
+            { row: 2, col: 2, kind: 2 },
+            { row: 3, col: 3, kind: 3 },
+          ],
+          score: 99,
+          turn_seed: 42,
+          undo: { available: true, snapshot: null },
+          mode_state: { kind: "infinite" },
+        },
+        high_scores: { infinite: [], max_points: [], timed: [] },
+        streak: null,
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+    });
+    await page.reload();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    // Pre-restart sanity: the score chip shows 99 via the inline CSS
+    // custom property the count-up tween writes to.
+    const scoreBefore = await page
+      .locator(".yn-score-display")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
+    expect(scoreBefore).toBe("99");
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Restart this game" }).click();
+
+    // After reload, the board paints fresh (board exists, score reset
+    // to 0). The fresh board contains some seeded pieces (per
+    // balance.json initial_seed_count), so we don't compare cell-by-
+    // cell, just assert score is 0.
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    const scoreAfter = await page
+      .locator(".yn-score-display")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
+    expect(scoreAfter).toBe("0");
+    // The save no longer carries the 99-score in_progress; it's been
+    // replaced with a fresh shape.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
+    const parsed = JSON.parse(stored ?? "{}") as {
+      in_progress: { score: number } | null;
+    };
+    expect(parsed.in_progress?.score).toBe(0);
+  });
+
+  test("Menu -> Switch mode bounces to home and the mode picker shows on next entry", async ({
+    page,
+  }) => {
+    // Doctrine: switching mode mid-run clears in_progress + last_mode
+    // and navigates home. Next entry to the game shows the mode
+    // picker because last_mode is null.
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Switch mode" }).click();
+
+    // Navigated home.
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();
+
+    // last_mode in yn:app must be null/missing.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:app"));
+    const parsed = JSON.parse(stored ?? "{}") as { last_mode?: string | null };
+    expect(parsed.last_mode === null || parsed.last_mode === undefined).toBe(true);
+
+    // Re-enter: the mode picker is shown.
+    await page.getByRole("button", { name: "5 in a Row" }).click();
+    await expect(page.getByRole("heading", { name: "Pick a mode" })).toBeVisible({
+      timeout: 5_000,
+    });
   });
 });

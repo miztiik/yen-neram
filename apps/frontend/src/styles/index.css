@@ -18,12 +18,16 @@
   --yn-ink: #7c2d12;
   --yn-muted: #9a3412;
   --yn-accent: #ea580c;
-  /* Espresso ink: warm-near-black for the HUD's hero glyphs (score chip
-     digits). #7c2d12 (terracotta) reads as muddy newsprint on the cream
-     pill; #1a0a04 (espresso) is warm enough to belong to the palette
-     family and dark enough to assert the score as the HUD hero. Reserved
-     to .yn-score-display; the rest of the chrome keeps --yn-ink. */
-  --yn-ink-deep: #1a0a04;
+  /* Score-chip ink: deliberately COOL slate-900 so the score number
+     does NOT belong to the warm-brown family the rest of the chrome
+     uses. Two prior passes (terracotta #7c2d12, then espresso
+     #1a0a04) both read as "boring brown" because they sat inside the
+     warm-orange palette. Cool ink against a warm cream pill creates
+     the strong contrast moment the HUD hero deserves; the celebration
+     glow + +delta accent still pop because they're warm-orange against
+     the cool ink. Reserved to .yn-score-display; the rest of the
+     chrome keeps --yn-ink (terracotta) for typographic continuity. */
+  --yn-ink-deep: #0f172a;
 }
 
 @layer base {
