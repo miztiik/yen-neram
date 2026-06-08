@@ -72,3 +72,29 @@ export function makeFreshSave(mode: GameMode): Save {
     streak: null,
   };
 }
+
+// Restart-this-game / Play-again / Reset-game / Switch-mode helper.
+// PRESERVES cross-run state (high_scores + streak) while wiping
+// in_progress and optionally switching the mode for the next run.
+//
+// ADR-0021 regression: pre-2026-06-08 the in-game "Play again",
+// "Restart this game", "Reset game", and "Switch mode" handlers all
+// called `writeSave(makeFreshSave(mode))` directly -- which wipes
+// `high_scores` AND `streak` along with the in-progress run. Every
+// game-end therefore destroyed the leaderboard and streak history.
+// The fix routes mid-session restarts through this helper instead so
+// only the in-progress run is reset; the records that the player
+// earned across previous runs carry forward intact.
+//
+// `makeFreshSave` is kept for the FIRST EVER mount where there is no
+// prior save to preserve from -- it produces a zeroed Save shape
+// from scratch.
+export function makeFreshGame(prev: Save, mode: GameMode): Save {
+  return {
+    schema_version: 2,
+    mode,
+    in_progress: null,
+    high_scores: prev.high_scores,
+    streak: prev.streak,
+  };
+}
