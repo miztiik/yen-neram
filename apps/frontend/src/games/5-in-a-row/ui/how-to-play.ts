@@ -16,8 +16,17 @@ const SECTIONS: readonly Section[] = [
   [
     "Your move",
     [
-      "Tap a piece to pick it up (it lifts and glows pink).",
-      "Tap an empty cell to drop it there. The piece slides along the shortest path through other empty cells. If there is no path, the cell shakes.",
+      "Tap a piece to pick it up. It lifts and glows pink.",
+      "Tap any reachable empty cell to drop it there. The piece slides along the shortest path of connected empty cells.",
+      "Tap the same piece again, or tap outside the board, to put it back down.",
+    ],
+  ],
+  [
+    "Legal and illegal moves",
+    [
+      "A piece travels through empty cells only - up, down, left, right. No diagonals, no jumping over other pieces.",
+      "If every path to the empty cell you tapped is blocked, the cell flashes red and the pieces fencing it in highlight briefly. Pick a different destination - usually one closer to your selected piece, or one in the same open region.",
+      "Long-press an empty cell while a piece is selected to preview the path before committing.",
     ],
   ],
   [
@@ -45,9 +54,9 @@ const SECTIONS: readonly Section[] = [
   [
     "Tips",
     [
-      "Long-press an empty cell while a piece is selected to preview the path before committing.",
       "You get one undo per game. Use it after a bad pick, not after seeing the next spawn.",
       "Switch theme in the pause menu - your piece colour codes stay the same; only the artwork changes.",
+      "Chase the BEST chip - it tracks your all-time top score for this mode. When you cross it, the chip turns orange and reads NEW BEST for the rest of the game.",
     ],
   ],
 ];

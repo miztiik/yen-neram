@@ -83,8 +83,15 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
     "bg-yn-tile rounded-xl p-6 max-w-[480px] w-full m-4 max-h-[80vh] overflow-y-auto flex flex-col gap-4";
 
   const title = document.createElement("h2");
-  title.className = "text-xl font-semibold text-yn-ink";
-  title.textContent = "High Scores";
+  // Jony font pass 2026-06-08: leaderboard title earns the same hero
+  // treatment as the in-game score chip. Bigger, bolder, tighter
+  // tracking, with the word the player came for ('Scores') anchored in
+  // the accent colour so it reads at a glance.
+  title.className = "text-3xl font-bold text-yn-ink tracking-tight leading-none";
+  const titleAccent = document.createElement("span");
+  titleAccent.className = "text-yn-accent";
+  titleAccent.textContent = "Scores";
+  title.append("High ", titleAccent);
 
   const tabBar = document.createElement("div");
   tabBar.className = "flex gap-0";
@@ -145,11 +152,18 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
       row.className = "flex items-center justify-between py-3";
 
       const rank = document.createElement("span");
-      rank.className = "text-yn-muted text-sm w-10";
+      // Top 3 get the accent colour and a heavier weight; rest stay muted.
+      // Three-star scoring vibes (Iisalo) without the stars.
+      const isPodium = i < 3;
+      rank.className = isPodium
+        ? "text-yn-accent text-xl font-bold w-12 tabular-nums"
+        : "text-yn-muted text-base font-semibold w-12 tabular-nums";
       rank.textContent = `#${String(i + 1)}`;
 
       const score = document.createElement("span");
-      score.className = "text-yn-ink text-lg tabular-nums flex-1 text-right pr-4";
+      score.className = isPodium
+        ? "text-yn-ink text-3xl font-bold tabular-nums flex-1 text-right pr-4 tracking-tight"
+        : "text-yn-ink text-2xl font-semibold tabular-nums flex-1 text-right pr-4";
       score.textContent = String(entry.score);
 
       const date = document.createElement("span");

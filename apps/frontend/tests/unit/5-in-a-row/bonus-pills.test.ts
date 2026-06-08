@@ -20,8 +20,14 @@ function makeBreakdown(partial: Partial<ClearBreakdown>): ClearBreakdown {
   };
 }
 
-describe("isSilentTier", () => {
-  it("tier-1 floor (single 5-clear, no bonuses) is silent", () => {
+describe("isSilentTier (tier-1 floor classifier)", () => {
+  // Per ADR-0017 amendment 2026-06-08, this no longer gates the bonus
+  // wave on/off; the wave plays on every scoring clear. The function
+  // remains as a pure classifier: TRUE iff derivePills would emit no
+  // NAMED bonus pills (length>=6, intersection, cascade depth>=1).
+  // Useful for any future surface that wants to ask "is this a plain
+  // tier-1 clear?" without re-deriving the pill array.
+  it("tier-1 floor (single 5-clear, no bonuses) is a silent tier", () => {
     expect(isSilentTier([makeBreakdown({})])).toBe(true);
   });
 
@@ -39,7 +45,7 @@ describe("isSilentTier", () => {
     ).toBe(false);
   });
 
-  it("empty chain is silent (no clear, no wave)", () => {
+  it("empty chain is silent (no clear, no pills)", () => {
     expect(isSilentTier([])).toBe(true);
   });
 });

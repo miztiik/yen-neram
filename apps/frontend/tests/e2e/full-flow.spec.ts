@@ -209,4 +209,78 @@ test.describe("full v1 flow", () => {
     await expect(board).toBeVisible();
     await expect(page.locator("[data-r][data-c]")).toHaveCount(81);
   });
+
+  test("BEST chip is hidden on a fresh save with no stored high score", async ({ page }) => {
+    // Fresh localStorage (beforeEach cleared it); fresh save has
+    // high_scores.infinite === [] so allTimeBestAtMount === 0 and
+    // state.score === 0, which puts the chip in the hidden state per
+    // renderBestChip's visibility guard.
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    const bestChip = page.locator(".yn-best-chip");
+    await expect(bestChip).toHaveClass(/hidden/);
+  });
+
+  test("BEST chip shows the all-time top score for the current mode on mount", async ({ page }) => {
+    // Seed the per-game save with a stored high score and the mode
+    // picker skip key. Schema v2 shape (see 5-in-a-row.save.schema.ts).
+    await page.goto(GAME_URL);
+    await page.evaluate(() => {
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: null,
+        high_scores: {
+          infinite: [{ score: 123, timestamp_iso: new Date().toISOString() }],
+          max_points: [],
+          timed: [],
+        },
+        streak: null,
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+    });
+    await page.reload();
+
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    // Chip is visible (NOT hidden) and shows the stored all-time best.
+    // The displayed integer lives in a CSS @property + counter() pseudo
+    // (.yn-best-display::after content: counter(yn-best)), so it does
+    // NOT surface in Playwright's text queries. Check the inline custom
+    // property directly + the aria-label (which the game host keeps in
+    // sync as the screen-reader-readable mirror of the displayed value).
+    const bestChip = page.locator(".yn-best-chip");
+    await expect(bestChip).not.toHaveClass(/hidden/, { timeout: 2_000 });
+    await expect(bestChip).toHaveAttribute("aria-label", "Best 123");
+    const renderedCount = await page
+      .locator(".yn-best-display")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-best-count"));
+    expect(renderedCount).toBe("123");
+    // Label reads "Best" (not yet crossed since state.score === 0 < 123).
+    await expect(bestChip).toContainText(/Best/i);
+    await expect(bestChip).not.toHaveClass(/yn-best-chip--crossed/);
+  });
+
+  test("how-to-play modal explains legal and illegal moves", async ({ page }) => {
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Pause" }).click();
+    const drawer = page.getByRole("dialog", { name: "Settings" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "How to play" }).click();
+
+    const modal = page.getByRole("dialog", { name: "How to play" });
+    await expect(modal).toBeVisible({ timeout: 1_000 });
+    // New section heading added 2026-06-08: explains the movement rule
+    // (connected empty cells, no diagonals, no jumping) plus the visual
+    // feedback for an unreachable destination (red flash + blocker pulse).
+    await expect(modal.getByRole("heading", { name: "Legal and illegal moves" })).toBeVisible();
+    await expect(modal.getByText(/no diagonals, no jumping/i)).toBeVisible();
+    await expect(modal.getByText(/flashes red/i)).toBeVisible();
+  });
 });

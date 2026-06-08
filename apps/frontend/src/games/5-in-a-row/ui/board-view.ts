@@ -27,10 +27,23 @@ const MOTIF_SIZE = 30;
 const PREVIEW_SIZE = 18;
 const PREVIEW_BOUNCE_CLASS = "yn-preview-bounce";
 const LONG_PRESS_MS = 500;
+// Pixel distance after which a press is treated as "the finger is moving"
+// for the purpose of cancelling the long-press preview timer. This is NOT
+// a tap-cancellation threshold -- tap detection uses cell-match between
+// pointerdown and pointerup (see onPointerUp). Keeping this value tight
+// (8px) means a small finger wiggle still cancels the long-press preview
+// (which is the right call: a long-press is a deliberate hold), but it
+// does NOT swallow the tap.
 const MOVE_THRESHOLD_PX = 8;
 const SLIDE_MS = 150;
 const LAND_MS = 200;
 const SHAKE_MS = 200;
+// Lifetime of the per-blocker red wash. Slightly longer than the shake
+// so the eye lands on the blockers AFTER the destination's red flash --
+// reads as "this is why you couldn't move there". 380ms is the keyframe
+// duration in board-view.css `yn-cell-bg-blocker-flash`; this constant
+// is the safety-fallback for animationend not firing.
+const BLOCKER_FLASH_MS = 380;
 const CLEAR_MS = 400;
 const SPLASH_TAIL_MS = 150;
 const SPLASH_RADIUS = 14;
@@ -65,6 +78,11 @@ export type BoardView = {
   setReachabilityHints(reachable: ReadonlySet<string>): void;
   clearReachabilityHints(): void;
   showShake(coord: Coord): Promise<void>;
+  // Brief red wash on the listed cells' backgrounds, used to highlight
+  // pieces that fence in a tapped-but-unreachable destination. Fire-and-
+  // forget (no promise) -- the shake animation governs the input gate;
+  // this is decorative reinforcement that plays in parallel.
+  showBlockersFlash(coords: readonly Coord[]): void;
   showPathTrace(path: readonly Coord[]): Promise<void>;
   showPathPreview(path: readonly Coord[]): void;
   clearPathPreview(): void;
@@ -289,6 +307,31 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
+  // Brief red flash on the listed cells' backgrounds. Fire-and-forget by
+  // design: the destination's shake is the input gate; blocker flashes
+  // play in parallel as visual reinforcement of WHY the destination was
+  // unreachable. Class is removed via the same animationend pattern as
+  // awaitClassAnimation but we don't await -- so no busyCount touch.
+  function showBlockersFlash(coords: readonly Coord[]): void {
+    for (const c of coords) {
+      const g = getCellG(c.row, c.col);
+      if (g === null) continue;
+      // Restart the animation if it's already running on this cell
+      // (rare but possible if two shakes overlap on edge cases).
+      g.classList.remove("yn-cell-blocker-flash");
+      void g.getBoundingClientRect();
+      g.classList.add("yn-cell-blocker-flash");
+      const onEnd = (): void => {
+        g.classList.remove("yn-cell-blocker-flash");
+        g.removeEventListener("animationend", onEnd);
+      };
+      g.addEventListener("animationend", onEnd, { once: true });
+      // Safety fallback if the animationend never fires (tab hidden,
+      // reduce-motion media query drops the keyframe to 1ms, etc).
+      window.setTimeout(onEnd, BLOCKER_FLASH_MS + 80);
+    }
+  }
+
   async function showLandBounce(coord: Coord): Promise<void> {
     const g = getCellG(coord.row, coord.col);
     if (g === null) return;
@@ -486,7 +529,24 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     await new Promise<void>((resolve) => window.setTimeout(resolve, 140));
   }
 
-  // Input handling: tap + long-press with movement-cancel.
+  // Input handling: tap + long-press.
+  //
+  // Tap invariant: a tap is `pointerdown` and `pointerup` landing on the
+  // SAME cell. Pixel-level finger jitter between down and up does NOT
+  // cancel a tap -- the cell-match check on pointerup is the only
+  // authoritative test. A real finger tap on a phone routinely wiggles
+  // 10-20px (thumb contact area, micro-movement as the finger lands),
+  // which is well above any "drag" threshold a hand-feel pick would
+  // suggest. The previous design nulled `pressCoord` when a pointermove
+  // exceeded MOVE_THRESHOLD_PX (8) and `onPointerUp` then bailed because
+  // it could not verify the cell of origin -- so quick taps on the move
+  // target silently did nothing on touch devices. See the
+  // `tap-with-finger-jitter still registers as a tap` e2e regression in
+  // tests/e2e/game-smoke.spec.ts.
+  //
+  // MOVE_THRESHOLD_PX is now used SOLELY to cancel the long-press timer
+  // (a moving finger isn't a hold); the long-press preview will not fire
+  // if the user starts dragging within LONG_PRESS_MS.
   let pressTimer: number | null = null;
   let pressCoord: Coord | null = null;
   let pressStartX = 0;
@@ -518,13 +578,16 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   };
 
   const onPointerMove = (e: PointerEvent): void => {
-    if (pressTimer === null && !longPressFired) return;
+    if (pressCoord === null) return;
     const dx = e.clientX - pressStartX;
     const dy = e.clientY - pressStartY;
     if (dx * dx + dy * dy > MOVE_THRESHOLD_PX * MOVE_THRESHOLD_PX) {
+      // Finger is moving: cancel the long-press timer so the preview
+      // doesn't fire mid-drag. Do NOT clear pressCoord or longPressFired
+      // -- a tap-up on the same cell is still a tap (see invariant
+      // comment above), and longPressFired (if already true) must
+      // remain true so onPointerUp bails out instead of double-firing.
       cancelPressTimer();
-      pressCoord = null;
-      longPressFired = false;
       for (const t of pendingSplashTimers) {
         window.clearTimeout(t);
       }
@@ -537,23 +600,20 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   };
 
   const onPointerUp = (e: PointerEvent): void => {
-    const stillPending = pressTimer !== null;
     cancelPressTimer();
-    if (!stillPending || longPressFired) {
-      pressCoord = null;
-      longPressFired = false;
-      return;
-    }
+    const wasLongPress = longPressFired;
+    const startCoord = pressCoord;
+    longPressFired = false;
+    pressCoord = null;
+    if (wasLongPress || startCoord === null) return;
     const releaseCoord = findCellCoordFromEvent(svg, e.target);
     if (
       releaseCoord !== null &&
-      pressCoord !== null &&
-      releaseCoord.row === pressCoord.row &&
-      releaseCoord.col === pressCoord.col
+      releaseCoord.row === startCoord.row &&
+      releaseCoord.col === startCoord.col
     ) {
       options.onCellTap(releaseCoord);
     }
-    pressCoord = null;
   };
 
   const onPointerCancel = (): void => {
@@ -632,6 +692,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     setReachabilityHints,
     clearReachabilityHints,
     showShake,
+    showBlockersFlash,
     showPathTrace,
     showPathPreview,
     clearPathPreview,

@@ -6,7 +6,7 @@ import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
-import type { Coord, GameMode, ModeState } from "./types.js";
+import type { Board, Coord, GameMode, ModeState } from "./types.js";
 import { createBoardView } from "./ui/board-view.js";
 import {
   attemptMove,
@@ -41,7 +41,7 @@ import {
   type ModeMeta,
   type TopThreeRow,
 } from "./ui/game-over-modal.js";
-import { derivePills, isSilentTier } from "./ui/bonus-pills.js";
+import { derivePills } from "./ui/bonus-pills.js";
 import { centroidOfClearedCells, createBonusWave, elementCenter } from "./ui/bonus-wave.js";
 
 type RewardTimings = {
@@ -67,6 +67,30 @@ const REDUCE_MOTION_CLASS = "prefers-reduced-motion-override";
 // visibly jitters; coarse enough that even on a hidden tab the wasted
 // work is negligible (visibility-change actually stops the interval).
 const TIMER_TICK_MS = 100;
+
+// Pure helper: 4-adjacent neighbours of `at` that hold a piece. Used to
+// highlight the BLOCKERS that fence in a tapped-but-unreachable empty
+// destination, so the player learns the movement rule (pieces in the way
+// block a path) visually rather than from text. If every neighbour is
+// empty, the destination is unreachable because the WIDER region is
+// fenced off; in that case we still flash the neighbours we DO find that
+// are filled (often zero), and the red shake alone carries the signal.
+// Off-board neighbours are silently skipped.
+const FOUR_DIR: ReadonlyArray<readonly [number, number]> = [
+  [-1, 0],
+  [1, 0],
+  [0, -1],
+  [0, 1],
+];
+function neighborBlockers(board: Board, at: Coord): readonly Coord[] {
+  const out: Coord[] = [];
+  for (const [dr, dc] of FOUR_DIR) {
+    const r = at.row + dr;
+    const c = at.col + dc;
+    if (getCell(board, r, c) !== null) out.push({ row: r, col: c });
+  }
+  return out;
+}
 
 const mount: GameMount = async (container, options) => {
   container.replaceChildren();
@@ -135,19 +159,27 @@ const mount: GameMount = async (container, options) => {
   scoreValue.style.setProperty("--yn-score-count", "0");
   scoreEl.appendChild(scoreValue);
 
-  // BEST chip (Palm's one-more-turn hook): session-best for the current
-  // mode. Lives in memory only -- intentionally NOT persisted to the save
-  // (all-time best lives in save.high_scores and surfaces in the
-  // leaderboard / game-over modal). A session reset (page reload) is the
-  // intended pull: "beat your last 5 minutes" without dark streak pressure.
-  // Hidden until the player scores at least once.
+  // BEST chip (Palm's one-more-turn hook, revised 2026-06-08): tracks the
+  // ALL-TIME high score for the current mode (read once from
+  // save.high_scores[mode][0] at mount). Was previously a session-best,
+  // which is a tautology in a monotonically-increasing-score game (current
+  // score == session best, always, since score never decreases mid-run).
+  // Now it shows a PERSISTENT target to chase across reloads.
+  //
+  // When the player's live score CROSSES the stored all-time best, the
+  // chip swaps its label to "NEW BEST", flips to the accent-filled
+  // colourway, and tracks the live score (so the player sees the
+  // milestone climb). The cross-moment plays one yn-best-bump pulse.
+  // The chip is hidden iff the all-time best is 0 AND the player has not
+  // scored yet (there is nothing to chase and nothing to celebrate).
   const bestEl = document.createElement("div");
   bestEl.className =
-    "yn-best-chip hidden items-center gap-1.5 px-3 py-1 rounded-full " +
-    "bg-yn-bg border border-yn-border text-yn-muted text-xs font-semibold tabular-nums";
+    "yn-best-chip hidden items-center gap-2 px-4 py-1.5 rounded-2xl " +
+    "bg-yn-tile border border-yn-border text-yn-ink shadow-sm " +
+    "text-base sm:text-lg font-bold tabular-nums";
   bestEl.setAttribute("aria-live", "polite");
   const bestLabel = document.createElement("span");
-  bestLabel.className = "uppercase tracking-wider opacity-80";
+  bestLabel.className = "uppercase tracking-wider text-yn-muted text-[10px] font-semibold";
   bestLabel.textContent = "Best";
   const bestValue = document.createElement("span");
   bestValue.className = "yn-best-display";
@@ -291,12 +323,25 @@ const mount: GameMount = async (container, options) => {
   // surfaced in the game-over modal as "60s + Xs bonus". Reset implicitly on
   // reload because the closure goes away.
   let bonusesEarnedMs = 0;
-  // Session best -- in-memory only (Palm's one-more-turn hook per ADR-0017).
-  // Reset on reload by design; all-time best lives in save.high_scores.
-  // Seeded from current state.score so a restored in-progress game's score
-  // is the floor for "beat this session" pressure (not 0, which would
-  // pop the BEST chip on the first trivial clear).
-  let sessionBest = state.score;
+  // All-time best for the CURRENT mode (revised 2026-06-08, supersedes the
+  // session-best from ADR-0017). Read once from save.high_scores[mode][0]
+  // at mount; the chip then tracks the LIVE score once the player has
+  // crossed it, surfacing the "you are setting a new record right now"
+  // moment that the session-best variant could never deliver (since the
+  // game's score never decreases mid-run, session-best == current-score
+  // was an identity, never a target). Re-reads can happen safely after
+  // recordHighScore() if we ever want to show the latest persisted best
+  // across rounds within the same mount; today the per-game save flow
+  // reloads the page on Play Again / Reset so this is not needed.
+  const allTimeBestAtMount = (() => {
+    if (mode === "max-points") return save.high_scores.max_points[0]?.score ?? 0;
+    if (mode === "timed") return save.high_scores.timed[0]?.score ?? 0;
+    return save.high_scores.infinite[0]?.score ?? 0;
+  })();
+  // Track whether the live score has crossed the all-time best yet during
+  // this mount. Once crossed, the chip stays in "NEW BEST" mode for the
+  // rest of the game (label, chip colourway, tracks state.score live).
+  let crossedAllTimeBest = state.score > allTimeBestAtMount;
   // Most-recent on-screen score integer. Drives the CSS @property tween
   // by changing only when state.score actually changes (otherwise theme
   // hot-swap re-renders would retrigger a 0-delta count-up).
@@ -404,36 +449,71 @@ const mount: GameMount = async (container, options) => {
     }
   };
 
-  // Promote / pulse the BEST chip when the just-resolved placement beats
-  // the session best. Idempotent: the chip stays visible once shown.
-  const bumpSessionBestIfBeaten = (newScore: number): void => {
-    if (newScore <= sessionBest) return;
-    sessionBest = newScore;
+  // Update the BEST chip to reflect the live score. There are two phases:
+  //
+  // 1. Pre-cross: chip shows the all-time best (from save.high_scores).
+  //    Hidden iff allTimeBestAtMount === 0 AND state.score === 0 (nothing
+  //    to chase, nothing to celebrate). Visible iff allTimeBestAtMount > 0
+  //    so the new player sees the target on their first move.
+  //
+  // 2. Post-cross (state.score > allTimeBestAtMount): chip becomes the
+  //    "NEW BEST" pill, label swaps, colourway flips to accent, value
+  //    tracks state.score live so the player watches the milestone climb.
+  //    Pulse fires ONCE on the cross transition.
+  const renderBestChip = (newScore: number, justCrossed: boolean): void => {
+    const display = crossedAllTimeBest ? newScore : allTimeBestAtMount;
+    const visible = display > 0 || crossedAllTimeBest;
+    if (!visible) {
+      bestEl.classList.add("hidden");
+      bestEl.classList.remove("flex");
+      return;
+    }
     bestEl.classList.remove("hidden");
     bestEl.classList.add("flex");
-    bestValue.style.setProperty("--yn-best-count", String(newScore));
-    bestEl.setAttribute("aria-label", `Session best ${String(newScore)}`);
-    bestEl.style.setProperty(
-      "--yn-best-bump-ms",
-      `${String(balanceConfig.reward.best_chip_pulse_ms)}ms`,
-    );
-    bestEl.classList.remove("yn-best-bumping");
-    void bestEl.getBoundingClientRect();
-    bestEl.classList.add("yn-best-bumping");
-    window.setTimeout(
-      () => bestEl.classList.remove("yn-best-bumping"),
-      balanceConfig.reward.best_chip_pulse_ms + 80,
-    );
+    bestValue.style.setProperty("--yn-best-count", String(display));
+    if (crossedAllTimeBest) {
+      bestEl.classList.add("yn-best-chip--crossed");
+      bestLabel.textContent = "New Best";
+      bestEl.setAttribute("aria-label", `New best ${String(display)}`);
+    } else {
+      bestEl.classList.remove("yn-best-chip--crossed");
+      bestLabel.textContent = "Best";
+      bestEl.setAttribute("aria-label", `Best ${String(display)}`);
+    }
+    if (justCrossed) {
+      bestEl.style.setProperty(
+        "--yn-best-bump-ms",
+        `${String(balanceConfig.reward.best_chip_pulse_ms)}ms`,
+      );
+      bestEl.classList.remove("yn-best-bumping");
+      void bestEl.getBoundingClientRect();
+      bestEl.classList.add("yn-best-bumping");
+      window.setTimeout(
+        () => bestEl.classList.remove("yn-best-bumping"),
+        balanceConfig.reward.best_chip_pulse_ms + 80,
+      );
+    }
   };
 
-  // Seed the BEST chip visibility on initial render: if the restored
-  // game already has a non-zero score, the chip is already meaningful.
-  if (state.score > 0) {
-    bestEl.classList.remove("hidden");
-    bestEl.classList.add("flex");
-    bestValue.style.setProperty("--yn-best-count", String(state.score));
-    bestEl.setAttribute("aria-label", `Session best ${String(state.score)}`);
-  }
+  // Called after each scoring move. If the score has just crossed the
+  // all-time best, flip the chip into NEW BEST mode (one pulse). After
+  // that, every further increase just updates the displayed number.
+  const updateBestOnScoreChange = (newScore: number): void => {
+    const wasCrossed = crossedAllTimeBest;
+    const isCrossedNow = newScore > allTimeBestAtMount;
+    const justCrossed = isCrossedNow && !wasCrossed;
+    if (isCrossedNow) crossedAllTimeBest = true;
+    renderBestChip(newScore, justCrossed);
+  };
+
+  // Seed the BEST chip visibility on initial render. Two cases:
+  //  - Fresh game (state.score === 0): show "BEST <allTimeBestAtMount>"
+  //    if allTimeBestAtMount > 0; otherwise hide.
+  //  - Restored in-progress where state.score already beats the stored
+  //    record (rare but legitimate): jump straight into NEW BEST mode
+  //    without a pulse (the player isn't seeing the moment of crossing,
+  //    they're returning to a record-breaking run already underway).
+  renderBestChip(state.score, false);
 
   // render() is now layout-only (board, preview, streak, timer chips).
   // The score chip is updated SEPARATELY via animateScoreTo so the
@@ -561,6 +641,7 @@ const mount: GameMount = async (container, options) => {
     const path = findPath(state.board, state.selected, coord);
     if (path === null) {
       void boardView.showShake(coord);
+      boardView.showBlockersFlash(neighborBlockers(state.board, coord));
       return;
     }
     boardView.showPathPreview(path);
@@ -592,6 +673,7 @@ const mount: GameMount = async (container, options) => {
       const outcome = attemptMove(state, coord, balanceConfig);
       if (outcome.kind === "no-source") return;
       if (outcome.kind === "unreachable") {
+        boardView.showBlockersFlash(neighborBlockers(state.board, outcome.to));
         await boardView.showShake(outcome.to);
         return;
       }
@@ -607,14 +689,21 @@ const mount: GameMount = async (container, options) => {
         const keys = new Set<string>();
         for (const r of outcome.clears) for (const k of r.cells) keys.add(k);
         await boardView.showClearFlash(keys);
-        // Bonus-wave staging (ADR-0017). Pure-derived from the engine
-        // breakdown; if the clear is the tier-1 floor (length-5 single
-        // line, no bonuses) the wave is silently suppressed and the
-        // existing pink cell-splash stays as the entire reward.
+        // Bonus-wave staging (ADR-0017, amended 2026-06-08). Pure-derived
+        // from the engine breakdown. Every scoring clear now plays the
+        // wave so the +delta badge flies into the score chip (the cause-
+        // and-effect beat for the score change). Named bonus pills
+        // (LENGTH N, INTERSECT, CASCADE) remain tier-2-and-above
+        // ornaments via the existing derivePills rules: tier-1 simply
+        // has no named pills, only the delta. The old isSilentTier
+        // suppression was wrong: it suppressed the FEEDBACK along with
+        // the celebration, leaving the score chip ticking up with no
+        // visible source. The pink cell-splash is celebration; the
+        // flying +N is feedback.
         const totalDelta = outcome.postMoveState.score - scoreBefore;
         const breakdowns = breakdownChain(outcome.clears, balanceConfig);
         const pills = derivePills(breakdowns, totalDelta);
-        const waveSuppressed = isSilentTier(breakdowns) || pills.length === 0;
+        const waveSuppressed = pills.length === 0;
         if (!waveSuppressed) {
           const centroid = centroidOfClearedCells(boardView.element, keys);
           const target = elementCenter(scoreEl);
@@ -625,12 +714,12 @@ const mount: GameMount = async (container, options) => {
           state = outcome.postMoveState;
           render();
           animateScoreTo(state.score, true);
-          bumpSessionBestIfBeaten(state.score);
+          updateBestOnScoreChange(state.score);
         } else {
           state = outcome.postMoveState;
           render();
           syncScoreSilently();
-          bumpSessionBestIfBeaten(state.score);
+          updateBestOnScoreChange(state.score);
         }
       } else {
         state = outcome.postMoveState;
