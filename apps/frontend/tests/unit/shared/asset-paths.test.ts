@@ -53,4 +53,18 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     expect(assetPaths.themeMotif("origami", "motif-1.svg").includes("//")).toBe(false);
     expect(assetPaths.publicAsset("/assets/foo/bar.svg").includes("//")).toBe(false);
   });
+
+  it("portal() returns the Vite-injected BASE_URL (regression for ADR-0020)", () => {
+    // ADR-0020 regression: pre-2026-06-08 the in-game Menu's
+    // onModeSwitch + onBackToHome handlers called
+    // `window.location.assign("/")` directly. On the GH-Pages project
+    // deploy the base path is `/yen-neram/`, so the literal `"/"`
+    // navigated OUT of the SPA to `https://miztiik.github.io/` -- a
+    // 404. The fix routes both handlers through `assetPaths.portal()`;
+    // this test pins the helper's behaviour so a future refactor can't
+    // silently lose it.
+    expect(assetPaths.portal()).toBe(import.meta.env.BASE_URL);
+    expect(assetPaths.portal()).toBe("/");
+    expect(assetPaths.portal().includes("//")).toBe(false);
+  });
 });
