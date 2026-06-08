@@ -29,9 +29,15 @@ export type SettingsActions = {
   readonly onPathPreviewChange: (enabled: boolean) => void;
   readonly onShowNextPreviewChange: (enabled: boolean) => void;
   readonly onPreviewBounceChange: (enabled: boolean) => void;
+  // Navigate-section actions (relocated from the bottom bar 2026-06-08
+  // per ADR-0019). All three are "I want to leave this run" intents
+  // and now share the Menu drawer's top section.
+  readonly onBackToHome: () => void;
+  readonly onRestartGame: () => Promise<void> | void;
+  readonly onModeSwitch: () => Promise<void> | void;
+  // Danger-zone (kept for parity / discoverability).
   readonly onResetGame: () => Promise<void> | void;
   readonly onClearHighScores: () => Promise<void> | void;
-  readonly onModeSwitch: () => Promise<void> | void;
   readonly onShowHowToPlay: () => void;
   readonly onShowLeaderboard: () => void;
   // Fired when the drawer closes for any reason (X button, Escape,
@@ -208,11 +214,15 @@ export function openSettingsDrawer(
     "fixed top-0 right-0 h-full w-80 max-w-[80vw] bg-yn-tile border-l border-yn-border shadow-xl overflow-y-auto p-6 flex flex-col gap-6 z-50",
   );
   drawer.setAttribute("role", "dialog");
-  drawer.setAttribute("aria-label", "Settings");
+  // Drawer renamed "Settings" -> "Menu" 2026-06-08 (ADR-0019). It now
+  // hosts Navigate (Back / Restart / Switch mode) as its first
+  // section in addition to the existing Theme / Display / Help /
+  // Scores / Danger zone. "Settings" understated what the drawer does.
+  drawer.setAttribute("aria-label", "Menu");
 
   // Header
   const header = el("div", "flex items-center justify-between");
-  header.appendChild(el("h2", "text-lg font-semibold text-yn-ink", "Settings"));
+  header.appendChild(el("h2", "text-lg font-semibold text-yn-ink", "Menu"));
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className =
@@ -267,17 +277,52 @@ export function openSettingsDrawer(
     ),
   );
 
-  // Mode + Help
-  const modeSection = makeSection("Mode");
-  const modeBtn = document.createElement("button");
-  modeBtn.type = "button";
-  modeBtn.className =
-    "px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-start";
-  modeBtn.textContent = "Switch mode";
-  modeBtn.addEventListener("click", () => {
+  // Navigate section (NEW 2026-06-08, ADR-0019). Top of the drawer so
+  // "I want to leave this run" intents -- the three highest-frequency
+  // navigation actions from the game screen -- are the first thing
+  // the player sees. Previously: Back was a standalone bottom-bar
+  // button; Switch mode was buried under a "Mode" section three
+  // sections down; Restart did not exist (only Reset under Danger
+  // zone, which read as destructive cleanup, not a normal play
+  // intent). All three now share this Navigate section. Restart
+  // skips the destructive confirm because abandoning a run is a
+  // normal play action; Clear high scores stays under Danger zone
+  // with the confirm.
+  const navigateSection = makeSection("Navigate");
+  const backToHomeBtn = document.createElement("button");
+  backToHomeBtn.type = "button";
+  backToHomeBtn.className =
+    "flex items-center justify-between gap-2 px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-stretch";
+  backToHomeBtn.innerHTML =
+    '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12l9-9 9 9"/><path d="M5 10v10h14V10"/></svg><span>Back to home</span></span><span aria-hidden="true">&rsaquo;</span>';
+  backToHomeBtn.setAttribute("aria-label", "Back to home");
+  backToHomeBtn.addEventListener("click", () => {
+    close();
+    actions.onBackToHome();
+  });
+  const restartBtn = document.createElement("button");
+  restartBtn.type = "button";
+  restartBtn.className =
+    "flex items-center justify-between gap-2 px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-stretch";
+  restartBtn.innerHTML =
+    '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 3v6h6"/></svg><span>Restart this game</span></span><span aria-hidden="true">&rsaquo;</span>';
+  restartBtn.setAttribute("aria-label", "Restart this game");
+  restartBtn.addEventListener("click", () => {
+    close();
+    void actions.onRestartGame();
+  });
+  const switchModeBtn = document.createElement("button");
+  switchModeBtn.type = "button";
+  switchModeBtn.className =
+    "flex items-center justify-between gap-2 px-4 py-2 rounded-lg bg-yn-tile text-yn-ink border border-yn-border hover:bg-orange-200 text-sm self-stretch";
+  switchModeBtn.innerHTML =
+    '<span class="flex items-center gap-2"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 7h13l-3-3"/><path d="M17 17H4l3 3"/></svg><span>Switch mode</span></span><span aria-hidden="true">&rsaquo;</span>';
+  switchModeBtn.setAttribute("aria-label", "Switch mode");
+  switchModeBtn.addEventListener("click", () => {
+    close();
     void actions.onModeSwitch();
   });
-  modeSection.appendChild(modeBtn);
+  navigateSection.append(backToHomeBtn, restartBtn, switchModeBtn);
 
   const helpSection = makeSection("Help");
   const helpBtn = document.createElement("button");
@@ -301,7 +346,11 @@ export function openSettingsDrawer(
   });
   scoresSection.appendChild(scoresBtn);
 
-  // Danger zone
+  // Danger zone: keeps "Reset game" for parity (same code path as the
+  // Navigate-section "Restart this game" today; reserved for a future
+  // PR that wants to add stronger confirm copy here). "Clear high
+  // scores" stays here -- destroys cross-run state and earns the
+  // destructive-confirm UX.
   const dangerSection = makeSection("Danger zone");
   dangerSection.append(
     makeDestructiveButton("Reset game", "Reset", () => actions.onResetGame()),
@@ -310,9 +359,9 @@ export function openSettingsDrawer(
 
   drawer.append(
     header,
+    navigateSection,
     themeSection,
     displaySection,
-    modeSection,
     helpSection,
     scoresSection,
     dangerSection,

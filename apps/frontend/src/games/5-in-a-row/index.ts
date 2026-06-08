@@ -24,7 +24,7 @@ import {
   recordPlayedToday,
   seedForMode,
 } from "./modes/index.js";
-import { getLastMode, setLastMode, showModePicker } from "./ui/mode-picker.js";
+import { clearLastMode, getLastMode, setLastMode, showModePicker } from "./ui/mode-picker.js";
 import {
   discoverAvailableThemes,
   openSettingsDrawer,
@@ -189,12 +189,42 @@ const mount: GameMount = async (container, options) => {
   bestValue.style.setProperty("--yn-best-count", "0");
   bestEl.append(bestLabel, bestValue);
 
-  // Streak chip: cream pill with day count. Hidden at 0 (no streak to brag).
+  // Streak chip (Jony pass 2026-06-08): was plain "3-day streak" text
+  // in a muted cream pill; reads as a settings field, not a brag. Now:
+  // amber warm pill with an inline-SVG flame icon + the count as the
+  // hero. The "day streak" wording is dropped from the chip face but
+  // preserved as the aria-label for screen-reader users. The flame is
+  // a 14x14 hand-drawn path with a two-stop linear gradient (amber
+  // outer, accent inner). Hidden at 0 streak.
   const streakEl = document.createElement("div");
-  streakEl.className =
-    "flex items-center gap-1 px-2.5 py-1 rounded-full bg-yn-bg border border-yn-border text-yn-muted text-xs tabular-nums";
+  streakEl.className = "yn-streak-chip";
   streakEl.setAttribute("aria-live", "polite");
+  streakEl.setAttribute("title", "Daily play streak");
   streakEl.style.display = "none";
+  // The flame + count nodes are appended once and updated in
+  // renderStreak() so we don't tear down the DOM each turn.
+  const streakFlame = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  streakFlame.setAttribute("class", "yn-streak-chip__flame");
+  streakFlame.setAttribute("viewBox", "0 0 24 24");
+  streakFlame.setAttribute("aria-hidden", "true");
+  streakFlame.setAttribute("focusable", "false");
+  // Two-colour gradient: amber outer body of the flame, accent core.
+  // The path is a stylised flame with one inner highlight, drawn from
+  // common stroke-only icon vocabulary so it reads at 14px.
+  streakFlame.innerHTML = `
+    <defs>
+      <linearGradient id="yn-streak-flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
+        <stop offset="0%" stop-color="#ea580c"/>
+        <stop offset="60%" stop-color="#fb923c"/>
+        <stop offset="100%" stop-color="#fbbf24"/>
+      </linearGradient>
+    </defs>
+    <path d="M12 2c1.2 3 4.5 5 4.5 9 0 3.6-2 6-4.5 6S7.5 14.6 7.5 11c0-1.7.8-3 1.6-3.9.3 1.4 1.1 2 1.9 2 0-2.6.4-5 1-7Z" fill="url(#yn-streak-flame-grad)" stroke="#9a3412" stroke-width="0.6" stroke-linejoin="round"/>
+    <path d="M12 11.5c.7 1.2 1.6 1.8 1.6 3.2 0 1.3-.7 2.3-1.6 2.3s-1.6-1-1.6-2.3c0-.7.3-1.3.6-1.7.1.5.4.7.6.7.1-.7.2-1.4.4-2.2Z" fill="#fef3c7" opacity="0.85"/>
+  `;
+  const streakCount = document.createElement("span");
+  streakCount.className = "yn-streak-chip__count";
+  streakEl.append(streakFlame, streakCount);
 
   // Timer chip: cream pill with mono mm:ss. Hidden outside timed mode.
   const timerEl = document.createElement("div");
@@ -241,37 +271,40 @@ const mount: GameMount = async (container, options) => {
 
   const bottomBar = document.createElement("div");
   bottomBar.className =
-    // Mobile: horizontal bar with cream panel chrome
+    // Mobile: horizontal bar with cream panel chrome. Two-button layout
+    // (Undo left, Menu right) -- the standalone "Back" button is gone;
+    // it lives under Menu now along with Switch mode + Restart so
+    // navigation has one canonical entry point per the 2026-06-08
+    // player-feedback round (ADR-0019).
     "flex flex-row items-center justify-between gap-2 px-3 py-2 " +
     "bg-yn-tile/95 backdrop-blur border-t border-yn-border " +
     // Wide: vertical column, buttons float on the patterned bg
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
     "lg:bg-transparent lg:backdrop-blur-none lg:border-t-0";
-  const backBtn = document.createElement("button");
-  backBtn.type = "button";
-  // Ghost pill: bg-transparent, border, rounded-full, hover deepens to bg-bg.
-  backBtn.className =
-    "px-4 py-1.5 rounded-full text-yn-ink text-sm font-medium border border-yn-border hover:bg-yn-bg transition-colors";
-  backBtn.textContent = "\u2190 Back";
-  backBtn.setAttribute("aria-label", "Back to home");
-  backBtn.addEventListener("click", () => {
-    window.history.back();
-  });
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
   // Initial state: disabled (no move to undo yet on a fresh game). The
   // setUndoEnabled helper below toggles disabled + className + aria.
   undoBtn.textContent = "\u21BA Undo";
   undoBtn.setAttribute("aria-label", "Undo last move");
-  const pauseBtn = document.createElement("button");
-  pauseBtn.type = "button";
-  // Primary pill: accent-filled. Pause is the high-frequency action; it
-  // earns the visual weight.
-  pauseBtn.className =
-    "px-5 py-1.5 rounded-full bg-yn-accent text-white text-sm font-semibold shadow-sm hover:bg-orange-700 transition-colors";
-  pauseBtn.textContent = "Pause";
-  pauseBtn.setAttribute("aria-label", "Pause and open settings");
-  bottomBar.append(backBtn, undoBtn, pauseBtn);
+
+  // Menu button (replaces text "Pause" + standalone "Back" + the buried
+  // "Switch mode" / "Reset game" actions in the drawer's deep
+  // hierarchy). The icon is a 3-line hamburger -- the universal mobile
+  // pattern. The drawer now opens with Navigate (Back / Restart /
+  // Switch mode) as the first section so all "I'm done with this game"
+  // and "I want to leave" intents land in one place.
+  const menuBtn = document.createElement("button");
+  menuBtn.type = "button";
+  menuBtn.className =
+    "flex items-center justify-center w-11 h-11 rounded-full bg-yn-accent text-white shadow-sm " +
+    "hover:bg-orange-700 transition-colors";
+  menuBtn.setAttribute("aria-label", "Open menu");
+  menuBtn.setAttribute("title", "Menu");
+  // Inline SVG hamburger -- 3 stacked lines, 2px stroke, rounded caps.
+  // Cream lines on accent fill. No external icon library.
+  menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
+  bottomBar.append(undoBtn, menuBtn);
 
   root.append(topBar, boardArea, bottomBar);
   container.appendChild(root);
@@ -475,8 +508,8 @@ const mount: GameMount = async (container, options) => {
       return;
     }
     streakEl.style.display = "";
-    streakEl.textContent = `${String(current)}-day streak`;
-    streakEl.setAttribute("aria-label", `${String(current)}-day streak`);
+    streakCount.textContent = String(current);
+    streakEl.setAttribute("aria-label", `${String(current)} day streak`);
   };
 
   const renderTimer = (): void => {
@@ -1007,7 +1040,7 @@ const mount: GameMount = async (container, options) => {
 
   let drawerClose: (() => void) | null = null;
   let modalClose: (() => void) | null = null;
-  pauseBtn.addEventListener("click", () => {
+  menuBtn.addEventListener("click", () => {
     drawerOpen = true;
     stopTimer();
     drawerClose = openSettingsDrawer(container, { ...settingsState }, availableThemes, {
@@ -1037,7 +1070,30 @@ const mount: GameMount = async (container, options) => {
         boardView.setPreviewBounceEnabled(enabled);
         updateAppPref({ preview_bounce_enabled: enabled });
       },
+      onBackToHome() {
+        // Was a standalone bottom-bar button; relocated under the menu
+        // 2026-06-08. Closes the drawer + navigates home via the
+        // browser history if there's a previous entry, falling back to
+        // explicit '/' navigation (e.g., direct deep-link load).
+        if (window.history.length > 1) {
+          window.history.back();
+        } else {
+          window.location.assign("/");
+        }
+      },
+      onRestartGame() {
+        // Mid-game "I'm done with this run, give me a fresh board"
+        // intent. Same code path as "Reset game" in Danger zone, but
+        // promoted to the Navigate section because abandoning a bad
+        // run is a normal play action, not a destructive one. Save
+        // is wiped to a fresh shape for the current mode; reload.
+        writeSave(makeFreshSave(save.mode));
+        window.location.reload();
+      },
       onResetGame() {
+        // Kept under Danger zone for parity / discoverability; behaves
+        // identically to onRestartGame today. If a future PR adds
+        // confirmation copy to one but not the other they can diverge.
         writeSave(makeFreshSave(save.mode));
         window.location.reload();
       },
@@ -1050,8 +1106,13 @@ const mount: GameMount = async (container, options) => {
       },
       onModeSwitch() {
         // Clear in-progress + last_mode and bounce to home so the next
-        // entry shows the mode picker again.
+        // entry shows the mode picker again. clearLastMode() wipes the
+        // `yn:game:5-in-a-row:last-mode` localStorage key the picker
+        // actually reads; the legacy `yn:app.last_mode` AppPrefs slot
+        // is also cleared for forwards-compat (no current reader, but
+        // keeps both stores honest).
         writeSave({ ...save, in_progress: null });
+        clearLastMode();
         updateAppPref({ last_mode: null });
         window.location.assign("/");
       },
