@@ -306,7 +306,7 @@
    * `inherits: false` so pseudo-element inheritance would always
    * snap to the initial value 0). */
   counter-reset: yn-score var(--yn-score-count);
-  color: var(--yn-ink-deep, #1a0a04);
+  color: var(--yn-ink-deep, #0f172a);
   font-weight: 900;
   letter-spacing: -0.025em;
 }
@@ -352,7 +352,7 @@
 @keyframes yn-score-pop {
   0% {
     transform: scale(1);
-    color: var(--yn-ink-deep, #1a0a04);
+    color: var(--yn-ink-deep, #0f172a);
   }
   30% {
     transform: scale(1.08);
@@ -360,7 +360,7 @@
   }
   100% {
     transform: scale(1);
-    color: var(--yn-ink-deep, #1a0a04);
+    color: var(--yn-ink-deep, #0f172a);
   }
 }
 
@@ -665,4 +665,48 @@
   .yn-game-over-burst-dot {
     display: none !important;
   }
+}
+
+/* ============================================================
+ * Streak chip (Jony pass 2026-06-08).
+ *
+ * Was: "3-day streak" plain text in a muted cream pill -- reads
+ * as a settings field, not a brag. The streak IS the "you showed
+ * up again" beat; it earns a visual identity.
+ *
+ * Now: warm amber pill with an inline flame SVG icon + the count
+ * as the hero. The "day streak" word is dropped; on hover/long
+ * press the aria-label still announces "3 day streak" for screen
+ * readers. The flame is a hand-drawn SVG path (no font, no
+ * emoji per CLAUDE.md ASCII-only rule, no third-party icon set).
+ * Two-colour gradient flame: amber #fbbf24 outer, accent #ea580c
+ * inner. Pill bg matches a warm-warm gradient so the streak chip
+ * carries its own micro-identity inside the HUD without
+ * clashing with the cream score/best chips.
+ * ============================================================ */
+.yn-streak-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px 4px 8px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
+  border: 1px solid #fbbf24;
+  color: #7c2d12;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 1px 3px rgba(124, 45, 18, 0.18);
+}
+.yn-streak-chip__flame {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 14px;
+  display: block;
+}
+.yn-streak-chip__count {
+  font-size: 15px;
+  line-height: 1;
+  color: var(--yn-ink-deep, #0f172a);
 }

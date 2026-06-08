@@ -29,6 +29,20 @@ export function setLastMode(mode: GameMode): void {
   }
 }
 
+// Clear the persisted last-mode so the picker shows again on next entry.
+// Called by the Menu drawer's "Switch mode" action. Previously the
+// Switch mode handler in index.ts only cleared yn:app.last_mode (an
+// unused AppPrefs field), leaving yn:game:5-in-a-row:last-mode set --
+// the picker was therefore skipped on re-entry. (Bug surfaced by the
+// ADR-0019 Menu drawer e2e regression for Switch mode -> picker.)
+export function clearLastMode(): void {
+  try {
+    localStorage.removeItem(LAST_MODE_KEY);
+  } catch {
+    // no-op: see setLastMode rationale.
+  }
+}
+
 export function showModePicker(container: HTMLElement): Promise<GameMode> {
   return new Promise<GameMode>((resolve) => {
     container.replaceChildren();
