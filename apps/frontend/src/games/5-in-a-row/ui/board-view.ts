@@ -183,6 +183,22 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     cellGs.push(row);
   }
 
+  // Outer-boundary rect: a single accent-coloured stroke around the
+  // full 9x9 area so the board reads as a defined surface rather than
+  // a free-floating grid (ADR-0021 polish round). Painted AFTER the
+  // cell <g>s so it sits on top of the per-cell backgrounds; pointer-
+  // events disabled so it never intercepts taps. Width 2 in SVG units
+  // (~3.6px at the 720px max board size) gives a crisp edge without
+  // visually claiming any cell.
+  const boundary = document.createElementNS(SVG_NS, "rect");
+  boundary.setAttribute("class", "yn-board-boundary");
+  boundary.setAttribute("x", "0");
+  boundary.setAttribute("y", "0");
+  boundary.setAttribute("width", String(VIEW_SIZE));
+  boundary.setAttribute("height", String(VIEW_SIZE));
+  boundary.setAttribute("pointer-events", "none");
+  svg.appendChild(boundary);
+
   // Keyboard navigation: tabindex makes the SVG focusable; arrows move a
   // visible focus indicator across cells; Space/Enter dispatch as a tap on
   // the focused cell; Escape clears the focus indicator. focusedCoord

@@ -20,6 +20,21 @@
   stroke: var(--yn-bg-deep);
   stroke-width: 1px;
 }
+/* Outer 9x9 board boundary (ADR-0021 polish round, 2026-06-08).
+   A single rect painted on top of the cell grid so the board reads
+   as a defined surface, not a free-floating set of cells. Accent-
+   coloured rim with rounded corners + a soft warm-orange glow drop
+   so the boundary "frames" the play area without claiming any cell
+   width. pointer-events disabled at the element level so taps
+   inside the boundary still land on the per-cell <g>. */
+.yn-board-boundary {
+  fill: none;
+  stroke: var(--yn-tile-border);
+  stroke-width: 2px;
+  rx: 8;
+  ry: 8;
+  filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.35));
+}
 /* No per-cell reachable highlight: the reachable BFS set on an early-game
    board is ~80 of 81 empty cells; any visible per-cell delta floods. The
    shake-on-invalid + long-press path preview cover the affordance. */

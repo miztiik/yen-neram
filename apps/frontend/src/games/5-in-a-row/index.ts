@@ -1,7 +1,7 @@
 import type { GameMount, GameInstance } from "@/shared/contracts/game-module.js";
 import type { Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 import balanceJson from "./balance.json";
-import { readSave, writeSave, makeFreshSave } from "./save.js";
+import { readSave, writeSave, makeFreshSave, makeFreshGame } from "./save.js";
 import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
@@ -759,7 +759,11 @@ const mount: GameMount = async (container, options) => {
     };
     gameOverModalClose = openGameOverModal(container, ctx, {
       onPlayAgain() {
-        writeSave(makeFreshSave(mode));
+        // Preserve high_scores + streak across the run boundary;
+        // wipe only in_progress. Bug fix per ADR-0021 -- the prior
+        // `makeFreshSave(mode)` call wiped the leaderboard on every
+        // game-end.
+        writeSave(makeFreshGame(save, mode));
         window.location.reload();
       },
       onBackToHome() {
@@ -1090,14 +1094,17 @@ const mount: GameMount = async (container, options) => {
         // promoted to the Navigate section because abandoning a bad
         // run is a normal play action, not a destructive one. Save
         // is wiped to a fresh shape for the current mode; reload.
-        writeSave(makeFreshSave(save.mode));
+        // PRESERVES high_scores + streak per ADR-0021 (the prior
+        // `makeFreshSave` wiped the leaderboard).
+        writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
       onResetGame() {
         // Kept under Danger zone for parity / discoverability; behaves
         // identically to onRestartGame today. If a future PR adds
         // confirmation copy to one but not the other they can diverge.
-        writeSave(makeFreshSave(save.mode));
+        // PRESERVES high_scores + streak per ADR-0021.
+        writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
       onClearHighScores() {

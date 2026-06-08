@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { makeFreshSave } from "@/games/5-in-a-row/save.js";
+import { makeFreshGame, makeFreshSave } from "@/games/5-in-a-row/save.js";
 import { SaveSchema, type Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 
 describe("save round-trip", () => {
@@ -137,5 +137,90 @@ describe("save round-trip", () => {
     const save = makeFreshSave("timed");
     expect(save.mode).toBe("timed");
     expect(save.in_progress).toBeNull();
+  });
+});
+
+describe("makeFreshGame (mid-session restart, preserves cross-run state)", () => {
+  // ADR-0021 regression: pre-2026-06-08 the in-game "Play again",
+  // "Restart this game", "Reset game", and "Switch mode" handlers all
+  // called `writeSave(makeFreshSave(mode))` directly -- which wipes
+  // `high_scores` AND `streak` along with the in_progress run. The
+  // user reported "the high score is not persisting; it gets cleared
+  // when the game ends." Fix: those handlers now route through
+  // `makeFreshGame(prev, mode)` which preserves cross-run state and
+  // only resets in_progress + mode. These tests pin the new helper.
+
+  const PRIOR_SAVE: Save = {
+    schema_version: 2,
+    mode: "infinite",
+    in_progress: {
+      board: Array.from({ length: 9 }, () => Array.from({ length: 9 }, () => null)),
+      selected_cell: null,
+      next_preview: [{ row: 0, col: 0, kind: 1 }],
+      score: 42,
+      turn_seed: 123,
+      undo: { available: true, snapshot: null },
+      mode_state: { kind: "infinite" },
+    },
+    high_scores: {
+      infinite: [
+        { score: 200, timestamp_iso: "2026-06-01T10:00:00.000Z" },
+        { score: 150, timestamp_iso: "2026-06-02T11:00:00.000Z" },
+      ],
+      max_points: [{ score: 80, timestamp_iso: "2026-06-03T12:00:00.000Z" }],
+      timed: [],
+    },
+    streak: { current: 3, longest: 7, last_played_date: "2026-06-07" },
+  };
+
+  it("wipes in_progress so the next mount starts a fresh board", () => {
+    const fresh = makeFreshGame(PRIOR_SAVE, "infinite");
+    expect(fresh.in_progress).toBeNull();
+  });
+
+  it("PRESERVES high_scores byte-identical (regression for the wipe bug)", () => {
+    const fresh = makeFreshGame(PRIOR_SAVE, "infinite");
+    expect(fresh.high_scores).toEqual(PRIOR_SAVE.high_scores);
+    // Reference equality is also fine since the helper does not deep-clone;
+    // the schema is fully serialisable so any subsequent writeSave() will
+    // produce a stable wire shape.
+    expect(fresh.high_scores).toBe(PRIOR_SAVE.high_scores);
+  });
+
+  it("PRESERVES streak byte-identical (regression for the wipe bug)", () => {
+    const fresh = makeFreshGame(PRIOR_SAVE, "infinite");
+    expect(fresh.streak).toEqual(PRIOR_SAVE.streak);
+    expect(fresh.streak).toBe(PRIOR_SAVE.streak);
+  });
+
+  it("switches the mode when the caller passes a different mode (Switch-mode flow)", () => {
+    const fresh = makeFreshGame(PRIOR_SAVE, "timed");
+    expect(fresh.mode).toBe("timed");
+    // Cross-run state still preserved across the mode swap.
+    expect(fresh.high_scores).toBe(PRIOR_SAVE.high_scores);
+    expect(fresh.streak).toBe(PRIOR_SAVE.streak);
+  });
+
+  it("output passes SaveSchema (canonical V2 wire shape)", () => {
+    const fresh = makeFreshGame(PRIOR_SAVE, "max-points");
+    expect(() => SaveSchema.parse(fresh)).not.toThrow();
+  });
+
+  it("a prior save with empty high_scores stays empty (no spurious seeding)", () => {
+    const emptyPrior = makeFreshSave("infinite");
+    const fresh = makeFreshGame(emptyPrior, "infinite");
+    expect(fresh.high_scores.infinite).toEqual([]);
+    expect(fresh.high_scores.max_points).toEqual([]);
+    expect(fresh.high_scores.timed).toEqual([]);
+    expect(fresh.streak).toBeNull();
+  });
+
+  it("a prior save with a null streak stays null (no spurious seeding)", () => {
+    const partial: Save = {
+      ...PRIOR_SAVE,
+      streak: null,
+    };
+    const fresh = makeFreshGame(partial, "infinite");
+    expect(fresh.streak).toBeNull();
   });
 });

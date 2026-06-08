@@ -501,6 +501,145 @@ test.describe("full v1 flow", () => {
     expect(parsed.in_progress?.score).toBe(0);
   });
 
+  test("Menu -> Restart PRESERVES high_scores + streak (ADR-0021 regression)", async ({ page }) => {
+    // ADR-0021 regression: pre-2026-06-08 the Restart / Reset / Play
+    // again / Switch mode handlers all called `makeFreshSave(mode)`
+    // which wipes the leaderboard AND streak alongside the in-progress
+    // run. User reported "the high score is not persisting -- it gets
+    // cleared when the game ends." Fix routes those handlers through
+    // `makeFreshGame(save, mode)` which preserves cross-run state.
+    //
+    // This test seeds a save with NON-empty high_scores + streak,
+    // exercises the Restart path, and asserts both survive.
+    await page.goto(GAME_URL);
+    await page.evaluate(() => {
+      type Cell = null | { runGroup: number };
+      const board: Cell[][] = Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, (): Cell => null),
+      );
+      board[0]![0] = { runGroup: 5 };
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: {
+          board,
+          selected_cell: null,
+          next_preview: [{ row: 1, col: 1, kind: 1 }],
+          score: 50,
+          turn_seed: 42,
+          undo: { available: true, snapshot: null },
+          mode_state: { kind: "infinite" },
+        },
+        high_scores: {
+          infinite: [
+            { score: 250, timestamp_iso: "2026-06-01T10:00:00.000Z" },
+            { score: 180, timestamp_iso: "2026-06-02T11:00:00.000Z" },
+          ],
+          max_points: [{ score: 90, timestamp_iso: "2026-06-03T12:00:00.000Z" }],
+          timed: [],
+        },
+        streak: { current: 5, longest: 9, last_played_date: "2026-06-07" },
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+    });
+    await page.reload();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    // Restart via Menu.
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Restart this game" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    // Read the post-Restart save: in_progress fresh (score 0), but the
+    // high_scores arrays + streak survive byte-identically. This is
+    // the contract the ADR-0021 fix carries.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
+    const parsed = JSON.parse(stored ?? "{}") as {
+      in_progress: { score: number } | null;
+      high_scores: {
+        infinite: { score: number; timestamp_iso: string }[];
+        max_points: { score: number; timestamp_iso: string }[];
+        timed: { score: number; timestamp_iso: string }[];
+      };
+      streak: { current: number; longest: number; last_played_date: string } | null;
+    };
+    expect(parsed.in_progress?.score).toBe(0);
+    expect(parsed.high_scores.infinite).toEqual([
+      { score: 250, timestamp_iso: "2026-06-01T10:00:00.000Z" },
+      { score: 180, timestamp_iso: "2026-06-02T11:00:00.000Z" },
+    ]);
+    expect(parsed.high_scores.max_points).toEqual([
+      { score: 90, timestamp_iso: "2026-06-03T12:00:00.000Z" },
+    ]);
+    expect(parsed.high_scores.timed).toEqual([]);
+    expect(parsed.streak).toEqual({
+      current: 5,
+      longest: 9,
+      last_played_date: "2026-06-07",
+    });
+  });
+
+  test("Menu -> Switch mode PRESERVES high_scores + streak (ADR-0021 regression)", async ({
+    page,
+  }) => {
+    // Same regression class as the Restart test above, but for the
+    // mode-swap path. Switching to a different mode must NOT wipe the
+    // leaderboard for the mode you're leaving.
+    await page.goto(GAME_URL);
+    await page.evaluate(() => {
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: null,
+        high_scores: {
+          infinite: [{ score: 300, timestamp_iso: "2026-06-05T10:00:00.000Z" }],
+          max_points: [],
+          timed: [{ score: 75, timestamp_iso: "2026-06-06T10:00:00.000Z" }],
+        },
+        streak: { current: 2, longest: 4, last_played_date: "2026-06-07" },
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+    });
+    await page.reload();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await drawer.getByRole("button", { name: "Switch mode" }).click();
+
+    // Landed home.
+    await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // The save still carries the prior high_scores + streak.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
+    const parsed = JSON.parse(stored ?? "{}") as {
+      high_scores: {
+        infinite: { score: number; timestamp_iso: string }[];
+        max_points: { score: number; timestamp_iso: string }[];
+        timed: { score: number; timestamp_iso: string }[];
+      };
+      streak: { current: number; longest: number; last_played_date: string } | null;
+    };
+    expect(parsed.high_scores.infinite).toEqual([
+      { score: 300, timestamp_iso: "2026-06-05T10:00:00.000Z" },
+    ]);
+    expect(parsed.high_scores.timed).toEqual([
+      { score: 75, timestamp_iso: "2026-06-06T10:00:00.000Z" },
+    ]);
+    expect(parsed.streak).toEqual({
+      current: 2,
+      longest: 4,
+      last_played_date: "2026-06-07",
+    });
+  });
+
   test("Menu -> Switch mode bounces to home and the mode picker shows on next entry", async ({
     page,
   }) => {
