@@ -64,6 +64,52 @@ function modeContextLine(meta: ModeMeta): string | null {
   return null;
 }
 
+// Palm pass 2026-06-08. Frame the run's outcome as progress, not failure.
+// Returns the title + subtitle pair for the modal heading area. Three
+// branches:
+//   (a) new personal best (rare moment) -- the celebration copy.
+//   (b) not new best, has a stored top score -- "X points to your best."
+//   (c) not new best, NO stored top score (first ever run scored 0 or
+//       only ever scored 0 before) -- skip the subtitle, the empty
+//       leaderboard already communicates "no record yet".
+// Helper is pure + exported for unit tests; the modal does the DOM glue.
+export function buildHeaderCopy(context: GameOverContext): {
+  readonly title: string;
+  readonly subtitle: string | null;
+} {
+  if (context.isNewPersonalBest) {
+    // Previous top-1 is topThree[1] AFTER recording (this game inserted
+    // at position 0). If there was no previous score, this is the
+    // player's first recorded run -- celebrate without a delta.
+    const prevBest = context.topThree[1];
+    if (prevBest === undefined) {
+      return { title: "New best!", subtitle: "Your first run on the board." };
+    }
+    const delta = context.score - prevBest.score;
+    if (delta <= 0) {
+      // Defensive: isNewPersonalBest implies score > all others, so
+      // delta should be > 0. Fall back to a clean celebration line.
+      return { title: "New best!", subtitle: "Top of the board." };
+    }
+    return { title: "New best!", subtitle: `+${String(delta)} over your last.` };
+  }
+  const top1 = context.topThree[0];
+  if (top1 === undefined) {
+    // No leaderboard yet AND not a new best (e.g. scored 0 on the first
+    // ever run). Just acknowledge the run with no comparison line.
+    return { title: "Nice run.", subtitle: null };
+  }
+  const deficit = top1.score - context.score;
+  if (deficit <= 0) {
+    // Tied your best (recorded equally but not strictly greater).
+    return { title: "Nice run.", subtitle: "Tied your best." };
+  }
+  return {
+    title: "Nice run.",
+    subtitle: `${String(deficit)} points to your best.`,
+  };
+}
+
 export function openGameOverModal(
   parent: HTMLElement,
   context: GameOverContext,
@@ -79,24 +125,47 @@ export function openGameOverModal(
   card.setAttribute("aria-modal", "true");
   card.setAttribute("aria-label", "Game over");
 
+  const { title: titleText, subtitle: subtitleText } = buildHeaderCopy(context);
+
   const title = document.createElement("h2");
-  title.className = "text-xl font-semibold text-yn-ink";
-  title.textContent = "Game over";
+  title.className = "text-2xl font-bold text-yn-ink";
+  title.textContent = titleText;
   card.appendChild(title);
 
-  // Final score + optional "New best!" pip on the same baseline.
+  if (subtitleText !== null) {
+    const subtitle = document.createElement("p");
+    subtitle.className = "text-sm text-yn-muted -mt-2";
+    subtitle.textContent = subtitleText;
+    card.appendChild(subtitle);
+  }
+
+  // Final score row. Always scales-in on mount (`.yn-game-over-score`).
+  // On a NEW BEST the row also carries the burst container + 6 dots
+  // that radiate behind the score and fade out over 900ms. Both
+  // animations defang under prefers-reduced-motion (see board-view.css
+  // game-over ceremony block).
   const scoreRow = document.createElement("div");
-  scoreRow.className = "flex items-baseline gap-3";
+  scoreRow.className = context.isNewPersonalBest
+    ? "yn-game-over-burst flex items-baseline gap-3"
+    : "flex items-baseline gap-3";
+  if (context.isNewPersonalBest) {
+    // Six absolute-positioned colour dots, 60deg-staggered around the
+    // score number. Per Palm's prescription: cream / coral / sage from
+    // the warm-vibrant palette family + one accent + one amber +
+    // another coral. Dots inherit colour via :nth-child rules in CSS.
+    for (let i = 0; i < 6; i++) {
+      const dot = document.createElement("span");
+      dot.className = "yn-game-over-burst-dot";
+      dot.style.setProperty("--yn-burst-angle", `${String(i * 60)}deg`);
+      dot.setAttribute("aria-hidden", "true");
+      scoreRow.appendChild(dot);
+    }
+  }
   const scoreEl = document.createElement("span");
-  scoreEl.className = "text-4xl font-semibold text-yn-ink tabular-nums";
+  scoreEl.className =
+    "yn-game-over-score text-5xl font-black text-yn-ink tabular-nums tracking-tight";
   scoreEl.textContent = String(context.score);
   scoreRow.appendChild(scoreEl);
-  if (context.isNewPersonalBest) {
-    const pip = document.createElement("span");
-    pip.className = "px-2 py-0.5 rounded-full bg-yn-accent text-white text-xs font-semibold";
-    pip.textContent = "New best!";
-    scoreRow.appendChild(pip);
-  }
   card.appendChild(scoreRow);
 
   const contextLine = modeContextLine(context.modeMeta);

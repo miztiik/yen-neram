@@ -24,6 +24,19 @@ export type WaveTiming = {
   readonly fly_to_score_ms: number;
 };
 
+export type WavePlayOptions = {
+  /**
+   * When true, the final +N delta badge renders with the vibrant
+   * multiplier style (`.yn-bonus-pill--delta-mult`): larger, gradient
+   * fill, soft accent-bleed ring. Reserved for moments where the
+   * pill stack carries at least one NAMED bonus pill (LENGTH /
+   * INTERSECT / CASCADE) -- a tier-2-and-above scoring beat. Plain
+   * tier-1 +5 stays on the calmer baseline so it doesn't shout.
+   * Defaults to false.
+   */
+  readonly vibrantDelta?: boolean;
+};
+
 export type BonusWave = {
   /**
    * Stage the wave. Resolves when the FINAL delta pill begins its
@@ -34,7 +47,12 @@ export type BonusWave = {
    * If `pills` is empty (suppressed tier-1 floor per `isSilentTier`),
    * the promise resolves immediately and nothing is rendered.
    */
-  play(centroid: ScreenPoint, pills: readonly BonusPill[], target: ScreenPoint): Promise<void>;
+  play(
+    centroid: ScreenPoint,
+    pills: readonly BonusPill[],
+    target: ScreenPoint,
+    options?: WavePlayOptions,
+  ): Promise<void>;
   destroy(): void;
 };
 
@@ -60,8 +78,10 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
     centroid: ScreenPoint,
     pills: readonly BonusPill[],
     target: ScreenPoint,
+    options?: WavePlayOptions,
   ): Promise<void> {
     if (pills.length === 0) return;
+    const vibrantDelta = options?.vibrantDelta === true;
 
     // Non-delta pills stack UPWARD from the centroid (negative Y);
     // the delta badge sits at the top of the stack, then flies.
@@ -104,7 +124,12 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
     const deltaStaggerMs = nonDelta.length * timing.pill_stagger_ms;
 
     const deltaEl = document.createElement("div");
-    deltaEl.className = `${PILL_CLASS} ${PILL_KIND_PREFIX}delta`;
+    // Vibrant variant when the pill stack carries at least one NAMED
+    // pill (LENGTH / INTERSECT / CASCADE) -- a tier-2+ scoring beat.
+    // Plain tier-1 +5 stays on the calmer baseline (`--delta` only)
+    // so the badge style itself encodes "small win" vs "big win".
+    const deltaModifierClass = vibrantDelta ? ` ${PILL_KIND_PREFIX}delta-mult` : "";
+    deltaEl.className = `${PILL_CLASS} ${PILL_KIND_PREFIX}delta${deltaModifierClass}`;
     deltaEl.textContent = deltaPill.text;
     deltaEl.style.left = `${String(centroid.x)}px`;
     deltaEl.style.top = `${String(centroid.y)}px`;
