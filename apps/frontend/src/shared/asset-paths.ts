@@ -29,6 +29,17 @@ export const assetPaths = {
     return join("games.json");
   },
 
+  /**
+   * The SPA portal home (`import.meta.env.BASE_URL`). Use this for any
+   * `window.location.assign()` that intends to navigate to the in-SPA
+   * home, NEVER the literal `"/"`. On the GH-Pages project deploy the
+   * base is `/yen-neram/` and `"/"` bounces OUT of the SPA to
+   * `https://miztiik.github.io/` -- a 404 (see ADR-0020).
+   */
+  portal(): string {
+    return import.meta.env.BASE_URL;
+  },
+
   /** Theme manifest JSON for a given themeId. */
   themeManifest(themeId: string): string {
     return join(`assets/themes/${themeId}/manifest.json`);
