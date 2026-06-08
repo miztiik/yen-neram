@@ -43,6 +43,7 @@ import {
 } from "./ui/game-over-modal.js";
 import { derivePills } from "./ui/bonus-pills.js";
 import { centroidOfClearedCells, createBonusWave, elementCenter } from "./ui/bonus-wave.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
 type RewardTimings = {
   readonly wave_pill_rise_ms: number;
@@ -129,7 +130,7 @@ const mount: GameMount = async (container, options) => {
   topBar.className =
     // Mobile: horizontal bar with cream panel chrome
     "flex flex-row items-center justify-between gap-3 px-3 py-2 " +
-    "bg-yn-tile/95 backdrop-blur border-b border-yn-border " +
+    "bg-yn-tile/95 backdrop-blur-sm border-b border-yn-border " +
     // Wide: vertical column, chips float on the patterned bg
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
     "lg:bg-transparent lg:backdrop-blur-none lg:border-b-0";
@@ -150,7 +151,7 @@ const mount: GameMount = async (container, options) => {
   const scoreEl = document.createElement("div");
   scoreEl.className =
     "yn-score-chip flex items-center justify-center px-5 py-2 rounded-2xl " +
-    "bg-yn-tile border border-yn-border shadow-sm " +
+    "bg-yn-tile border border-yn-border shadow-xs " +
     "text-5xl sm:text-6xl tabular-nums";
   scoreEl.setAttribute("aria-live", "polite");
   scoreEl.setAttribute("aria-label", "Score 0");
@@ -178,7 +179,7 @@ const mount: GameMount = async (container, options) => {
   const bestEl = document.createElement("div");
   bestEl.className =
     "yn-best-chip hidden items-center gap-2 px-4 py-1.5 rounded-2xl " +
-    "bg-yn-tile border border-yn-border text-yn-ink shadow-sm " +
+    "bg-yn-tile border border-yn-border text-yn-ink shadow-xs " +
     "text-base sm:text-lg font-bold tabular-nums";
   bestEl.setAttribute("aria-live", "polite");
   const bestLabel = document.createElement("span");
@@ -277,7 +278,7 @@ const mount: GameMount = async (container, options) => {
     // navigation has one canonical entry point per the 2026-06-08
     // player-feedback round (ADR-0019).
     "flex flex-row items-center justify-between gap-2 px-3 py-2 " +
-    "bg-yn-tile/95 backdrop-blur border-t border-yn-border " +
+    "bg-yn-tile/95 backdrop-blur-sm border-t border-yn-border " +
     // Wide: vertical column, buttons float on the patterned bg
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
     "lg:bg-transparent lg:backdrop-blur-none lg:border-t-0";
@@ -297,7 +298,7 @@ const mount: GameMount = async (container, options) => {
   const menuBtn = document.createElement("button");
   menuBtn.type = "button";
   menuBtn.className =
-    "flex items-center justify-center w-11 h-11 rounded-full bg-yn-accent text-white shadow-sm " +
+    "flex items-center justify-center w-11 h-11 rounded-full bg-yn-accent text-white shadow-xs " +
     "hover:bg-orange-700 transition-colors";
   menuBtn.setAttribute("aria-label", "Open menu");
   menuBtn.setAttribute("title", "Menu");
@@ -528,7 +529,7 @@ const mount: GameMount = async (container, options) => {
       const src = theme.motifFiles[String(p.kind)];
       if (src === undefined || src.length === 0) continue;
       const img = document.createElement("img");
-      img.className = "w-5 h-5 sm:w-6 sm:h-6 rounded-sm";
+      img.className = "w-5 h-5 sm:w-6 sm:h-6 rounded-xs";
       img.src = src;
       img.alt = `Piece type ${String(p.kind)}`;
       img.setAttribute("draggable", "false");
@@ -1074,11 +1075,13 @@ const mount: GameMount = async (container, options) => {
         // Was a standalone bottom-bar button; relocated under the menu
         // 2026-06-08. Closes the drawer + navigates home via the
         // browser history if there's a previous entry, falling back to
-        // explicit '/' navigation (e.g., direct deep-link load).
+        // explicit portal navigation (e.g., direct deep-link load).
+        // ADR-0020: use `assetPaths.portal()` NOT literal "/" so the
+        // GH Pages project deploy stays inside the SPA base.
         if (window.history.length > 1) {
           window.history.back();
         } else {
-          window.location.assign("/");
+          window.location.assign(assetPaths.portal());
         }
       },
       onRestartGame() {
@@ -1110,11 +1113,13 @@ const mount: GameMount = async (container, options) => {
         // `yn:game:5-in-a-row:last-mode` localStorage key the picker
         // actually reads; the legacy `yn:app.last_mode` AppPrefs slot
         // is also cleared for forwards-compat (no current reader, but
-        // keeps both stores honest).
+        // keeps both stores honest). ADR-0020: `assetPaths.portal()`
+        // NOT literal "/" -- on GH Pages base /yen-neram/ the literal
+        // "/" bounces out of the SPA.
         writeSave({ ...save, in_progress: null });
         clearLastMode();
         updateAppPref({ last_mode: null });
-        window.location.assign("/");
+        window.location.assign(assetPaths.portal());
       },
       onShowHowToPlay() {
         modalClose = openHowToPlay(container);

@@ -1,6 +1,7 @@
 import { defineConfig } from "vitest/config";
 import type { PluginOption } from "vite";
 import { VitePWA } from "vite-plugin-pwa";
+import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath, URL } from "node:url";
 import { copyFileSync } from "node:fs";
 import { resolve as pathResolve } from "node:path";
@@ -73,6 +74,7 @@ export default defineConfig({
   plugins: [
     spaFallback(),
     spa404Stamp(),
+    tailwindcss(),
     VitePWA({
       registerType: "autoUpdate",
       injectRegister: "auto",

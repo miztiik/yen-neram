@@ -1,6 +1,30 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Tailwind v4 theme. Replaces the old tailwind.config.ts -> theme.extend.
+   Custom palette tokens become CSS variables in the `--color-*` namespace
+   (Tailwind generates the `bg-yn-bg`, `text-yn-ink`, `border-yn-border`
+   utilities automatically from these). Grid templates likewise live under
+   `--grid-template-columns-*`. Per the v4 CSS-first model these can be
+   overridden / extended from any CSS file the bundle sees.
+
+   Source files to scan are auto-detected by the @tailwindcss/vite plugin;
+   the v3 `content` glob is no longer needed. */
+@theme {
+  --color-yn-bg: #fed7aa;
+  --color-yn-tile: #fff7ed;
+  --color-yn-border: #fb923c;
+  --color-yn-ink: #7c2d12;
+  --color-yn-muted: #9a3412;
+  --color-yn-accent: #ea580c;
+  --grid-template-columns-portal: repeat(3, minmax(0, 1fr));
+  --grid-template-columns-portal-portrait: repeat(2, minmax(0, 1fr));
+}
+
+/* v4 default border color is `currentColor` (not gray-200). We always
+   specify border colors explicitly via the `yn-border` utility, so no
+   compatibility shim is needed here -- the change is invisible to this
+   repo's styling. */
 
 /* Warm-vibrant chrome palette (Jony pass 2026-06-07, vibrancy bump).
    Sun-warmed peach page bg + cream lifted cards + saturated orange rim +
@@ -9,8 +33,8 @@
    the whole screen scream; tile cream cards still POP via the warm-rim
    border. Splash-pink (board-view.css) stays as the celebration moment;
    pink + vibrant orange are complementary on the warm side of the wheel.
-   Tokens are consumed via Tailwind via tailwind.config.ts and directly
-   via var() inside renderer-owned SVG (board-view.css). */
+   Tokens are consumed via Tailwind via the @theme block above and
+   directly via var() inside renderer-owned SVG (board-view.css). */
 :root {
   --yn-bg-deep: #fed7aa;
   --yn-bg-tile: #fff7ed;
