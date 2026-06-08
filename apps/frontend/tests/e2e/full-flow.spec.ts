@@ -283,4 +283,119 @@ test.describe("full v1 flow", () => {
     await expect(modal.getByText(/no diagonals, no jumping/i)).toBeVisible();
     await expect(modal.getByText(/flashes red/i)).toBeVisible();
   });
+
+  test("mode picker fits one mobile screen with no scroll (393x851 Pixel-5)", async ({ page }) => {
+    // Regression for the 2026-06-08 mobile fix: the previous
+    // `grid-cols-1 sm:grid-cols-3 aspect-square` layout stacked three
+    // ~300px-tall square tiles + a heading on mobile, blowing past the
+    // viewport height by ~80px and forcing the player to scroll on
+    // FIRST contact with the game. The fix uses short horizontal
+    // banner tiles below `sm` breakpoint and keeps the premium-feel
+    // squares from `sm` up. This test pins the doctrine: the picker
+    // must render in one screen on the target-device profile.
+    await page.setViewportSize({ width: 393, height: 851 });
+    await page.goto(GAME_URL);
+
+    const infinite = page.getByRole("button", { name: "Infinite" });
+    await expect(infinite).toBeVisible({ timeout: 5_000 });
+
+    // overflow == documentElement.scrollHeight - window.innerHeight.
+    // The page must NOT scroll (overflow <= 0). One-px slop allowed
+    // for sub-pixel layout rounding on different rendering backends.
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollHeight - window.innerHeight,
+    );
+    expect(overflow).toBeLessThanOrEqual(1);
+  });
+
+  test("undo button starts disabled, enables after the first move, restores state, then disables (one undo per game)", async ({
+    page,
+  }) => {
+    // The undo doctrine per how-to-play.ts: "You get one undo per
+    // game." Snapshot is captured BEFORE attemptMove applies on the
+    // FIRST move (and every subsequent move until undo is spent); a
+    // single click restores board+score+preview and disables the
+    // button for the rest of the game. Per-game reset happens via
+    // freshMakeSave on Play Again / Reset.
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    const undoBtn = page.getByRole("button", { name: "Undo last move" });
+    await expect(undoBtn).toBeDisabled();
+    await expect(undoBtn).toHaveAttribute("aria-disabled", "true");
+
+    // Pick a filled cell. The first 11 seeded cells (initial_seed_count
+    // in balance.json) form the starting board; any of them is a valid
+    // selection.
+    const filledCell = page.locator("[data-r][data-c]:has(image.yn-motif)").first();
+    await expect(filledCell).toBeVisible({ timeout: 5_000 });
+    await filledCell.click();
+    await expect(filledCell).toHaveClass(/yn-cell-selected/, { timeout: 1_000 });
+
+    // Snapshot the board cells + score BEFORE the move so we can assert
+    // the post-undo state matches exactly. The board is the 81-cell
+    // `<g data-r data-c data-run-group>` grid; the score is the inline
+    // --yn-score-count custom property the count-up tween writes.
+    type CellMap = Record<string, string | null>;
+    const snapshotBoard = async (): Promise<CellMap> =>
+      page.evaluate(() => {
+        const out: Record<string, string | null> = {};
+        for (const el of document.querySelectorAll("[data-r][data-c]")) {
+          const r = el.getAttribute("data-r");
+          const c = el.getAttribute("data-c");
+          const rg = (el as HTMLElement).dataset["runGroup"] ?? null;
+          out[`${String(r)},${String(c)}`] = rg;
+        }
+        return out;
+      });
+    const boardBefore = await snapshotBoard();
+    const scoreBefore = await page
+      .locator(".yn-score-display")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
+
+    // Tap a reachable empty cell. board-view sets `.yn-cell-reachable`
+    // on every empty BFS-reachable cell while a piece is selected.
+    const reachable = page.locator("[data-r][data-c].yn-cell-reachable:not(:has(image.yn-motif))");
+    await expect(reachable.first()).toBeVisible({ timeout: 2_000 });
+    await reachable.first().click();
+
+    // Move animation + spawn lands. After it settles, undo is enabled.
+    // The undo button is intentionally enabled in the finally block of
+    // onCellTap (not at snapshot-capture time) so that "enabled" always
+    // means "click-ready"; the click handler's isAnimating guard would
+    // otherwise reject a mid-animation click on a visibly-enabled button.
+    await expect(undoBtn).toBeEnabled({ timeout: 5_000 });
+    await expect(undoBtn).toHaveAttribute("aria-disabled", "false");
+
+    // Click undo.
+    await undoBtn.click();
+
+    // Board snapshot matches the pre-move state EXACTLY (same
+    // runGroup at every cell). Score also reverts.
+    const boardAfter = await snapshotBoard();
+    expect(boardAfter).toEqual(boardBefore);
+    const scoreAfter = await page
+      .locator(".yn-score-display")
+      .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
+    expect(scoreAfter).toBe(scoreBefore);
+
+    // Undo is disabled again (one undo per game). Save persists the
+    // spent state via undo.available === false.
+    await expect(undoBtn).toBeDisabled({ timeout: 2_000 });
+    const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
+    expect(stored).not.toBeNull();
+    const parsed = JSON.parse(stored ?? "{}") as {
+      in_progress: { undo: { available: boolean } } | null;
+    };
+    expect(parsed.in_progress?.undo.available).toBe(false);
+
+    // Reload the page: the spent state must persist (undo stays
+    // disabled on mount because save.in_progress.undo.available is
+    // false, which seeds undoUsedThisGame = true at mount time).
+    await page.reload();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    const undoBtnAfterReload = page.getByRole("button", { name: "Undo last move" });
+    await expect(undoBtnAfterReload).toBeDisabled();
+  });
 });

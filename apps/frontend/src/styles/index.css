@@ -18,6 +18,12 @@
   --yn-ink: #7c2d12;
   --yn-muted: #9a3412;
   --yn-accent: #ea580c;
+  /* Espresso ink: warm-near-black for the HUD's hero glyphs (score chip
+     digits). #7c2d12 (terracotta) reads as muddy newsprint on the cream
+     pill; #1a0a04 (espresso) is warm enough to belong to the palette
+     family and dark enough to assert the score as the HUD hero. Reserved
+     to .yn-score-display; the rest of the chrome keeps --yn-ink. */
+  --yn-ink-deep: #1a0a04;
 }
 
 @layer base {

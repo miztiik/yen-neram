@@ -282,7 +282,15 @@
  *
  * Default `--yn-score-count` is 0 at first paint; JS bumps it
  * after the first frame so the very first render isn't a tween
- * from 0 (which would feel disorienting on a resumed save). */
+ * from 0 (which would feel disorienting on a resumed save).
+ *
+ * Jony pass 2026-06-08: digits use --yn-ink-deep espresso (warm
+ * near-black) at weight 900 with tight -0.025em tracking, NOT
+ * the terracotta --yn-ink (#7c2d12 reads as muddy newsprint on
+ * the cream pill). Espresso belongs to the warm-vibrant palette
+ * family while asserting the score as the HUD hero. The cream
+ * pill stays unchanged so the existing `.yn-score-celebrating`
+ * glow still has somewhere to bloom from. */
 .yn-score-display {
   display: inline-block;
   font-variant-numeric: tabular-nums;
@@ -298,6 +306,9 @@
    * `inherits: false` so pseudo-element inheritance would always
    * snap to the initial value 0). */
   counter-reset: yn-score var(--yn-score-count);
+  color: var(--yn-ink-deep, #1a0a04);
+  font-weight: 900;
+  letter-spacing: -0.025em;
 }
 .yn-score-display::after {
   content: counter(yn-score);
@@ -341,7 +352,7 @@
 @keyframes yn-score-pop {
   0% {
     transform: scale(1);
-    color: var(--yn-ink, #7c2d12);
+    color: var(--yn-ink-deep, #1a0a04);
   }
   30% {
     transform: scale(1.08);
@@ -349,7 +360,7 @@
   }
   100% {
     transform: scale(1);
-    color: var(--yn-ink, #7c2d12);
+    color: var(--yn-ink-deep, #1a0a04);
   }
 }
 
@@ -470,6 +481,26 @@
       )
       forwards;
 }
+/* Multiplier-vibrant delta variant. Applied by the renderer when the
+ * pill stack carries at least one NAMED bonus pill (LENGTH / INTERSECT
+ * / CASCADE) -- i.e. the player just earned a multiplier moment.
+ * Tier-1 plain +5 stays on the calmer `--delta` baseline. The vibrant
+ * variant scales up the typography + adds a soft accent-bleed ring +
+ * a slow pulse so the eye lands on the +N before it flies. The fly
+ * itself reuses the base keyframes; only the resting/rise look
+ * changes. Compositor-only (transform + opacity + filter). */
+.yn-bonus-pill--delta-mult {
+  font-size: 26px;
+  padding: 7px 20px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #fb923c 0%, var(--yn-accent, #ea580c) 100%);
+  border-color: var(--yn-bg-tile, #fff7ed);
+  border-width: 2px;
+  box-shadow:
+    0 0 0 3px rgba(234, 88, 12, 0.18),
+    0 6px 18px rgba(234, 88, 12, 0.45);
+}
 @keyframes yn-pill-rise-hold-exit {
   0% {
     transform: translate3d(-50%, calc(40px + var(--yn-pill-stack-offset, 0px)), 0);
@@ -538,5 +569,100 @@
    * transition the JS sets; this clamps the count-up to a jump. */
   .yn-score-display {
     transition: none !important;
+  }
+}
+
+/* ============================================================
+ * Game-over ceremony (Palm pass 2026-06-08).
+ *
+ * Every modal mount: the score number scales in 0.7 -> 1.0 with
+ * opacity 0 -> 1 over 350ms. This is the "your number arrives"
+ * beat; cheap, runs every game-end including losses, gives the
+ * modal a punctuation mark instead of a hard cut.
+ *
+ * NEW BEST mounts also fire a 6-dot burst behind the score (six
+ * absolute-positioned spans translated radially with opacity
+ * fade). The burst is purely decorative; CSS-only; no JS animation
+ * loop. The 6 directions are 60deg-staggered so the burst feels
+ * even on every PB without any per-mount randomness.
+ *
+ * Reduced-motion: scale-in renders static (animation: none); burst
+ * dots set display:none (the title copy "New best!" + "+X over
+ * your last." carries the celebration without motion).
+ * ============================================================ */
+.yn-game-over-score {
+  display: inline-block;
+  animation: yn-game-over-score-in 350ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  transform-origin: left center;
+}
+@keyframes yn-game-over-score-in {
+  0% {
+    transform: scale(0.7);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.yn-game-over-burst {
+  position: relative;
+  /* Lets the absolute-positioned burst spans sit behind the score
+   * digits without enlarging the score-row layout box. */
+  isolation: isolate;
+}
+.yn-game-over-burst-dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  pointer-events: none;
+  z-index: -1;
+  /* Each dot's --yn-burst-angle is set inline at 60deg intervals.
+   * The keyframe translates outward along that angle by 80px, fades
+   * to 0, and shrinks to 60% scale over 900ms. */
+  transform: translate(-50%, -50%);
+  opacity: 0;
+  animation: yn-game-over-burst 900ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.yn-game-over-burst-dot:nth-child(1) {
+  background: var(--yn-accent, #ea580c);
+}
+.yn-game-over-burst-dot:nth-child(2) {
+  background: #fb923c;
+}
+.yn-game-over-burst-dot:nth-child(3) {
+  background: #f472b6;
+}
+.yn-game-over-burst-dot:nth-child(4) {
+  background: var(--yn-accent, #ea580c);
+}
+.yn-game-over-burst-dot:nth-child(5) {
+  background: #fbbf24;
+}
+.yn-game-over-burst-dot:nth-child(6) {
+  background: #fb923c;
+}
+@keyframes yn-game-over-burst {
+  0% {
+    transform: translate(-50%, -50%) rotate(var(--yn-burst-angle, 0deg)) translateX(0)
+      rotate(calc(var(--yn-burst-angle, 0deg) * -1)) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) rotate(var(--yn-burst-angle, 0deg)) translateX(80px)
+      rotate(calc(var(--yn-burst-angle, 0deg) * -1)) scale(0.6);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-game-over-score {
+    animation: none !important;
+  }
+  .yn-game-over-burst-dot {
+    display: none !important;
   }
 }

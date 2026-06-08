@@ -6,7 +6,7 @@ import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
-import type { Board, Coord, GameMode, ModeState } from "./types.js";
+import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
 import { createBoardView } from "./ui/board-view.js";
 import {
   attemptMove,
@@ -134,21 +134,24 @@ const mount: GameMount = async (container, options) => {
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
     "lg:bg-transparent lg:backdrop-blur-none lg:border-b-0";
 
-  // Score chip (ADR-0017 "Stacked Wave" pass): the NUMBER is the hero.
-  // Killed the "SCORE" label entirely -- the only big number on the bar
-  // after first play is the score, labelling it is redundant. Cream pill
-  // with terracotta digits; the accent orange is reserved for events
-  // (count-up celebration glow, BEST bump, the bonus-wave delta badge).
-  // Count-up animates via CSS @property --yn-score-count + counter() on
-  // ::after; JS only needs to write the integer + the per-event duration
+  // Score chip (ADR-0017 "Stacked Wave" pass, Jony pass 2026-06-08): the
+  // NUMBER is the hero. Killed the "SCORE" label entirely -- the only big
+  // number on the bar after first play is the score, labelling it is
+  // redundant. Cream pill with espresso digits (--yn-ink-deep #1a0a04,
+  // not the terracotta --yn-ink #7c2d12 which read as muddy newsprint);
+  // weight 900 with -0.025em tracking so the digits assert as the HUD
+  // hero. The accent orange stays reserved for events (count-up
+  // celebration glow, BEST bump, the bonus-wave delta badge). Count-up
+  // animates via CSS @property --yn-score-count + counter() on ::after;
+  // JS only needs to write the integer + the per-event duration
   // (no rAF, compositor-only). See board-view.css .yn-score-display /
   // .yn-score-chip and the @property declaration at the top of that
   // file's reward-loop block.
   const scoreEl = document.createElement("div");
   scoreEl.className =
     "yn-score-chip flex items-center justify-center px-5 py-2 rounded-2xl " +
-    "bg-yn-tile border border-yn-border text-yn-ink shadow-sm " +
-    "text-4xl sm:text-5xl font-bold tabular-nums tracking-tight";
+    "bg-yn-tile border border-yn-border shadow-sm " +
+    "text-5xl sm:text-6xl tabular-nums";
   scoreEl.setAttribute("aria-live", "polite");
   scoreEl.setAttribute("aria-label", "Score 0");
   const scoreValue = document.createElement("span");
@@ -256,11 +259,10 @@ const mount: GameMount = async (container, options) => {
   });
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
-  undoBtn.className =
-    "px-4 py-1.5 rounded-full text-yn-muted text-sm font-medium border border-yn-border opacity-50 cursor-not-allowed";
+  // Initial state: disabled (no move to undo yet on a fresh game). The
+  // setUndoEnabled helper below toggles disabled + className + aria.
   undoBtn.textContent = "\u21BA Undo";
-  undoBtn.disabled = true;
-  undoBtn.setAttribute("aria-disabled", "true");
+  undoBtn.setAttribute("aria-label", "Undo last move");
   const pauseBtn = document.createElement("button");
   pauseBtn.type = "button";
   // Primary pill: accent-filled. Pause is the high-frequency action; it
@@ -347,6 +349,33 @@ const mount: GameMount = async (container, options) => {
   // hot-swap re-renders would retrigger a 0-delta count-up).
   let displayedScore = state.score;
 
+  // Undo state (2026-06-08). Doctrine per how-to-play.ts: "You get one
+  // undo per game". Snapshot is in-memory (NOT persisted to the
+  // UndoSnapshotSchema field on save.in_progress.undo this PR -- that
+  // field stays null; reload-survival of an unconsumed undo is a
+  // follow-up that would extend the schema with rng_cursor + selected +
+  // mode_state per CLAUDE.md sec 11). What IS persisted is the
+  // boolean `undo.available` so a reload of a game whose undo has
+  // already been spent stays disabled. RNG cursor IS snapshotted so
+  // the player's second-attempt move produces the same spawn the first
+  // attempt would have (otherwise the undo would let them re-roll the
+  // RNG by retrying the same move). modeState snapshotted so a timed-
+  // mode undo doesn't refund the seconds the player spent thinking.
+  type UndoSnap = {
+    readonly board: Board;
+    readonly score: number;
+    readonly nextPreview: readonly PreviewItem[];
+    readonly selected: Coord | null;
+    readonly rngCursor: number;
+    readonly modeState: ModeState;
+  };
+  let undoSnap: UndoSnap | null = null;
+  // True once the player has spent their single per-game undo. Persists
+  // across reloads via save.in_progress.undo.available (false means
+  // spent). Reset to false on freshMakeSave / Play Again / Reset (the
+  // freshly-minted save has available: true by schema default).
+  let undoUsedThisGame = save.in_progress !== null && save.in_progress.undo.available === false;
+
   const boardView = createBoardView({
     motifSymbolUrl: "",
     motifFiles: theme.motifFiles,
@@ -367,6 +396,76 @@ const mount: GameMount = async (container, options) => {
     pill_exit_ms: balanceConfig.reward.wave_pill_exit_ms,
     pill_stagger_ms: balanceConfig.reward.wave_pill_stagger_ms,
     fly_to_score_ms: balanceConfig.reward.wave_fly_to_score_ms,
+  });
+
+  // Undo button visual + a11y state. The button is created above with
+  // textContent + aria-label already set; this helper centralises the
+  // enabled/disabled toggle so onCellTap (snapshot capture) and the
+  // click handler can both call it without duplicating Tailwind class
+  // strings.
+  const setUndoEnabled = (enabled: boolean): void => {
+    undoBtn.disabled = !enabled;
+    undoBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
+    if (enabled) {
+      undoBtn.className =
+        "px-4 py-1.5 rounded-full text-yn-ink text-sm font-medium border border-yn-border hover:bg-yn-bg transition-colors";
+    } else {
+      undoBtn.className =
+        "px-4 py-1.5 rounded-full text-yn-muted text-sm font-medium border border-yn-border opacity-50 cursor-not-allowed";
+    }
+  };
+  // Initial state: disabled. The first snapshot capture in onCellTap
+  // enables it. A reload with `undo.available === true` and no in-memory
+  // snapshot also leaves it disabled until the player makes a move
+  // (snapshot is not persisted this PR, see UndoSnap type comment).
+  setUndoEnabled(false);
+
+  undoBtn.addEventListener("click", () => {
+    // Guards: no replay during an animation, no double-undo, no undo
+    // when there's nothing to revert.
+    if (isAnimating) return;
+    if (undoSnap === null) return;
+    if (undoUsedThisGame) return;
+    const snap = undoSnap;
+    // Restore RNG state by re-seeding with the snapshot cursor; the new
+    // Rng instance replaces the in-state one so the next move sees the
+    // same spawn the player would have got had they made a different
+    // first move. The closure-level `rng` const is only used at mount
+    // (initial state), so we can rebind state.rng safely here.
+    const restoredRng = createRng(snap.rngCursor);
+    state = {
+      board: snap.board,
+      selected: snap.selected,
+      nextPreview: snap.nextPreview,
+      score: snap.score,
+      rng: restoredRng,
+      gameOver: false,
+      modeState: snap.modeState,
+    };
+    undoSnap = null;
+    undoUsedThisGame = true;
+    setUndoEnabled(false);
+    boardView.clearPathPreview();
+    if (state.selected !== null) {
+      boardView.setReachabilityHints(findReachableCells(state.board, state.selected));
+    } else {
+      boardView.clearReachabilityHints();
+    }
+    render();
+    // Score chip animates DOWN through the CSS @property tween (the
+    // tween handles negative deltas fine; duration just clamps to the
+    // min). No celebration glow -- undo isn't a win.
+    animateScoreTo(state.score, false);
+    // BEST chip: if the undo drops the live score back to or below the
+    // all-time-best-at-mount, revert the "NEW BEST" mode so the chip
+    // stops claiming a record the player no longer holds. Otherwise
+    // (still above the persistent best after undo) keep the NEW BEST
+    // colourway; the chip just tracks the lower live score.
+    if (crossedAllTimeBest && state.score <= allTimeBestAtMount) {
+      crossedAllTimeBest = false;
+    }
+    renderBestChip(state.score, false);
+    persist();
   });
 
   const renderStreak = (): void => {
@@ -541,7 +640,12 @@ const mount: GameMount = async (container, options) => {
         next_preview: previewMut,
         score: state.score,
         turn_seed: turnSeed,
-        undo: { available: true, snapshot: null },
+        // Persist the spent/unspent state of this game's single undo
+        // so a reload of a game whose undo has been spent stays
+        // disabled. The snapshot itself is in-memory only this PR
+        // (would need rng_cursor + selected_cell + mode_state on
+        // UndoSnapshotSchema for reload-survival -- follow-up).
+        undo: { available: !undoUsedThisGame, snapshot: null },
         mode_state: state.modeState,
       },
     };
@@ -669,6 +773,11 @@ const mount: GameMount = async (container, options) => {
     }
     if (state.selected === null) return;
     isAnimating = true;
+    // Flag (in function scope so the finally block can see it) that
+    // tracks whether a snapshot was captured this move. The button is
+    // enabled in finally based on this so an enabled button is always
+    // a click-ready button.
+    let snapshotCapturedThisMove = false;
     try {
       const outcome = attemptMove(state, coord, balanceConfig);
       if (outcome.kind === "no-source") return;
@@ -676,6 +785,25 @@ const mount: GameMount = async (container, options) => {
         boardView.showBlockersFlash(neighborBlockers(state.board, outcome.to));
         await boardView.showShake(outcome.to);
         return;
+      }
+      // Capture undo snapshot BEFORE applying the move (one undo per
+      // game per how-to-play.ts). The snapshot is in-memory only this
+      // PR; what we persist via persist() is the boolean availability
+      // flag so a reload of a game whose undo has already been spent
+      // stays disabled. The button is ENABLED at the END of the move
+      // (in the finally block) so the player never sees an enabled-but-
+      // inert button mid-animation -- isAnimating gates the click
+      // handler too, so an enabled button must be a click-ready button.
+      if (!undoUsedThisGame) {
+        undoSnap = {
+          board: state.board,
+          score: state.score,
+          nextPreview: state.nextPreview,
+          selected: state.selected,
+          rngCursor: state.rng.getCursor(),
+          modeState: state.modeState,
+        };
+        snapshotCapturedThisMove = true;
       }
       boardView.clearReachabilityHints();
       await boardView.showPathTrace(outcome.path);
@@ -685,51 +813,74 @@ const mount: GameMount = async (container, options) => {
       boardView.setBoard(intermediate, state.nextPreview, null);
       await boardView.showLandBounce(outcome.to);
       const scoreBefore = state.score;
-      if (outcome.clears.length > 0 && outcome.spawnedAt.length === 0) {
-        const keys = new Set<string>();
-        for (const r of outcome.clears) for (const k of r.cells) keys.add(k);
-        await boardView.showClearFlash(keys);
-        // Bonus-wave staging (ADR-0017, amended 2026-06-08). Pure-derived
-        // from the engine breakdown. Every scoring clear now plays the
-        // wave so the +delta badge flies into the score chip (the cause-
-        // and-effect beat for the score change). Named bonus pills
-        // (LENGTH N, INTERSECT, CASCADE) remain tier-2-and-above
-        // ornaments via the existing derivePills rules: tier-1 simply
-        // has no named pills, only the delta. The old isSilentTier
-        // suppression was wrong: it suppressed the FEEDBACK along with
-        // the celebration, leaving the score chip ticking up with no
-        // visible source. The pink cell-splash is celebration; the
-        // flying +N is feedback.
-        const totalDelta = outcome.postMoveState.score - scoreBefore;
+      const totalDelta = outcome.postMoveState.score - scoreBefore;
+      // Three post-move shapes from the engine:
+      //   (1) move-triggered clear: clears > 0, spawnedAt == 0
+      //   (2) spawn-cascade clear:  clears > 0, spawnedAt  > 0
+      //   (3) plain move (no clear): clears == 0, spawnedAt > 0
+      //
+      // Sequence priorities, in order:
+      //   (a) Move-triggered clears flash WHILE the board view still
+      //       shows the cleared cells filled -- so the flash is visible
+      //       on the motifs, not on empty cells. Then state mutates and
+      //       the view rerenders empty.
+      //   (b) Spawns then land-bounce on the FINAL board so the player
+      //       sees what arrived. (Note: a spawn that immediately got
+      //       cascade-cleared land-bounces on an empty cell -- accepted
+      //       limitation; fixing requires an engine change to return
+      //       the intermediate post-spawn pre-clear board.)
+      //   (c) Spawn-cascade clears flash AFTER the spawn lands so the
+      //       cleared cells get any acknowledgement at all (they were
+      //       never visibly occupied for long; the flash on the cell
+      //       background is the only ack).
+      //   (d) If totalDelta > 0: play the bonus wave -- pills derive
+      //       from the breakdown chain; the +N delta badge flies into
+      //       the score chip; count-up tween + chip glow + BEST chip
+      //       fire on the same tick. Vibrant delta variant when the
+      //       pill stack carries at least one NAMED pill (LENGTH /
+      //       INTERSECT / CASCADE) -- a multiplier moment earns the
+      //       larger gradient badge; plain tier-1 +5 stays on the
+      //       calmer baseline so it doesn't shout.
+      const moveTriggeredClear = outcome.clears.length > 0 && outcome.spawnedAt.length === 0;
+      const spawnCascadeClear = outcome.clears.length > 0 && outcome.spawnedAt.length > 0;
+      const clearedKeys = new Set<string>();
+      for (const r of outcome.clears) for (const k of r.cells) clearedKeys.add(k);
+
+      if (moveTriggeredClear) {
+        await boardView.showClearFlash(clearedKeys);
+      }
+      state = outcome.postMoveState;
+      render();
+      if (outcome.spawnedAt.length > 0) {
+        await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
+      }
+      if (spawnCascadeClear) {
+        await boardView.showClearFlash(clearedKeys);
+      }
+      if (totalDelta > 0) {
         const breakdowns = breakdownChain(outcome.clears, balanceConfig);
         const pills = derivePills(breakdowns, totalDelta);
-        const waveSuppressed = pills.length === 0;
-        if (!waveSuppressed) {
-          const centroid = centroidOfClearedCells(boardView.element, keys);
+        if (pills.length > 0) {
+          const centroid = centroidOfClearedCells(boardView.element, clearedKeys);
           const target = elementCenter(scoreEl);
+          const vibrantDelta = pills.some((p) => p.kind !== "delta");
           // wave.play resolves when the FINAL delta pill begins flying
           // toward the score chip -- the cause-and-effect beat. The
           // count-up + chip glow fire on the same tick.
-          await bonusWave.play(centroid, pills, target);
-          state = outcome.postMoveState;
-          render();
+          await bonusWave.play(centroid, pills, target, { vibrantDelta });
           animateScoreTo(state.score, true);
-          updateBestOnScoreChange(state.score);
         } else {
-          state = outcome.postMoveState;
-          render();
+          // Defensive: totalDelta > 0 should always yield at least the
+          // +delta pill, so this branch is dead in practice. Keep the
+          // silent sync as a fallback so the chip stays consistent.
           syncScoreSilently();
-          updateBestOnScoreChange(state.score);
         }
+        updateBestOnScoreChange(state.score);
       } else {
-        state = outcome.postMoveState;
-        render();
+        // No clears = no score change; silent sync is a no-op in
+        // animateScoreTo (delta === 0 early return). Best chip
+        // doesn't change either.
         syncScoreSilently();
-        // No clears = no score change in normal play; the silent sync
-        // above is a no-op in animateScoreTo (delta === 0 early return).
-      }
-      if (outcome.spawnedAt.length > 0) {
-        await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
       if (isGameOver(state)) {
         const recorded = recordHighScore();
@@ -757,6 +908,16 @@ const mount: GameMount = async (container, options) => {
       }
     } finally {
       isAnimating = false;
+      // Enable the undo button ONLY after the move animation has fully
+      // settled. Setting disabled=false earlier (e.g. at snapshot
+      // capture time) would show an interactive button while the click
+      // handler's `if (isAnimating) return;` guard still rejects the
+      // click. Enable here so "enabled" === "click-ready". If a snap
+      // wasn't captured this move (player already spent their undo),
+      // leave the button in whatever state it was (disabled).
+      if (snapshotCapturedThisMove && !undoUsedThisGame) {
+        setUndoEnabled(true);
+      }
     }
   }
 
