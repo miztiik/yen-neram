@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",
-    "@size-limit/file": "^11.1.0",
+    "@size-limit/file": "^12.1.0",
     "@tailwindcss/vite": "^4.3.0",
     "@types/node": "^25.9.2",
     "@typescript-eslint/eslint-plugin": "^8.12.0",
