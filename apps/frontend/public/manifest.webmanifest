@@ -5,8 +5,8 @@
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#fed7aa",
-  "theme_color": "#fed7aa",
+  "background_color": "#4c1d95",
+  "theme_color": "#5b21b6",
   "orientation": "portrait-primary",
   "categories": ["games", "entertainment"],
   "icons": [

@@ -4,7 +4,8 @@
     "title": "5 in a Row",
     "status": "shipped",
     "entry_route": "/play/5-in-a-row/",
-    "tile_silhouette": "/assets/portal-tiles/5-in-a-row.svg"
+    "tile_silhouette": "/assets/portal-tiles/5-in-a-row.svg",
+    "tagline": "Slide a piece, line up five, clear the board."
   },
   {
     "slug": "placeholder-1",

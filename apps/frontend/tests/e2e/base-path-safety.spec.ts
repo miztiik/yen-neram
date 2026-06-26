@@ -79,9 +79,7 @@ test.describe("base-path safety: no hard-coded absolute paths", () => {
     }
   });
 
-  test("portal tile silhouette images are base-prefixed and load successfully", async ({
-    page,
-  }) => {
+  test("portal tile silhouette masks are base-prefixed and load successfully", async ({ page }) => {
     const tileFailures: string[] = [];
     page.on("response", (response) => {
       const url = response.url();
@@ -91,22 +89,23 @@ test.describe("base-path safety: no hard-coded absolute paths", () => {
     });
 
     await page.goto("/");
-    await expect(page.getByRole("button", { name: "5 in a Row" })).toBeVisible({
-      timeout: 5_000,
-    });
+    const heroBtn = page.getByRole("button", { name: "5 in a Row" });
+    await expect(heroBtn).toBeVisible({ timeout: 5_000 });
 
-    // The shipped game's tile must have an <img> child whose src resolves
-    // through the document base (not a bare "/assets/..." that 404's on
-    // GH Pages). Inspect the rendered src attribute directly.
-    const tileImgSrc = await page
-      .getByRole("button", { name: "5 in a Row" })
-      .locator("img")
+    // The shipped game's tile renders its silhouette via a CSS mask
+    // (--yn-mask: url(...) painted from the palette), not an <img>. The mask
+    // URL must resolve through the document base (not a bare "/assets/..."
+    // that 404's on GH Pages). Custom-property values are stored as the raw
+    // token, so this reads the base-prefixed path as written by asset-paths.
+    const maskValue = await heroBtn
+      .locator(".yn-hero__icon")
       .first()
-      .getAttribute("src");
-    expect(tileImgSrc, "5-in-a-row tile must render an <img>").not.toBeNull();
+      .evaluate((el) => getComputedStyle(el).getPropertyValue("--yn-mask"));
+    expect(maskValue, "5-in-a-row tile must carry a --yn-mask url").toContain("portal-tiles");
 
+    const maskHref = maskValue.match(/url\((['"]?)(.*?)\1\)/)?.[2] ?? "";
     const baseFromDocument = await page.evaluate(() => new URL("./", document.baseURI).pathname);
-    const tilePath = new URL(tileImgSrc ?? "", page.url()).pathname;
+    const tilePath = new URL(maskHref, page.url()).pathname;
     expect(
       tilePath.startsWith(baseFromDocument),
       `tile silhouette resolved to ${tilePath}; expected to start with ${baseFromDocument}`,

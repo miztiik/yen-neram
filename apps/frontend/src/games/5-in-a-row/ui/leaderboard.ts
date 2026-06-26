@@ -87,7 +87,7 @@ export function openLeaderboard(parent: HTMLElement, options?: LeaderboardOption
   // treatment as the in-game score chip. Bigger, bolder, tighter
   // tracking, with the word the player came for ('Scores') anchored in
   // the accent colour so it reads at a glance.
-  title.className = "text-3xl font-bold text-yn-ink tracking-tight leading-none";
+  title.className = "text-3xl font-semibold text-yn-ink tracking-tight leading-none";
   const titleAccent = document.createElement("span");
   titleAccent.className = "text-yn-accent";
   titleAccent.textContent = "Scores";

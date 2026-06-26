@@ -90,7 +90,7 @@ function renderUnavailable(
   wrap.className = "h-full flex flex-col items-center justify-center p-6 gap-4 text-center";
 
   const msg = document.createElement("p");
-  msg.className = "text-yn-muted";
+  msg.className = "text-violet-200";
   msg.textContent = `Game "${slug}" is not available.`;
   wrap.appendChild(msg);
 
@@ -117,12 +117,12 @@ function renderNotFound(
   wrap.className = "h-full flex flex-col items-center justify-center p-6 gap-4 text-center";
 
   const title = document.createElement("h2");
-  title.className = "text-xl font-semibold text-yn-ink";
+  title.className = "text-xl font-semibold text-white";
   title.textContent = "Page not found";
   wrap.appendChild(title);
 
   const detail = document.createElement("p");
-  detail.className = "text-sm text-yn-muted";
+  detail.className = "text-sm text-violet-200";
   detail.textContent = path;
   wrap.appendChild(detail);
 

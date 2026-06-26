@@ -132,12 +132,9 @@ const mount: GameMount = async (container, options) => {
 
   const topBar = document.createElement("div");
   topBar.className =
-    // Mobile: horizontal bar with cream panel chrome
-    "flex flex-row items-center justify-between gap-3 px-3 py-2 " +
-    "bg-yn-tile/95 backdrop-blur-sm border-b border-yn-border " +
-    // Wide: vertical column, chips float on the patterned bg
-    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
-    "lg:bg-transparent lg:backdrop-blur-none lg:border-b-0";
+    // Chips float directly on the shared violet bg (consistent with the portal).
+    "flex flex-row items-center justify-between gap-3 px-3 py-3 " +
+    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6";
 
   // Score chip (ADR-0017 "Stacked Wave" pass, Jony pass 2026-06-08): the
   // NUMBER is the hero. Killed the "SCORE" label entirely -- the only big
@@ -184,7 +181,7 @@ const mount: GameMount = async (container, options) => {
   bestEl.className =
     "yn-best-chip hidden items-center gap-2 px-4 py-1.5 rounded-2xl " +
     "bg-yn-tile border border-yn-border text-yn-ink shadow-xs " +
-    "text-base sm:text-lg font-bold tabular-nums";
+    "text-base sm:text-lg font-semibold tabular-nums";
   bestEl.setAttribute("aria-live", "polite");
   const bestLabel = document.createElement("span");
   bestLabel.className = "uppercase tracking-wider text-yn-muted text-[10px] font-semibold";
@@ -269,23 +266,17 @@ const mount: GameMount = async (container, options) => {
   // ceiling on lg+ layouts.
   boardWrap.className = "aspect-square w-full max-w-[800px] max-h-full";
   const loadingEl = document.createElement("p");
-  loadingEl.className = "text-sm text-yn-muted text-center";
+  loadingEl.className = "text-sm text-white/70 text-center";
   loadingEl.textContent = "Loading theme...";
   boardWrap.appendChild(loadingEl);
   boardArea.appendChild(boardWrap);
 
   const bottomBar = document.createElement("div");
   bottomBar.className =
-    // Mobile: horizontal bar with cream panel chrome. Two-button layout
-    // (Undo left, Menu right) -- the standalone "Back" button is gone;
-    // it lives under Menu now along with Switch mode + Restart so
-    // navigation has one canonical entry point per the 2026-06-08
-    // player-feedback round (ADR-0019).
-    "flex flex-row items-center justify-between gap-2 px-3 py-2 " +
-    "bg-yn-tile/95 backdrop-blur-sm border-t border-yn-border " +
-    // Wide: vertical column, buttons float on the patterned bg
-    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6 " +
-    "lg:bg-transparent lg:backdrop-blur-none lg:border-t-0";
+    // Two-button layout (Undo left, Menu right); buttons float on the shared
+    // violet bg. The standalone "Back" lives under Menu (ADR-0019).
+    "flex flex-row items-center justify-between gap-2 px-3 py-3 " +
+    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6";
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
   // Initial state: disabled (no move to undo yet on a fresh game). The
@@ -446,10 +437,10 @@ const mount: GameMount = async (container, options) => {
     undoBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
     if (enabled) {
       undoBtn.className =
-        "px-4 py-1.5 rounded-full text-yn-ink text-sm font-medium border border-yn-border hover:bg-yn-bg transition-colors";
+        "px-4 py-1.5 rounded-full bg-yn-tile text-yn-ink text-sm font-medium border border-yn-border shadow-xs hover:bg-yn-bg transition-colors";
     } else {
       undoBtn.className =
-        "px-4 py-1.5 rounded-full text-yn-muted text-sm font-medium border border-yn-border opacity-50 cursor-not-allowed";
+        "px-4 py-1.5 rounded-full bg-yn-tile text-yn-muted text-sm font-medium border border-yn-border shadow-xs opacity-60 cursor-not-allowed";
     }
   };
   // Initial state: disabled. The first snapshot capture in onCellTap

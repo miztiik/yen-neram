@@ -1,5 +1,20 @@
 @import "tailwindcss";
 
+/* Self-hosted Outfit (latin subset, variable 100-900) with font-display:
+   optional so the face NEVER swaps mid-session -- a swap reflow under the
+   4x-CPU + Slow-4G target profile eats into the tap-to-select budget
+   (perf-check.spec.ts). First visit may show the system fallback; the cached
+   font is used on every later visit. Bytes sourced from the
+   @fontsource-variable/outfit package (OFL); Vite fingerprints + bundles it. */
+@font-face {
+  font-family: "Outfit Variable";
+  font-style: normal;
+  font-display: optional;
+  font-weight: 100 900;
+  src: url("../../node_modules/@fontsource-variable/outfit/files/outfit-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
+
 /* ──────────────────────────────────────────────────────────────────────────
    Tailwind v4 theme. Replaces the old tailwind.config.ts -> theme.extend.
    Custom palette tokens become CSS variables in the `--color-*` namespace
@@ -11,12 +26,20 @@
    Source files to scan are auto-detected by the @tailwindcss/vite plugin;
    the v3 `content` glob is no longer needed. */
 @theme {
-  --color-yn-bg: #fed7aa;
-  --color-yn-tile: #fff7ed;
-  --color-yn-border: #fb923c;
-  --color-yn-ink: #7c2d12;
-  --color-yn-muted: #9a3412;
-  --color-yn-accent: #ea580c;
+  /* Modern app type: Outfit (geometric, thin-capable variable font),
+     self-hosted via @fontsource-variable/outfit (imported in main.ts).
+     `font-sans` drives the whole UI through Tailwind's font utilities. */
+  --font-sans: "Outfit Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Consistent modern theme (2026-06-26, ADR-0025): a violet/fuchsia page bg
+     (on body) with white chips/cards, cool borders, slate ink, and a vibrant
+     orange accent that bridges to the portal. The old warm peach/terracotta
+     family is retired app-wide. */
+  --color-yn-bg: #f5f3ff;
+  --color-yn-tile: #ffffff;
+  --color-yn-border: #e9d5ff;
+  --color-yn-ink: #1e1b4b;
+  --color-yn-muted: #64748b;
+  --color-yn-accent: #f97316;
   --grid-template-columns-portal: repeat(3, minmax(0, 1fr));
   --grid-template-columns-portal-portrait: repeat(2, minmax(0, 1fr));
 }
@@ -36,12 +59,18 @@
    Tokens are consumed via Tailwind via the @theme block above and
    directly via var() inside renderer-owned SVG (board-view.css). */
 :root {
-  --yn-bg-deep: #fed7aa;
-  --yn-bg-tile: #fff7ed;
-  --yn-tile-border: #fb923c;
-  --yn-ink: #7c2d12;
-  --yn-muted: #9a3412;
-  --yn-accent: #ea580c;
+  /* Modern theme tokens shared by the SVG board renderer (board-view.css)
+     and the shell. Mirror of the Tailwind @theme block above; see ADR-0025
+     for the warm -> modern override. */
+  --yn-bg-deep: #4c1d95;
+  --yn-bg-tile: #ffffff;
+  --yn-tile-border: #e9d5ff;
+  --yn-ink: #1e1b4b;
+  --yn-muted: #64748b;
+  --yn-accent: #f97316;
+  /* Subtle cool hairline for the 9x9 grid -- decoupled from the page-bg
+     token, which is now dark violet (far too strong for a gridline). */
+  --yn-grid-line: #ede9fe;
   /* Score-chip ink: deliberately COOL slate-900 so the score number
      does NOT belong to the warm-brown family the rest of the chrome
      uses. Two prior passes (terracotta #7c2d12, then espresso
@@ -61,8 +90,25 @@
     height: 100%;
   }
   body {
-    background: var(--yn-bg-deep);
-    color: var(--yn-ink);
+    /* Shared modern backdrop for every route (portal, picker, game): a vivid
+       violet -> fuchsia gradient with pink + sky blooms, dusted with a tiled
+       glyph-motif layer (one inline-SVG data URI, no asset fetch). Light
+       default ink for any text that sits directly on the bg; cards/chips set
+       their own dark ink. */
+    background-color: var(--yn-bg-deep);
+    background-image:
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 420 420' width='420' height='420'><g fill='%23ffffff' fill-opacity='0.05'><polygon points='70,40 96,66 70,92 44,66'/><circle cx='344' cy='78' r='18'/><polygon points='120,330 92,380 148,380'/><path d='M320 300 Q372 300 372 340 Q372 380 320 380 Q268 380 268 340 Q268 300 320 300 Z'/><circle cx='210' cy='210' r='5'/><circle cx='44' cy='250' r='4'/><circle cx='250' cy='44' r='4'/></g><g fill='none' stroke='%23ffffff' stroke-opacity='0.07' stroke-width='3'><circle cx='210' cy='120' r='22'/><circle cx='150' cy='250' r='14'/><path d='M330 200 v34 M313 217 h34'/><polygon points='376,352 398,374 376,396 354,374'/></g></svg>"),
+      radial-gradient(120% 90% at 12% 6%, rgba(236, 72, 153, 0.5) 0%, transparent 46%),
+      radial-gradient(120% 90% at 92% 16%, rgba(56, 189, 248, 0.42) 0%, transparent 48%),
+      radial-gradient(150% 120% at 50% 122%, rgba(192, 132, 252, 0.55) 0%, transparent 60%),
+      linear-gradient(150deg, #4338ca 0%, #6d28d9 44%, #a21caf 100%);
+    background-size:
+      320px 320px,
+      auto,
+      auto,
+      auto,
+      auto;
+    color: #ede9fe;
   }
 }
 
@@ -71,20 +117,11 @@
    grid, plus a soft radial highlight from the top. Glyphs use
    rgba(124,45,18,0.06) — visible as ambient tropical-confetti but never
    competes with the actual cells. (Palm + Jony 2026-06-07, sparser pass.) */
+/* The game root carries .yn-board-bg; the violet backdrop now lives on body,
+   so this is transparent and simply lets the shared bg show through (the HUD
+   chips + white board float on it, consistent with the portal). */
 .yn-board-bg {
-  background-color: var(--yn-bg-deep);
-  background-image:
-    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 480 480' width='480' height='480'><g fill='%237c2d12' fill-opacity='0.06'><polygon points='80,40 110,57 110,90 80,107 50,90 50,57'/><circle cx='380' cy='90' r='34'/><polygon points='100,360 60,420 140,420'/><path d='M340 320 Q420 320 420 380 Q420 440 340 440 Q260 440 260 380 Q260 320 340 320 Z'/><circle cx='240' cy='220' r='6'/><circle cx='60' cy='240' r='4'/><circle cx='420' cy='240' r='4'/></g></svg>"),
-    radial-gradient(circle, rgba(124, 45, 18, 0.07) 1.2px, transparent 1.8px),
-    radial-gradient(ellipse at top, rgba(255, 247, 237, 0.5) 0%, transparent 65%);
-  background-size:
-    480px 480px,
-    32px 32px,
-    100% 100%;
-  background-position:
-    0 0,
-    0 0,
-    center top;
+  background: transparent;
 }
 
 /* Visually-hidden utility for screen-reader-only text (ADR-0013). */
@@ -113,4 +150,246 @@
 .yn-board-svg:focus,
 .yn-board-svg:focus-visible {
   outline: none;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   Portal (landing page) chrome (Jony pass 2026-06-26, ADR-0024).
+   Modern, playful front door: a vivid violet -> fuchsia gradient with floating
+   glyph motifs and bright white cards. The shipped game is the hero; the
+   placeholders demote to a quiet "more on the way" shelf. Silhouettes are
+   painted via CSS mask (--yn-mask set inline per tile in portal/index.ts) so
+   the palette -- not the baked-in #1f2937 fill -- colors them.
+
+   USER OVERRIDE (2026-06-26): the warm peach/terracotta chrome (ADR-0016) was
+   rejected for the landing page as "1970s / uninviting". This surface gets its
+   own modern palette via .yn-portal-scoped tokens; the in-game chrome (board,
+   HUD, menu) keeps the warm palette untouched.
+   ────────────────────────────────────────────────────────────────────────── */
+.yn-portal {
+  position: relative;
+  overflow: hidden;
+}
+/* Keep real content above the floating decoration. */
+.yn-portal > * {
+  position: relative;
+  z-index: 1;
+}
+/* Two slow-drifting glyph motifs for life (transform-only, compositor-cheap). */
+.yn-portal::before,
+.yn-portal::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  pointer-events: none;
+}
+.yn-portal::before {
+  top: 7%;
+  right: -38px;
+  width: 150px;
+  height: 150px;
+  border-radius: 9999px;
+  border: 14px solid rgba(255, 255, 255, 0.07);
+  animation: yn-portal-drift-a 24s ease-in-out infinite;
+}
+.yn-portal::after {
+  bottom: 9%;
+  left: -28px;
+  width: 116px;
+  height: 116px;
+  border-radius: 26px;
+  background-color: rgba(255, 255, 255, 0.05);
+  transform: rotate(45deg);
+  animation: yn-portal-drift-b 30s ease-in-out infinite;
+}
+
+.yn-portal__wordmark {
+  font-size: clamp(2.5rem, 10vw, 3.75rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  /* Iridescent white -> blush -> periwinkle so the mark feels lit, not flat. */
+  background-image: linear-gradient(135deg, #ffffff 0%, #fae8ff 55%, #c7d2fe 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 3px 12px rgba(76, 29, 149, 0.35));
+}
+
+.yn-portal__subtitle {
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* ---- Hero card (shipped game) ---- */
+.yn-hero {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.15rem 1.2rem;
+  border-radius: 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  background-color: #ffffff;
+  box-shadow:
+    0 1px 1px rgba(30, 27, 75, 0.04),
+    0 16px 38px -16px rgba(76, 29, 149, 0.55);
+  transition:
+    transform 160ms ease,
+    box-shadow 160ms ease;
+}
+.yn-hero:hover {
+  transform: translateY(-4px);
+  box-shadow:
+    0 2px 2px rgba(30, 27, 75, 0.05),
+    0 26px 52px -18px rgba(76, 29, 149, 0.72);
+}
+.yn-hero:active {
+  transform: translateY(-1px) scale(0.99);
+}
+.yn-hero:focus-visible {
+  /* White ring reads on the violet bg; override the global orange ring +
+     keep the rounded-card corners. */
+  outline: 3px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 3px;
+  border-radius: 1.5rem;
+}
+
+.yn-hero__badge {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 3.6rem;
+  height: 3.6rem;
+  border-radius: 1.1rem;
+  background-image: linear-gradient(140deg, #fb923c 0%, #ec4899 100%);
+  box-shadow: 0 8px 18px -6px rgba(236, 72, 153, 0.6);
+}
+.yn-hero__icon {
+  width: 2rem;
+  height: 2rem;
+  background-color: #ffffff;
+  -webkit-mask: var(--yn-mask, none) center / contain no-repeat;
+  mask: var(--yn-mask, none) center / contain no-repeat;
+}
+
+.yn-hero__text {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.yn-hero__title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.15;
+  color: #1e1b4b;
+}
+.yn-hero__tagline {
+  font-size: 0.85rem;
+  line-height: 1.3;
+  color: #64748b;
+}
+
+.yn-hero__cue {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 800;
+  color: #ffffff;
+  background-image: linear-gradient(140deg, #fb923c 0%, #ec4899 100%);
+  box-shadow: 0 6px 14px -4px rgba(236, 72, 153, 0.5);
+}
+.yn-hero__cue svg {
+  width: 0.9rem;
+  height: 0.9rem;
+  transition: transform 160ms ease;
+}
+.yn-hero:hover .yn-hero__cue svg {
+  transform: translateX(2px);
+}
+
+/* ---- Coming-soon shelf (placeholders) ---- */
+.yn-portal__soon-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+.yn-soon-tile {
+  display: grid;
+  place-items: center;
+  aspect-ratio: 1 / 1;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background-color: rgba(255, 255, 255, 0.1);
+  cursor: not-allowed;
+}
+.yn-soon-tile__icon {
+  width: 42%;
+  height: 42%;
+  background-color: #ffffff;
+  opacity: 0.55;
+  -webkit-mask: var(--yn-mask, none) center / contain no-repeat;
+  mask: var(--yn-mask, none) center / contain no-repeat;
+}
+
+/* ---- Motion: staggered entrance + idle drift (compositor-only) ---- */
+@keyframes yn-portal-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes yn-portal-drift-a {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  50% {
+    transform: translate(-22px, 26px);
+  }
+}
+@keyframes yn-portal-drift-b {
+  0%,
+  100% {
+    transform: rotate(45deg) translate(0, 0);
+  }
+  50% {
+    transform: rotate(45deg) translate(20px, -24px);
+  }
+}
+.yn-portal__header,
+.yn-portal__heroes,
+.yn-portal__soon {
+  animation: yn-portal-rise 420ms ease both;
+}
+.yn-portal__heroes {
+  animation-delay: 70ms;
+}
+.yn-portal__soon {
+  animation-delay: 140ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-portal__header,
+  .yn-portal__heroes,
+  .yn-portal__soon,
+  .yn-portal::before,
+  .yn-portal::after {
+    animation: none;
+  }
+  .yn-hero,
+  .yn-hero__cue svg {
+    transition: none;
+  }
 }

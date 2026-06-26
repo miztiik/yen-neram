@@ -22,6 +22,7 @@
     "size:why": "size-limit --why"
   },
   "devDependencies": {
+    "@fontsource-variable/outfit": "^5.2.8",
     "@playwright/test": "^1.48.0",
     "@size-limit/file": "^11.1.0",
     "@tailwindcss/vite": "^4.3.0",
