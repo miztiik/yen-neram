@@ -30,7 +30,7 @@
     "@typescript-eslint/parser": "^8.12.0",
     "eslint": "^10.4.1",
     "prettier": "^3.3.0",
-    "size-limit": "^11.1.0",
+    "size-limit": "^12.1.0",
     "svgo": "^3.3.2",
     "tailwindcss": "^4.3.0",
     "typescript": "^6.0.3",
