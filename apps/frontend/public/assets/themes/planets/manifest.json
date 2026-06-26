@@ -1,0 +1,19 @@
+{
+  "schema_version": 2,
+  "id": "planets",
+  "display_name": "Planets",
+  "description": "Planets and moons of the solar system.",
+  "license": "CC0-1.0",
+  "background": {
+    "fill": "#0f172a",
+    "grid": "#1e293b"
+  },
+  "motifs": {
+    "1": "earth.svg",
+    "2": "jupiter.svg",
+    "3": "moon.svg",
+    "4": "neptune.svg",
+    "5": "saturn.svg",
+    "6": "uranus.svg"
+  }
+}

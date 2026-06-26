@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // SVGO optimisation pass for theme motif SVGs (per ADR-0011).
-// Walks apps/frontend/public/assets/themes/<id>/motif-*.svg, optimises in place.
+// Walks apps/frontend/public/assets/themes/<id>/*.svg, optimises in place.
 // Exits 1 if any file grew (regression). ASCII output only.
 
 import { readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
@@ -47,7 +47,7 @@ function listMotifSvgs() {
     const themeDir = join(themesRoot, themeId);
     if (!isDir(themeDir)) continue;
     for (const name of readdirSync(themeDir).sort()) {
-      if (!/^motif-.*\.svg$/.test(name)) continue;
+      if (!/\.svg$/.test(name)) continue;
       out.push(join(themeDir, name));
     }
   }

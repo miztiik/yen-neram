@@ -1,23 +1,22 @@
 import { z } from "zod";
 
 // Theme manifest contract. Lives at `public/assets/themes/<id>/manifest.json`
-// and is fetched at runtime by the theme-loader. The browser fetches motifs
-// directly from the same folder; `file` is whatever the manifest says, e.g.
-// `/assets/themes/<id>/motif-N.svg` or `/assets/themes/<id>/motif-N.png`.
+// and is fetched at runtime by the theme-loader. Each run-group (1..6) maps to
+// a motif FILENAME; the filename carries the motif's identity (e.g. `earth.svg`,
+// `watermelon.png`), so there is no separate `name` field. The browser fetches
+// motifs directly from the same folder.
+//
+// schema_version 2 (2026-06-26, ADR-0023): the per-motif value collapsed from
+// `{ file, name }` to a bare filename string, and the filename regex widened
+// from `motif-N` to any kebab-case name. Manifests ship in-bundle with the code
+// that reads them, so the bump is a coordinated edit with no runtime migration.
 //
 // Invariant: the `motifs` table has exactly the run-groups required by the
 // game's balance config (currently 6, with a 7th seat reserved for hard mode).
-// Renaming a motif file is a manifest-only edit (file column changes); changing
-// the run-group → motif mapping is also a manifest-only edit. Per-theme format
-// is free (an origami theme can ship SVG; a tropical-fruits theme can ship
-// PNG); mixing formats inside the same theme is also valid.
+// Per-theme format is free (planets ships SVG; tropical-fruits ships PNG);
+// mixing formats inside one theme is also valid.
 
-export const ThemeMotifEntrySchema = z
-  .object({
-    file: z.string().regex(/^motif-[1-7]\.(svg|png)$/),
-    name: z.string().min(1),
-  })
-  .strict();
+export const ThemeMotifFileSchema = z.string().regex(/^[a-z0-9-]+\.(svg|png)$/);
 
 export const ThemeBackgroundSchema = z
   .object({
@@ -28,13 +27,13 @@ export const ThemeBackgroundSchema = z
 
 export const ThemeManifestSchema = z
   .object({
-    schema_version: z.literal(1),
+    schema_version: z.literal(2),
     id: z.string().regex(/^[a-z0-9-]+$/),
     display_name: z.string().min(1),
     description: z.string().min(1),
     license: z.string().min(1),
     background: ThemeBackgroundSchema,
-    motifs: z.record(z.string().regex(/^[1-7]$/), ThemeMotifEntrySchema),
+    motifs: z.record(z.string().regex(/^[1-7]$/), ThemeMotifFileSchema),
   })
   .strict();
 
