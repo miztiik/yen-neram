@@ -53,10 +53,10 @@ export function showModePicker(container: HTMLElement): Promise<GameMode> {
     // single-screen e2e in full-flow.spec.ts.
     const root = document.createElement("div");
     root.className =
-      "h-full flex flex-col items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:p-6 bg-yn-bg overflow-y-auto";
+      "h-full flex flex-col items-center justify-center gap-3 sm:gap-4 px-4 py-4 sm:p-6 overflow-y-auto";
 
     const title = document.createElement("h2");
-    title.className = "text-xl sm:text-2xl font-bold text-yn-ink";
+    title.className = "text-2xl sm:text-3xl font-semibold text-white";
     title.textContent = "Pick a mode";
 
     // Mobile (<sm): single column of short horizontal banner tiles so the
@@ -101,7 +101,7 @@ export function showModePicker(container: HTMLElement): Promise<GameMode> {
     const backLink = document.createElement("button");
     backLink.type = "button";
     backLink.className =
-      "mt-1 text-sm text-yn-muted underline underline-offset-2 hover:text-yn-ink";
+      "mt-1 text-sm text-violet-200 underline underline-offset-2 hover:text-white";
     backLink.textContent = "Back to home";
     backLink.setAttribute("aria-label", "Back to home");
     backLink.addEventListener("click", () => {

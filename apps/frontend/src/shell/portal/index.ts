@@ -7,47 +7,43 @@ export type PortalOptions = {
   readonly games: readonly GameManifestEntry[];
 };
 
-const TILE_BASE_CLASSES =
-  "aspect-square rounded-xl border border-yn-border bg-yn-tile flex flex-col items-center justify-center gap-2 p-3 transition-transform active:scale-95";
-const TILE_PLACEHOLDER_CLASSES = "opacity-40 cursor-not-allowed";
-const TILE_SHIPPED_CLASSES = "hover:bg-orange-200 hover:border-yn-accent cursor-pointer";
-
 export function mountPortal(container: HTMLElement, options: PortalOptions): () => void {
   container.replaceChildren();
 
   const root = document.createElement("main");
   root.setAttribute("role", "main");
   root.setAttribute("aria-label", "Yen-Neram games");
-  // min-h-full + py-8 + justify-start so content scrolls naturally on short
-  // viewports (landscape phone, dev preview). On taller viewports the content
-  // hugs the top with breathing room.
-  root.className = "min-h-full flex flex-col items-center justify-start py-8 px-4 gap-6";
+  // yn-portal owns the warm backdrop + staggered entrance (index.css).
+  // min-h-full + top-aligned so content scrolls naturally on short viewports.
+  root.className =
+    "yn-portal min-h-full flex flex-col items-center justify-start gap-8 px-5 py-10 sm:py-14";
 
-  const title = document.createElement("h1");
-  title.className = "text-3xl font-bold text-yn-ink";
-  title.textContent = "Yen-Neram";
-  root.appendChild(title);
+  root.appendChild(buildHeader());
 
+  // Structural heading for the games region (kept off-screen; the wordmark is
+  // the visible h1, this is the "what do I do here" h2).
   const srHeading = document.createElement("h2");
   srHeading.className = "sr-only";
   srHeading.textContent = "Pick a game to play";
   root.appendChild(srHeading);
 
-  const subtitle = document.createElement("p");
-  subtitle.className = "text-sm text-yn-muted";
-  subtitle.textContent = "Tap a tile";
-  root.appendChild(subtitle);
+  const shipped = options.games.filter((entry) => entry.status === "shipped");
+  const placeholders = options.games.filter((entry) => entry.status !== "shipped");
 
-  const grid = document.createElement("div");
-  // max-w-5xl + up-to-4-column ladder so a wider monitor actually gets used;
-  // on phone it stays 2-up which keeps every tile a fat tap target.
-  grid.className = "grid gap-3 w-full max-w-5xl grid-cols-2 sm:grid-cols-3 md:grid-cols-4 px-4";
-
-  for (const entry of options.games) {
-    grid.appendChild(buildTile(entry, options.router));
+  if (shipped.length > 0) {
+    const heroes = document.createElement("div");
+    heroes.className =
+      "yn-portal__heroes flex flex-col sm:flex-row sm:flex-wrap justify-center gap-4 w-full max-w-3xl";
+    for (const entry of shipped) {
+      heroes.appendChild(buildHeroCard(entry, options.router));
+    }
+    root.appendChild(heroes);
   }
 
-  root.appendChild(grid);
+  if (placeholders.length > 0) {
+    root.appendChild(buildComingSoonShelf(placeholders));
+  }
+
   container.appendChild(root);
 
   return () => {
@@ -55,45 +51,131 @@ export function mountPortal(container: HTMLElement, options: PortalOptions): () 
   };
 }
 
-function buildTile(entry: GameManifestEntry, router: Router): HTMLButtonElement {
-  const button = document.createElement("button");
-  const isShipped = entry.status === "shipped";
-  const stateClasses = isShipped ? TILE_SHIPPED_CLASSES : TILE_PLACEHOLDER_CLASSES;
-  button.className = `${TILE_BASE_CLASSES} ${stateClasses}`;
-  button.type = "button";
+function buildHeader(): HTMLElement {
+  const header = document.createElement("header");
+  header.className = "yn-portal__header flex flex-col items-center gap-2 text-center";
 
-  if (entry.tile_silhouette !== undefined && entry.tile_silhouette.length > 0) {
-    const img = document.createElement("img");
-    img.className = "w-12 h-12";
-    img.src = assetPaths.publicAsset(entry.tile_silhouette);
-    img.alt = "";
-    button.appendChild(img);
-  } else {
-    const spacer = document.createElement("div");
-    spacer.className = "w-12 h-12";
-    button.appendChild(spacer);
-  }
+  const title = document.createElement("h1");
+  title.className = "yn-portal__wordmark";
+  title.textContent = "Yen-Neram";
+  header.appendChild(title);
+
+  const subtitle = document.createElement("p");
+  subtitle.className = "yn-portal__subtitle";
+  subtitle.textContent = "Quick games. No sign-up. Just play.";
+  header.appendChild(subtitle);
+
+  return header;
+}
+
+function buildHeroCard(entry: GameManifestEntry, router: Router): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "yn-hero w-full sm:w-[22rem]";
+
+  const badge = document.createElement("span");
+  badge.className = "yn-hero__badge";
+  badge.setAttribute("aria-hidden", "true");
+  appendMaskedIcon(badge, entry.tile_silhouette, "yn-hero__icon");
+  button.appendChild(badge);
+
+  const text = document.createElement("span");
+  text.className = "yn-hero__text";
 
   const label = document.createElement("span");
-  label.className = isShipped
-    ? "text-xs font-medium text-yn-ink"
-    : "text-xs font-medium text-yn-muted";
+  label.className = "yn-hero__title";
   label.textContent = entry.title;
-  button.appendChild(label);
+  text.appendChild(label);
 
-  if (isShipped) {
-    button.addEventListener("click", () => {
-      router.go({
-        kind: "play",
-        slug: entry.slug,
-        queryParams: new URLSearchParams(),
-      });
-    });
-  } else {
-    button.disabled = true;
-    button.setAttribute("aria-disabled", "true");
-    button.setAttribute("aria-label", "Coming soon");
+  if (entry.tagline !== undefined && entry.tagline.length > 0) {
+    const tagline = document.createElement("span");
+    tagline.className = "yn-hero__tagline";
+    tagline.textContent = entry.tagline;
+    text.appendChild(tagline);
   }
+  button.appendChild(text);
+
+  const cue = document.createElement("span");
+  cue.className = "yn-hero__cue";
+  cue.setAttribute("aria-hidden", "true");
+  const play = document.createElement("span");
+  play.textContent = "Play";
+  cue.appendChild(play);
+  cue.appendChild(arrowIcon());
+  button.appendChild(cue);
+
+  button.addEventListener("click", () => {
+    router.go({
+      kind: "play",
+      slug: entry.slug,
+      queryParams: new URLSearchParams(),
+    });
+  });
 
   return button;
+}
+
+function buildComingSoonShelf(placeholders: readonly GameManifestEntry[]): HTMLElement {
+  const section = document.createElement("section");
+  section.className = "yn-portal__soon flex flex-col items-center gap-3 w-full max-w-3xl";
+  section.setAttribute("aria-label", "Coming soon");
+
+  const label = document.createElement("p");
+  label.className = "yn-portal__soon-label";
+  label.textContent = "More on the way";
+  section.appendChild(label);
+
+  const grid = document.createElement("div");
+  grid.className = "grid w-full gap-3 grid-cols-3 sm:grid-cols-5";
+  for (const entry of placeholders) {
+    grid.appendChild(buildPlaceholderTile(entry));
+  }
+  section.appendChild(grid);
+
+  return section;
+}
+
+function buildPlaceholderTile(entry: GameManifestEntry): HTMLButtonElement {
+  const button = document.createElement("button");
+  button.type = "button";
+  button.className = "yn-soon-tile";
+  button.disabled = true;
+  button.setAttribute("aria-disabled", "true");
+  button.setAttribute("aria-label", "Coming soon");
+  appendMaskedIcon(button, entry.tile_silhouette, "yn-soon-tile__icon");
+  return button;
+}
+
+// Render a portal silhouette as a CSS mask so the warm chrome palette (not the
+// baked-in SVG fill) paints it. One color source of truth; a new game's tile
+// inherits the palette automatically. aria-hidden: the button label carries the
+// accessible name, the glyph is decoration.
+function appendMaskedIcon(
+  parent: HTMLElement,
+  silhouette: string | undefined,
+  className: string,
+): void {
+  const icon = document.createElement("span");
+  icon.className = className;
+  icon.setAttribute("aria-hidden", "true");
+  if (silhouette !== undefined && silhouette.length > 0) {
+    icon.style.setProperty("--yn-mask", `url("${assetPaths.publicAsset(silhouette)}")`);
+  }
+  parent.appendChild(icon);
+}
+
+function arrowIcon(): SVGSVGElement {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 24 24");
+  svg.setAttribute("fill", "none");
+  svg.setAttribute("stroke", "currentColor");
+  svg.setAttribute("stroke-width", "2.4");
+  svg.setAttribute("stroke-linecap", "round");
+  svg.setAttribute("stroke-linejoin", "round");
+  svg.setAttribute("aria-hidden", "true");
+  const path = document.createElementNS(ns, "path");
+  path.setAttribute("d", "M5 12h14M13 6l6 6-6 6");
+  svg.appendChild(path);
+  return svg;
 }

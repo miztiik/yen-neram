@@ -17,7 +17,7 @@
    pixel rendered. */
 .yn-cell-bg {
   fill: #ffffff;
-  stroke: var(--yn-bg-deep);
+  stroke: var(--yn-grid-line, #ede9fe);
   stroke-width: 1px;
 }
 /* Outer 9x9 board boundary (ADR-0021 polish round, 2026-06-08).
@@ -29,11 +29,11 @@
    inside the boundary still land on the per-cell <g>. */
 .yn-board-boundary {
   fill: none;
-  stroke: var(--yn-tile-border);
+  stroke: #c4b5fd;
   stroke-width: 2px;
   rx: 8;
   ry: 8;
-  filter: drop-shadow(0 0 6px rgba(251, 146, 60, 0.35));
+  filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.4));
 }
 /* No per-cell reachable highlight: the reachable BFS set on an early-game
    board is ~80 of 81 empty cells; any visible per-cell delta floods. The
@@ -322,7 +322,7 @@
    * snap to the initial value 0). */
   counter-reset: yn-score var(--yn-score-count);
   color: var(--yn-ink-deep, #0f172a);
-  font-weight: 900;
+  font-weight: 600;
   letter-spacing: -0.025em;
 }
 .yn-score-display::after {

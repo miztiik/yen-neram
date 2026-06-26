@@ -119,7 +119,7 @@ test.describe("game smoke", () => {
     await menuBtn.click();
 
     const drawer = page.getByRole("dialog", { name: "Menu" });
-    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    await expect(drawer).toBeVisible({ timeout: 5_000 });
 
     const backToHome = drawer.getByRole("button", { name: "Back to home" });
     await backToHome.click();

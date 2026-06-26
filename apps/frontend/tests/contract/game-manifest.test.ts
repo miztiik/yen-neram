@@ -57,6 +57,16 @@ describe("public/games.json contract", () => {
       }
     }
   });
+
+  it("tagline, when present, is a non-empty string (portal hero descriptor)", () => {
+    const entries = GameManifestArraySchema.parse(parsedManifest);
+    for (const entry of entries) {
+      if (entry.tagline !== undefined) {
+        expect(typeof entry.tagline).toBe("string");
+        expect(entry.tagline.length).toBeGreaterThan(0);
+      }
+    }
+  });
 });
 
 describe("GameManifestEntrySchema schema-only failures", () => {
@@ -82,6 +92,27 @@ describe("GameManifestEntrySchema schema-only failures", () => {
       slug: "Bad-Slug",
       title: "Bad",
       status: "shipped",
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts an optional tagline", () => {
+    const result = GameManifestEntrySchema.safeParse({
+      slug: "ok-slug",
+      title: "OK",
+      status: "shipped",
+      entry_route: "/play/ok-slug/",
+      tagline: "Line them up.",
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty tagline", () => {
+    const result = GameManifestEntrySchema.safeParse({
+      slug: "ok-slug",
+      title: "OK",
+      status: "shipped",
+      tagline: "",
     });
     expect(result.success).toBe(false);
   });

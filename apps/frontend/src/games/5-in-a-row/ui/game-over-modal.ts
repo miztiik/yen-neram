@@ -128,7 +128,7 @@ export function openGameOverModal(
   const { title: titleText, subtitle: subtitleText } = buildHeaderCopy(context);
 
   const title = document.createElement("h2");
-  title.className = "text-2xl font-bold text-yn-ink";
+  title.className = "text-2xl font-semibold text-yn-ink";
   title.textContent = titleText;
   card.appendChild(title);
 
@@ -163,7 +163,7 @@ export function openGameOverModal(
   }
   const scoreEl = document.createElement("span");
   scoreEl.className =
-    "yn-game-over-score text-5xl font-black text-yn-ink tabular-nums tracking-tight";
+    "yn-game-over-score text-5xl font-semibold text-yn-ink tabular-nums tracking-tight";
   scoreEl.textContent = String(context.score);
   scoreRow.appendChild(scoreEl);
   card.appendChild(scoreRow);
