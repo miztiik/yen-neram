@@ -1,0 +1,13 @@
+{
+  "schema_version": 1,
+  "themes": [
+    {
+      "id": "origami",
+      "display_name": "Origami"
+    },
+    {
+      "id": "tropical-fruits",
+      "display_name": "Tropical Fruits"
+    }
+  ]
+}
