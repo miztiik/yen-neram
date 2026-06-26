@@ -109,7 +109,7 @@ test.describe("full v1 flow", () => {
 
     const swatches = drawer.locator("[data-theme-id]");
     await expect(swatches).toHaveCount(2);
-    await expect(drawer.locator('[data-theme-id="origami"]')).toBeVisible();
+    await expect(drawer.locator('[data-theme-id="planets"]')).toBeVisible();
     await expect(drawer.locator('[data-theme-id="tropical-fruits"]')).toBeVisible();
   });
 

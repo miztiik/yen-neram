@@ -13,27 +13,25 @@ themes/
   index.json        # generated roster (ThemeIndex, ADR-0023); do NOT hand-edit
   <theme-id>/
     manifest.json   # ThemeManifest (zod-validated, contract-tested)
-    motif-1.<ext>
-    motif-2.<ext>
-    motif-3.<ext>
-    motif-4.<ext>
-    motif-5.<ext>
-    motif-6.<ext>
+    <motif>.svg     # 6 motif files, one per run-group (1..6). The
+    <motif>.png     # filename IS the motif identity (e.g. earth.svg,
+    ...             # watermelon.png) - any kebab-case name, svg or png.
 ```
 
 - `<theme-id>` is kebab-case and matches `manifest.json` `id` field.
 - Six motifs per theme (one per run-group, 1..6).
 - `<ext>` is `svg` or `png`. Both are first-class - the renderer is
   format-agnostic. A theme can ship all SVG, all PNG, or mixed; the
-  manifest's `file` field is the source of truth.
+  manifest maps each run-group (1..6) to its motif filename.
 - Every theme manifest declares a `license` (CC0-1.0 per ADR-0008).
 
 ## Adding or editing a theme
 
 1. Drop the six motif files and a `manifest.json` into a new
    `<theme-id>/` folder (or edit an existing one). Set each
-   `motifs.<rg>.file` to the correct filename (e.g. `motif-1.svg`
-   or `motif-1.png`).
+   `motifs.<rg>` to its motif filename (e.g. `earth.svg` or
+   `watermelon.png`); the filename carries the motif identity (there
+   is no separate `name` field).
 2. From the repo root, run the optimisation pass (SVG only - PNGs
    pass through untouched):
 

@@ -56,7 +56,7 @@ export const assetPaths = {
 
   /**
    * Motif file URL inside a theme directory. `file` is the manifest's
-   * declared `motif.file` field (e.g. "motif-3.png", "motif-5.svg").
+   * declared motif filename (e.g. "moon.svg", "watermelon.png").
    */
   themeMotif(themeId: string, file: string): string {
     return join(`assets/themes/${themeId}/${file}`);
