@@ -9,12 +9,12 @@ import { test, expect } from "@playwright/test";
 
 test.describe("perf under mid-tier-Android throttling", () => {
   test.beforeEach(async ({ page, context }) => {
-    // Seed localStorage so the mode picker does not block the board.
-    // This initial navigation is setup-only; throttling is applied after.
+    // Seed the one-shot replay flag so the mode picker does not block the
+    // board. This initial navigation is setup-only; throttling is applied after.
     await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
 
     // Apply CDP throttling (Chromium-only).

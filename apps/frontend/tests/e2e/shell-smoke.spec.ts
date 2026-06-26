@@ -2,11 +2,12 @@ import { test, expect } from "@playwright/test";
 
 test.describe("shell smoke", () => {
   test.beforeEach(async ({ page }) => {
-    // Pre-seed last-mode so any test that enters the game lands on the board
-    // (skipping the first-launch mode picker, which is covered by full-flow).
+    // Pre-seed the one-shot replay flag so any test that enters the game
+    // lands on the board (skipping the launch mode picker, which full-flow
+    // covers). sessionStorage survives the same-tab portal -> game nav.
     await page.goto("/");
     await page.evaluate(() => {
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
   });
   test("home renders the portal grid with 6 tiles", async ({ page }) => {

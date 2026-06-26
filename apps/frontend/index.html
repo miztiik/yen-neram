@@ -15,7 +15,9 @@
       content="A static-bundle multi-game shell. First game: 5-in-a-Row."
     />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon.svg" />
+    <!-- Relative so it resolves to ${BASE_URL}icon.svg on any deploy base
+         (the root-absolute /icon.svg 404'd off the /yen-neram/ base). ADR-0022. -->
+    <meta property="og:image" content="icon.svg" />
     <meta name="twitter:card" content="summary" />
     <title>Yen-Neram</title>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />

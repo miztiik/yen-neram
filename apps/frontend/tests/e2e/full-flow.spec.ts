@@ -5,7 +5,6 @@ import { test, expect } from "@playwright/test";
 // round-trips, settings drawer + how-to-play modal, exploratory long-press.
 
 const GAME_URL = "/play/5-in-a-row/";
-const LAST_MODE_KEY = "yn:game:5-in-a-row:last-mode";
 
 type CellSnapshot = {
   r: string | null;
@@ -33,24 +32,30 @@ test.describe("full v1 flow", () => {
     await expect(maxPoints).toContainText(/today's seed/i);
   });
 
-  test("mode picker persists the chosen mode for subsequent launches", async ({ page }) => {
+  test("a fresh launch shows the picker; an in-progress game resumes without it", async ({
+    page,
+  }) => {
+    // ADR-0023: the picker is offered on every FRESH launch (it is no longer
+    // remembered-and-skipped). An UNFINISHED game still resumes straight to
+    // its board so progress is never lost.
     await page.goto(GAME_URL);
-
     await page.getByRole("button", { name: "Infinite" }).click();
-
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
+    // Re-entering with the run still in progress resumes the board (no picker).
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();
-
     await page.goto(GAME_URL);
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
-
     await expect(page.getByRole("button", { name: "Infinite" })).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Max Points" })).toHaveCount(0);
 
-    const lastMode = await page.evaluate((key) => localStorage.getItem(key), LAST_MODE_KEY);
-    expect(lastMode).toBe("infinite");
+    // Clear the in-progress run; the NEXT launch shows the picker again
+    // (the mode is not silently reused).
+    await page.evaluate(() => localStorage.removeItem("yn:game:5-in-a-row"));
+    await page.goto(GAME_URL);
+    await expect(page.getByRole("heading", { name: "Pick a mode" })).toBeVisible({
+      timeout: 5_000,
+    });
   });
 
   test("home -> game -> back -> home -> game preserves the in-progress save", async ({ page }) => {
@@ -244,7 +249,9 @@ test.describe("full v1 flow", () => {
         streak: null,
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      // in_progress is null here, so seed the one-shot replay flag to skip
+      // the picker on the reload and land on a fresh board (ADR-0023).
+      sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
     await page.reload();
 
@@ -466,7 +473,8 @@ test.describe("full v1 flow", () => {
         streak: null,
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      // No picker-skip seed needed: the save carries an in-progress run,
+      // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
@@ -541,7 +549,8 @@ test.describe("full v1 flow", () => {
         streak: { current: 5, longest: 9, last_played_date: "2026-06-07" },
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      // No picker-skip seed needed: the save carries an in-progress run,
+      // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
@@ -602,7 +611,9 @@ test.describe("full v1 flow", () => {
         streak: { current: 2, longest: 4, last_played_date: "2026-06-07" },
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      // in_progress is null here, so seed the one-shot replay flag to land
+      // on the board for the first mount (ADR-0023).
+      sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
     await page.reload();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
@@ -612,8 +623,8 @@ test.describe("full v1 flow", () => {
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     await drawer.getByRole("button", { name: "Switch mode" }).click();
 
-    // Landed home.
-    await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible({
+    // Switch mode now opens the picker IN PLACE (ADR-0023), no portal bounce.
+    await expect(page.getByRole("heading", { name: "Pick a mode" })).toBeVisible({
       timeout: 5_000,
     });
 
@@ -640,12 +651,11 @@ test.describe("full v1 flow", () => {
     });
   });
 
-  test("Menu -> Switch mode bounces to home and the mode picker shows on next entry", async ({
-    page,
-  }) => {
-    // Doctrine: switching mode mid-run clears in_progress + last_mode
-    // and navigates home. Next entry to the game shows the mode
-    // picker because last_mode is null.
+  test("Menu -> Switch mode opens the picker in place (no portal bounce)", async ({ page }) => {
+    // ADR-0023: switching mode mid-run wipes the in-progress run and reloads
+    // in place, so the picker appears RIGHT HERE in the game route -- the
+    // player asked to change the mode, not to leave the game. Picking a
+    // different mode then starts that mode.
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
@@ -655,19 +665,19 @@ test.describe("full v1 flow", () => {
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     await drawer.getByRole("button", { name: "Switch mode" }).click();
 
-    // Navigated home.
-    await expect(page).toHaveURL(/\/$/);
-    await expect(page.getByRole("heading", { name: "Yen-Neram" })).toBeVisible();
-
-    // last_mode in yn:app must be null/missing.
-    const stored = await page.evaluate(() => localStorage.getItem("yn:app"));
-    const parsed = JSON.parse(stored ?? "{}") as { last_mode?: string | null };
-    expect(parsed.last_mode === null || parsed.last_mode === undefined).toBe(true);
-
-    // Re-enter: the mode picker is shown.
-    await page.getByRole("button", { name: "5 in a Row" }).click();
+    // Still in the game route, now showing the picker (not the portal).
+    await expect(page).toHaveURL(/\/play\/5-in-a-row\/$/);
     await expect(page.getByRole("heading", { name: "Pick a mode" })).toBeVisible({
       timeout: 5_000,
     });
+
+    // Picking a different mode switches to it.
+    await page.getByRole("button", { name: "Timed" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    const storedMode = await page.evaluate(() => {
+      const raw = localStorage.getItem("yn:game:5-in-a-row");
+      return raw === null ? null : (JSON.parse(raw) as { mode?: string }).mode;
+    });
+    expect(storedMode).toBe("timed");
   });
 });

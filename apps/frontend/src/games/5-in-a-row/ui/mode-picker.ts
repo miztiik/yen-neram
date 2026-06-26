@@ -1,45 +1,44 @@
 // Mode-picker view for 5-in-a-row.
-// Renders two tile-style buttons into a container, resolves with the
-// chosen mode, and persists "last chosen mode" to localStorage so
-// subsequent launches skip the picker.
+// Renders the mode tiles into a container and resolves with the chosen mode.
+//
+// Launch policy (ADR-0023): the picker is shown on EVERY fresh launch of the
+// game (portal tile, deep link, or Menu -> Switch mode) so the three modes
+// are always offered. The ONLY launches that skip it are (a) resuming an
+// in-progress run and (b) a "play the same mode again" reload (Play Again /
+// Restart / Reset), which set a one-shot replay flag just before reloading.
 
 import type { GameMode } from "../types.js";
 import { MODE_CONTRACTS } from "../modes/index.js";
+import { assetPaths } from "@/shared/asset-paths.js";
 
-const LAST_MODE_KEY = "yn:game:5-in-a-row:last-mode";
+// One-shot "replay this mode" signal. Set immediately before a same-mode
+// reload so the relaunch skips the picker and restarts the same mode; read
+// AND cleared on the next mount. sessionStorage (not localStorage): the
+// intent is scoped to this tab session and must NOT survive a real app
+// relaunch -- a genuine relaunch should show the picker.
+const REPLAY_MODE_KEY = "yn:game:5-in-a-row:replay-mode";
 
 function isGameMode(value: string | null): value is GameMode {
   return value === "infinite" || value === "max-points" || value === "timed";
 }
 
-export function getLastMode(): GameMode | null {
+export function setReplayMode(mode: GameMode): void {
   try {
-    const v = localStorage.getItem(LAST_MODE_KEY);
+    sessionStorage.setItem(REPLAY_MODE_KEY, mode);
+  } catch {
+    // no-op: sessionStorage unavailable (private mode, SSR, quota exceeded)
+  }
+}
+
+// Read AND clear the one-shot replay flag. Returns the mode to replay, or
+// null when this launch should show the picker.
+export function consumeReplayMode(): GameMode | null {
+  try {
+    const v = sessionStorage.getItem(REPLAY_MODE_KEY);
+    if (v !== null) sessionStorage.removeItem(REPLAY_MODE_KEY);
     return isGameMode(v) ? v : null;
   } catch {
     return null;
-  }
-}
-
-export function setLastMode(mode: GameMode): void {
-  try {
-    localStorage.setItem(LAST_MODE_KEY, mode);
-  } catch {
-    // no-op: localStorage unavailable (private mode, SSR, quota exceeded)
-  }
-}
-
-// Clear the persisted last-mode so the picker shows again on next entry.
-// Called by the Menu drawer's "Switch mode" action. Previously the
-// Switch mode handler in index.ts only cleared yn:app.last_mode (an
-// unused AppPrefs field), leaving yn:game:5-in-a-row:last-mode set --
-// the picker was therefore skipped on re-entry. (Bug surfaced by the
-// ADR-0019 Menu drawer e2e regression for Switch mode -> picker.)
-export function clearLastMode(): void {
-  try {
-    localStorage.removeItem(LAST_MODE_KEY);
-  } catch {
-    // no-op: see setLastMode rationale.
   }
 }
 
@@ -88,13 +87,32 @@ export function showModePicker(container: HTMLElement): Promise<GameMode> {
 
       btn.append(label, desc);
       btn.addEventListener("click", () => {
-        setLastMode(contract.kind);
         resolve(contract.kind);
       });
       grid.appendChild(btn);
     }
 
-    root.append(title, grid);
+    // Back-to-home exit (ADR-0023): the picker can appear on a fresh launch
+    // or via Menu -> Switch mode, so the player needs a way out WITHOUT
+    // committing to a mode -- especially in standalone PWA mode, where there
+    // is no browser back button. Uses history.back() when there is a portal
+    // entry to return to, else navigates to the SPA home (assetPaths.portal()
+    // NOT literal "/", per ADR-0020).
+    const backLink = document.createElement("button");
+    backLink.type = "button";
+    backLink.className =
+      "mt-1 text-sm text-yn-muted underline underline-offset-2 hover:text-yn-ink";
+    backLink.textContent = "Back to home";
+    backLink.setAttribute("aria-label", "Back to home");
+    backLink.addEventListener("click", () => {
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.assign(assetPaths.portal());
+      }
+    });
+
+    root.append(title, grid, backLink);
     container.appendChild(root);
   });
 }

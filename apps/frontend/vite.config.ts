@@ -85,8 +85,13 @@ export default defineConfig({
         globPatterns: ["**/*.{html,js,css,svg,webmanifest,json}"],
         globIgnores: ["**/sw.js", "**/workbox-*.js", "**/*.map"],
         runtimeCaching: [],
-        navigateFallback: "/index.html",
-        navigateFallbackDenylist: [/^\/assets\//, /\.\w+$/],
+        // Base-aware (ADR-0022): on the /yen-neram/ project deploy the
+        // precached shell is keyed `${REPO_BASE}index.html`, so the offline
+        // navigation fallback must point at the same base-scoped URL -- a
+        // literal "/index.html" misses the precache off-base. The denylist
+        // keeps asset + extensioned requests OUT of the SPA fallback.
+        navigateFallback: `${REPO_BASE}index.html`,
+        navigateFallbackDenylist: [new RegExp(`^${REPO_BASE}assets/`), /\.\w+$/],
       },
       manifest: false,
     }),

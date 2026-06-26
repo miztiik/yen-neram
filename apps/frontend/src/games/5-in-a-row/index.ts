@@ -24,7 +24,7 @@ import {
   recordPlayedToday,
   seedForMode,
 } from "./modes/index.js";
-import { clearLastMode, getLastMode, setLastMode, showModePicker } from "./ui/mode-picker.js";
+import { consumeReplayMode, setReplayMode, showModePicker } from "./ui/mode-picker.js";
 import {
   discoverAvailableThemes,
   openSettingsDrawer,
@@ -100,11 +100,15 @@ const mount: GameMount = async (container, options) => {
 
   let mode: GameMode;
   if (save.in_progress !== null) {
+    // An unfinished run resumes straight into its board (no picker).
     mode = save.mode;
   } else {
-    mode = getLastMode() ?? (await showModePicker(container));
+    // A fresh launch shows the picker so the three modes are always on
+    // offer (ADR-0023); only a one-shot replay flag (Play Again / Restart
+    // / Reset) skips it to restart the same mode.
+    const replay = consumeReplayMode();
+    mode = replay ?? (await showModePicker(container));
   }
-  setLastMode(mode);
   if (save.mode !== mode) {
     save = { ...save, mode };
     writeSave(save);
@@ -762,7 +766,9 @@ const mount: GameMount = async (container, options) => {
         // Preserve high_scores + streak across the run boundary;
         // wipe only in_progress. Bug fix per ADR-0021 -- the prior
         // `makeFreshSave(mode)` call wiped the leaderboard on every
-        // game-end.
+        // game-end. setReplayMode keeps the SAME mode on the reload so
+        // "Play again" does not re-prompt the picker (ADR-0023).
+        setReplayMode(mode);
         writeSave(makeFreshGame(save, mode));
         window.location.reload();
       },
@@ -1095,7 +1101,9 @@ const mount: GameMount = async (container, options) => {
         // run is a normal play action, not a destructive one. Save
         // is wiped to a fresh shape for the current mode; reload.
         // PRESERVES high_scores + streak per ADR-0021 (the prior
-        // `makeFreshSave` wiped the leaderboard).
+        // `makeFreshSave` wiped the leaderboard). setReplayMode keeps
+        // the SAME mode on the reload (ADR-0023).
+        setReplayMode(save.mode);
         writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
@@ -1104,6 +1112,7 @@ const mount: GameMount = async (container, options) => {
         // identically to onRestartGame today. If a future PR adds
         // confirmation copy to one but not the other they can diverge.
         // PRESERVES high_scores + streak per ADR-0021.
+        setReplayMode(save.mode);
         writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
@@ -1115,18 +1124,14 @@ const mount: GameMount = async (container, options) => {
         window.location.reload();
       },
       onModeSwitch() {
-        // Clear in-progress + last_mode and bounce to home so the next
-        // entry shows the mode picker again. clearLastMode() wipes the
-        // `yn:game:5-in-a-row:last-mode` localStorage key the picker
-        // actually reads; the legacy `yn:app.last_mode` AppPrefs slot
-        // is also cleared for forwards-compat (no current reader, but
-        // keeps both stores honest). ADR-0020: `assetPaths.portal()`
-        // NOT literal "/" -- on GH Pages base /yen-neram/ the literal
-        // "/" bounces out of the SPA.
+        // Open the mode picker IN PLACE (ADR-0023): wipe the in-progress
+        // run and reload WITHOUT setting the replay flag, so the entry
+        // path falls through to showModePicker() right here in the game
+        // route. No bounce to the portal -- the player asked to change
+        // the mode, not to leave the game. high_scores + streak survive
+        // because only in_progress is cleared.
         writeSave({ ...save, in_progress: null });
-        clearLastMode();
-        updateAppPref({ last_mode: null });
-        window.location.assign(assetPaths.portal());
+        window.location.reload();
       },
       onShowHowToPlay() {
         modalClose = openHowToPlay(container);

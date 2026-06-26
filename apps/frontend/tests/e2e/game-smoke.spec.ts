@@ -5,9 +5,10 @@ test.describe("game smoke", () => {
     await page.goto("/");
     await page.evaluate(() => {
       localStorage.clear();
-      // Skip the first-launch mode picker so existing smoke tests land on
-      // the board immediately. PR 8's full-flow.spec.ts covers the picker flow.
-      localStorage.setItem("yn:game:5-in-a-row:last-mode", "infinite");
+      // Skip the launch mode picker so these smoke tests land on the board
+      // immediately. The one-shot replay flag is what Play Again / Restart
+      // set before a same-mode reload; full-flow.spec.ts covers the picker.
+      sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
   });
 
