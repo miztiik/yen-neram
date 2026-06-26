@@ -30,6 +30,10 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     );
   });
 
+  it("themesIndex() returns the generated theme roster path", () => {
+    expect(assetPaths.themesIndex()).toBe("/assets/themes/index.json");
+  });
+
   it("publicAsset(rawPath) joins authored JSON paths against the base, stripping a leading /", () => {
     // The shape that comes from games.json -> tile_silhouette: an absolute
     // path written as if served from host root. The builder must respect

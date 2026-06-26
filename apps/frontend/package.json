@@ -7,8 +7,8 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "vite",
-    "build": "node tools/svgo-themes.mjs && tsc --noEmit && vite build",
-    "build:assets": "node tools/svgo-themes.mjs",
+    "build": "node tools/svgo-themes.mjs && node tools/themes-index.mjs && tsc --noEmit && vite build",
+    "build:assets": "node tools/svgo-themes.mjs && node tools/themes-index.mjs",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest",

@@ -1,6 +1,6 @@
 # Theme assets - drop-in contract
 
-**Last Updated**: 2026-06-07
+**Last Updated**: 2026-06-26
 
 Canonical location for in-bundle theme assets. Vite serves this folder
 verbatim at `/assets/themes/<id>/...`. There is no separate `assets/`
@@ -10,6 +10,7 @@ source location; this folder IS the source and the served form.
 
 ```
 themes/
+  index.json        # generated roster (ThemeIndex, ADR-0023); do NOT hand-edit
   <theme-id>/
     manifest.json   # ThemeManifest (zod-validated, contract-tested)
     motif-1.<ext>
@@ -46,6 +47,12 @@ themes/
    them with your own tool of choice (`oxipng`, `pngcrush`,
    `squoosh-cli`) before committing.
 
+   `build:assets` also runs `tools/themes-index.mjs` (per ADR-0023),
+   which regenerates `index.json` - the theme roster the settings
+   picker reads. Adding or renaming a theme only needs the folder
+   plus its `manifest.json`; the index follows. Never hand-edit
+   `index.json`.
+
 3. Run the contract gates locally before committing:
 
    ```
@@ -54,8 +61,10 @@ themes/
 
    The relevant tests are
    `tests/contract/theme-manifest.test.ts` (manifest shape, motif
-   files present) and `tests/contract/svgo-pipeline.test.ts` (SVG
-   motifs well-formed, no `<?xml>` / `<title>` / `<desc>`).
+   files present), `tests/contract/theme-index.test.ts` (the
+   generated roster matches the manifests), and
+   `tests/contract/svgo-pipeline.test.ts` (SVG motifs well-formed,
+   no `<?xml>` / `<title>` / `<desc>`).
 
 ## Why the SVGs in git are already optimised
 

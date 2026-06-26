@@ -5,12 +5,12 @@
 //
 // Co-located helpers (kept here to keep `index.ts` lean per the PR brief):
 //   - AppPrefsSchema + read/write/update for the `yn:app` blob.
-//   - discoverAvailableThemes() that probes the known theme manifests.
+//   - discoverAvailableThemes() that reads the generated theme index.
 
 import { z } from "zod";
 
 import { SAVE_KEY_APP, readJson, writeJson } from "@/shared/save/index.js";
-import { ThemeManifestSchema } from "@/shared/schemas/theme-manifest.schema.js";
+import { ThemeIndexSchema } from "@/shared/schemas/theme-index.schema.js";
 import { assetPaths } from "@/shared/asset-paths.js";
 
 // ---- Public types ----------------------------------------------------------
@@ -89,28 +89,25 @@ export function updateAppPref(patch: Partial<Omit<AppPrefs, "schema_version">>):
 
 // ---- Theme discovery -------------------------------------------------------
 //
-// V1: hard-coded roster + tolerant fetch. A future PR can replace this with
-// a build-time-emitted `/assets/themes/index.json` (a discovery manifest at
-// the same URL root the motifs sit at) without touching callers.
+// The roster is read from the generated `/assets/themes/index.json` (ADR-0023),
+// a build-time projection of the per-theme manifests. One fetch, no per-theme
+// probing. If the index is missing or invalid (e.g. a flaky first paint before
+// the bundle settled) fall back to the canonical theme so the picker is never
+// empty.
 
-const KNOWN_THEME_IDS: readonly string[] = ["origami", "tropical-fruits"];
+const FALLBACK_THEME: AvailableTheme = { id: "tropical-fruits", displayName: "Tropical Fruits" };
 
 export async function discoverAvailableThemes(): Promise<AvailableTheme[]> {
-  const results = await Promise.all(
-    KNOWN_THEME_IDS.map(async (id): Promise<AvailableTheme | null> => {
-      try {
-        const r = await fetch(assetPaths.themeManifest(id));
-        if (!r.ok) return null;
-        const raw: unknown = await r.json();
-        const parsed = ThemeManifestSchema.safeParse(raw);
-        if (!parsed.success) return null;
-        return { id: parsed.data.id, displayName: parsed.data.display_name };
-      } catch {
-        return null;
-      }
-    }),
-  );
-  return results.filter((t): t is AvailableTheme => t !== null);
+  try {
+    const r = await fetch(assetPaths.themesIndex());
+    if (!r.ok) return [FALLBACK_THEME];
+    const raw: unknown = await r.json();
+    const parsed = ThemeIndexSchema.safeParse(raw);
+    if (!parsed.success) return [FALLBACK_THEME];
+    return parsed.data.themes.map((t) => ({ id: t.id, displayName: t.display_name }));
+  } catch {
+    return [FALLBACK_THEME];
+  }
 }
 
 // ---- DOM helpers -----------------------------------------------------------

@@ -46,6 +46,15 @@ export const assetPaths = {
   },
 
   /**
+   * The generated theme roster (`public/assets/themes/index.json`, per
+   * ADR-0023). Lists `{ id, display_name }` for every installed theme; the
+   * settings-drawer theme picker fetches it once at mount.
+   */
+  themesIndex(): string {
+    return join("assets/themes/index.json");
+  },
+
+  /**
    * Motif file URL inside a theme directory. `file` is the manifest's
    * declared `motif.file` field (e.g. "motif-3.png", "motif-5.svg").
    */
