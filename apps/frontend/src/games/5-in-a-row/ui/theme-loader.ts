@@ -19,25 +19,39 @@ export type LoadedTheme = {
 const FALLBACK_THEME_ID = "tropical-fruits";
 const MOTIF_KEYS: readonly string[] = ["1", "2", "3", "4", "5", "6"];
 
+// Last-ditch motif filenames for the fallback theme (tropical-fruits), used only
+// when even its manifest fetch fails. Mirrors that theme's manifest; the
+// theme-manifest contract test (every declared file exists) keeps both honest.
+const FALLBACK_MOTIF_FILES: Readonly<Record<string, string>> = {
+  "1": "watermelon.png",
+  "2": "kiwi.png",
+  "3": "strawberry.png",
+  "4": "apple.png",
+  "5": "banana.png",
+  "6": "lemon.png",
+};
+
 function buildMotifFiles(
   themeId: string,
   motifs: ThemeManifest["motifs"],
 ): Readonly<Record<string, string>> {
   const out: Record<string, string> = {};
   for (const k of MOTIF_KEYS) {
-    const entry = motifs[k];
-    if (entry === undefined) continue;
-    out[k] = assetPaths.themeMotif(themeId, entry.file);
+    const file = motifs[k];
+    if (file === undefined) continue;
+    out[k] = assetPaths.themeMotif(themeId, file);
   }
   return out;
 }
 
 function buildDefaultMotifFiles(themeId: string): Readonly<Record<string, string>> {
-  // Last-ditch only: assumes default `.svg` extension when even the fallback
-  // manifest fetch failed (network completely down, etc).
+  // Last-ditch only: the fallback theme's known filenames, used when even the
+  // fallback manifest fetch failed (network completely down, etc).
   const out: Record<string, string> = {};
   for (const k of MOTIF_KEYS) {
-    out[k] = assetPaths.themeMotif(themeId, `motif-${k}.svg`);
+    const file = FALLBACK_MOTIF_FILES[k];
+    if (file === undefined) continue;
+    out[k] = assetPaths.themeMotif(themeId, file);
   }
   return out;
 }

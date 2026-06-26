@@ -16,7 +16,7 @@ function listMotifFiles(): string[] {
       continue;
     }
     for (const name of readdirSync(themeDir).sort()) {
-      if (/^motif-.*\.svg$/.test(name)) out.push(join(themeDir, name));
+      if (/\.svg$/.test(name)) out.push(join(themeDir, name));
     }
   }
   return out;

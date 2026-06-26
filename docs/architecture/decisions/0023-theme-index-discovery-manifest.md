@@ -60,9 +60,11 @@ sec 10; respects the Vite base for GitHub Pages).
 - A new persisted contract (`index.json`) joins the versioned-surface
   list (CLAUDE.md sec 11). It ships in-bundle with the code, so there
   is no cross-version migration burden.
-- Follow-up (planned): semantic motif filenames (e.g. `earth.svg` rather
-  than `motif-1.svg`) and dropping the unused `name` field from the
-  theme manifest. That is a separate change and will amend this ADR.
+- Semantic motif filenames + dropping `name` (delivered 2026-06-26):
+  the per-motif value is now a bare filename string (e.g. `earth.svg`,
+  `watermelon.png`) instead of `{ file, name }`, so the filename carries
+  the motif identity. The theme-manifest schema bumped to version 2, and
+  the `origami` theme was replaced by `planets` at the same time.
 
 ## See also
 

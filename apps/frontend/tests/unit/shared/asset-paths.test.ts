@@ -18,16 +18,14 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     expect(assetPaths.themeManifest("tropical-fruits")).toBe(
       "/assets/themes/tropical-fruits/manifest.json",
     );
-    expect(assetPaths.themeManifest("origami")).toBe("/assets/themes/origami/manifest.json");
+    expect(assetPaths.themeManifest("planets")).toBe("/assets/themes/planets/manifest.json");
   });
 
   it("themeMotif(id, file) interpolates both arguments and respects the file extension", () => {
-    expect(assetPaths.themeMotif("tropical-fruits", "motif-1.png")).toBe(
-      "/assets/themes/tropical-fruits/motif-1.png",
+    expect(assetPaths.themeMotif("tropical-fruits", "watermelon.png")).toBe(
+      "/assets/themes/tropical-fruits/watermelon.png",
     );
-    expect(assetPaths.themeMotif("origami", "motif-3.svg")).toBe(
-      "/assets/themes/origami/motif-3.svg",
-    );
+    expect(assetPaths.themeMotif("planets", "moon.svg")).toBe("/assets/themes/planets/moon.svg");
   });
 
   it("themesIndex() returns the generated theme roster path", () => {
@@ -53,8 +51,8 @@ describe("assetPaths (single source of truth for runtime asset URLs)", () => {
     // builders never produces a leading-slash relative input, but the
     // guard inside join() is the contract.
     expect(assetPaths.games().includes("//")).toBe(false);
-    expect(assetPaths.themeManifest("origami").includes("//")).toBe(false);
-    expect(assetPaths.themeMotif("origami", "motif-1.svg").includes("//")).toBe(false);
+    expect(assetPaths.themeManifest("planets").includes("//")).toBe(false);
+    expect(assetPaths.themeMotif("planets", "earth.svg").includes("//")).toBe(false);
     expect(assetPaths.publicAsset("/assets/foo/bar.svg").includes("//")).toBe(false);
   });
 

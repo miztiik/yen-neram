@@ -46,9 +46,9 @@ describe("theme manifests contract", () => {
       });
 
       it("every declared motif file exists on disk", () => {
-        const data = readManifest(id) as { motifs: Record<string, { file: string }> };
-        for (const [rg, entry] of Object.entries(data.motifs)) {
-          const p = resolve(themesRoot, id, entry.file);
+        const data = readManifest(id) as { motifs: Record<string, string> };
+        for (const [rg, file] of Object.entries(data.motifs)) {
+          const p = resolve(themesRoot, id, file);
           expect(statSync(p).isFile(), `rg=${rg} expected ${p}`).toBe(true);
         }
       });
