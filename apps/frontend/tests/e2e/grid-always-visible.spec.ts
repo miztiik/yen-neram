@@ -9,12 +9,12 @@ import { test, expect } from "@playwright/test";
 //      (sub-1px strokes rasterise as invisible on most viewports -- see
 //      the historical bug behind this guard in board-view.css).
 //
-// We seed last-mode=infinite so the picker is skipped, then exercise both
-// the default state and the post-tap state to prove neither toggles the
+// We seed the one-shot replay flag so the picker is skipped, then exercise
+// both the default state and the post-tap state to prove neither toggles the
 // grid off.
 
 const GAME_URL = "/play/5-in-a-row/";
-const LAST_MODE_KEY = "yn:game:5-in-a-row:last-mode";
+const REPLAY_KEY = "yn:game:5-in-a-row:replay-mode";
 
 type CellPaint = {
   stroke: string;
@@ -54,8 +54,8 @@ test.describe("grid-always-visible contract", () => {
     await page.goto("/");
     await page.evaluate((key) => {
       localStorage.clear();
-      localStorage.setItem(key, "infinite");
-    }, LAST_MODE_KEY);
+      sessionStorage.setItem(key, "infinite");
+    }, REPLAY_KEY);
   });
 
   test("default state: grid is painted on every cell with a non-transparent stroke", async ({

@@ -2,7 +2,8 @@
   "name": "Yen-Neram",
   "short_name": "Yen-Neram",
   "description": "A static-bundle multi-game shell. First game: 5-in-a-Row.",
-  "start_url": "/",
+  "start_url": ".",
+  "scope": ".",
   "display": "standalone",
   "background_color": "#fed7aa",
   "theme_color": "#fed7aa",
@@ -10,13 +11,13 @@
   "categories": ["games", "entertainment"],
   "icons": [
     {
-      "src": "/icon.svg",
+      "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"
     },
     {
-      "src": "/favicon.svg",
+      "src": "favicon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
       "purpose": "any"

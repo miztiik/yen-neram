@@ -7,19 +7,9 @@ if (!container) {
 }
 mountShell(container);
 
-// PWA service worker registration (per ADR-0015 - autoUpdate via vite-plugin-pwa).
-// Wrapped in dynamic import + try/catch so dev / no-SW environments degrade silently.
-if (import.meta.env.PROD) {
-  void (async () => {
-    try {
-      const { Workbox } = await import("workbox-window");
-      const wb = new Workbox("/sw.js");
-      wb.addEventListener("waiting", () => {
-        void wb.messageSkipWaiting();
-      });
-      await wb.register();
-    } catch {
-      // SW registration failure is not fatal - app still works online.
-    }
-  })();
-}
+// The PWA service worker (ADR-0015, autoUpdate) is registered by the script
+// vite-plugin-pwa auto-injects into index.html (`injectRegister: "auto"`),
+// which targets the correct base-scoped `${BASE_URL}sw.js`. A hand-rolled
+// `new Workbox("/sw.js")` here previously duplicated that AND hardcoded the
+// root path, so it 404'd on the `/yen-neram/` project deploy -- removed in
+// favour of the single injected registration path (ADR-0022).
