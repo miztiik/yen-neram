@@ -8,6 +8,10 @@ export type LineDetectResult = {
   readonly cells: ReadonlySet<string>;
   readonly lineCount: number;
   readonly longestLineLength: number;
+  // Run-group (motif id 1..N) of the cleared line. Drives the per-motif
+  // clear-burst color in the renderer (ADR-0028). 0 when there is no line
+  // (empty result); no cells clear in that case so the value is unused.
+  readonly runGroup: RunGroup;
 };
 
 const AXES: ReadonlyArray<{ readonly dr: number; readonly dc: number }> = [
@@ -48,6 +52,7 @@ export function detectLines(
       cells: new Set<string>(),
       lineCount: 0,
       longestLineLength: 0,
+      runGroup: 0,
     };
   }
 
@@ -73,5 +78,13 @@ export function detectLines(
     }
   }
 
-  return { cells, lineCount, longestLineLength };
+  // runGroup is the cleared line's motif (1..N) only when a line actually
+  // formed; a placed cell can have a colour but trigger no >=5 line, in which
+  // case nothing clears and runGroup is 0 (unused by the renderer).
+  return {
+    cells,
+    lineCount,
+    longestLineLength,
+    runGroup: cells.size > 0 ? target : 0,
+  };
 }

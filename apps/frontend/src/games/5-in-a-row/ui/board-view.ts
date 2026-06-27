@@ -70,11 +70,29 @@ const BLOCKER_FLASH_MS = 380;
 const CLEAR_MS = 400;
 const SPLASH_TAIL_MS = 150;
 const SPLASH_RADIUS = 14;
-const SPLASH_FILL = "rgba(244, 114, 182, 0.5)";
+// Base peak scale of the splash ring's expansion (the yn-splash keyframe's
+// default 100% scale). A longer cleared line multiplies this via peakScale so a
+// big clear bursts bigger (ADR-0028, size-by-length).
+const SPLASH_BASE_PEAK = 2.5;
+// Last-resort splash colour when a run-group is missing from the theme's
+// motifColors map. The theme loader normally populates every run-group, so this
+// only guards createBoardView calls with a partial map (e.g. a unit test).
+const SPLASH_FALLBACK_COLOR = "rgba(244, 114, 182, 0.5)";
+
+export type ClearFlashOptions = {
+  // Multiplier on the splash ring's base peak scale (size-by-length). 1 keeps
+  // the historical size; >1 makes a longer line burst bigger.
+  readonly peakScale?: number;
+  // When > 0, splashes fire staggered by this many ms in iteration order,
+  // rippling across the cleared cells (used for cascades, ADR-0028).
+  readonly stepMs?: number;
+};
 
 export type BoardViewOptions = {
   readonly motifSymbolUrl: string;
   readonly motifFiles: Readonly<Record<string, string>>;
+  // Per-motif clear-burst colour keyed by run-group "1".."N" (ADR-0028).
+  readonly motifColors: Readonly<Record<string, string>>;
   readonly onCellTap: (coord: Coord) => void;
   readonly onCellLongPress: (coord: Coord) => void;
   // When true, the SVG root carries the `yn-preview-bounce` class so the
@@ -114,9 +132,19 @@ export type BoardView = {
   showPathTrace(path: readonly Coord[]): Promise<void>;
   showPathPreview(path: readonly Coord[]): void;
   clearPathPreview(): void;
-  showClearFlash(cells: ReadonlySet<string>): Promise<void>;
+  // Pre-clear glow: light the about-to-clear cells in their motif colour for a
+  // beat so the player sees the line before it bursts (ADR-0028). cells maps
+  // cellKey -> run-group; glowMs <= 0 is a no-op (reduce-motion path).
+  showPreClearGlow(cells: ReadonlyMap<string, number>, glowMs: number): Promise<void>;
+  // Clear-burst. cells maps cellKey -> run-group so each cell bursts in its own
+  // motif colour (ADR-0028). options scales the burst by line length and
+  // ripples cascades.
+  showClearFlash(cells: ReadonlyMap<string, number>, options?: ClearFlashOptions): Promise<void>;
   showLandBounce(coord: Coord): Promise<void>;
-  setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void>;
+  setTheme(
+    motifFiles: Readonly<Record<string, string>>,
+    motifColors: Readonly<Record<string, string>>,
+  ): Promise<void>;
   setPreviewBounceEnabled(enabled: boolean): void;
   // Rescale every motif in place to the chosen tier and push the per-tier
   // bounce ceiling to the CSS custom properties. No structural re-render --
@@ -189,6 +217,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   // tearing down the board. `busyCount` lets setTheme wait for any in-flight
   // animation method to settle before swapping image hrefs.
   let currentMotifFiles: Readonly<Record<string, string>> = options.motifFiles;
+  let currentMotifColors: Readonly<Record<string, string>> = options.motifColors;
   let currentPathPreview: SVGPolylineElement | null = null;
   let busyCount = 0;
 
@@ -407,32 +436,96 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
-  async function showClearFlash(cells: ReadonlySet<string>): Promise<void> {
+  function splashColorFor(runGroup: number): string {
+    return currentMotifColors[String(runGroup)] ?? SPLASH_FALLBACK_COLOR;
+  }
+
+  function parseCellKey(key: string): { readonly r: number; readonly c: number } | null {
+    const parts = key.split(",");
+    const r = Number(parts[0]);
+    const c = Number(parts[1]);
+    if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
+    return { r, c };
+  }
+
+  // Light the about-to-clear cells in their own motif colour for a beat so the
+  // player SEES the line they made before it bursts (ADR-0028, Player). The
+  // halo colour is set on the <g> as the --yn-splash custom property which the
+  // descendant .yn-motif reads in board-view.css. glowMs <= 0 is a no-op (the
+  // reduce-motion path passes 0 from the host so there is no added latency).
+  async function showPreClearGlow(
+    cells: ReadonlyMap<string, number>,
+    glowMs: number,
+  ): Promise<void> {
+    if (glowMs <= 0 || cells.size === 0) return;
     busyCount += 1;
     try {
+      const glowing: SVGGElement[] = [];
+      for (const [key, runGroup] of cells) {
+        const at = parseCellKey(key);
+        if (at === null) continue;
+        const g = getCellG(at.r, at.c);
+        if (g === null) continue;
+        g.style.setProperty("--yn-splash", splashColorFor(runGroup));
+        g.classList.add("yn-cell-preclear-glow");
+        glowing.push(g);
+      }
+      await new Promise<void>((resolve) => window.setTimeout(resolve, glowMs));
+      for (const g of glowing) {
+        g.classList.remove("yn-cell-preclear-glow");
+      }
+    } finally {
+      busyCount -= 1;
+    }
+  }
+
+  async function showClearFlash(
+    cells: ReadonlyMap<string, number>,
+    options?: ClearFlashOptions,
+  ): Promise<void> {
+    busyCount += 1;
+    try {
+      const peak = SPLASH_BASE_PEAK * (options?.peakScale ?? 1);
+      const stepMs = options?.stepMs ?? 0;
       const promises: Promise<void>[] = [];
       const splashEls: SVGCircleElement[] = [];
-      for (const key of cells) {
-        const parts = key.split(",");
-        const r = Number(parts[0]);
-        const c = Number(parts[1]);
-        if (!Number.isInteger(r) || !Number.isInteger(c)) continue;
-        const g = getCellG(r, c);
+      let index = 0;
+      let maxDelayMs = 0;
+      for (const [key, runGroup] of cells) {
+        const at = parseCellKey(key);
+        if (at === null) continue;
+        const g = getCellG(at.r, at.c);
         if (g === null) continue;
 
-        // Spawn a splash circle as a SIBLING of the cell <g> on the SVG root so
-        // it paints above the grid and is not clipped by sibling z-order.
+        const delayMs = stepMs * index;
+        if (delayMs > maxDelayMs) maxDelayMs = delayMs;
+
+        // Splash RING: stroked (not filled), so it reads as an expanding
+        // shockwave rather than a blob (ADR-0028, Jony). Stroke colour is the
+        // cleared motif's own colour; --yn-splash-peak scales the burst by line
+        // length. Spawned as a SIBLING on the SVG root so it paints above the
+        // grid and is not clipped by sibling z-order.
         const splash = document.createElementNS(SVG_NS, "circle");
         splash.setAttribute("class", "yn-splash");
-        splash.setAttribute("cx", String(c * CELL_SIZE + CELL_SIZE / 2));
-        splash.setAttribute("cy", String(r * CELL_SIZE + CELL_SIZE / 2));
+        splash.setAttribute("cx", String(at.c * CELL_SIZE + CELL_SIZE / 2));
+        splash.setAttribute("cy", String(at.r * CELL_SIZE + CELL_SIZE / 2));
         splash.setAttribute("r", String(SPLASH_RADIUS));
-        splash.setAttribute("fill", SPLASH_FILL);
+        splash.style.setProperty("--yn-splash", splashColorFor(runGroup));
         splash.setAttribute("data-splash-temp", "1");
+        splash.style.setProperty("--yn-splash-peak", String(peak));
+        if (delayMs > 0) splash.style.animationDelay = `${String(delayMs)}ms`;
         svg.appendChild(splash);
         splashEls.push(splash);
 
-        promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS));
+        // Match the motif shrink to the ripple so a tile and its burst leave
+        // together on a cascade.
+        const motif = g.querySelector<SVGElement>(".yn-motif");
+        if (motif !== null && delayMs > 0) {
+          motif.style.animationDelay = `${String(delayMs)}ms`;
+        }
+
+        promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS + delayMs));
+        index += 1;
       }
 
       if (splashEls.length > 0) {
@@ -446,13 +539,16 @@ export function createBoardView(options: BoardViewOptions): BoardView {
 
         // Teardown happens in the background after the splash completes; the
         // function's Promise still resolves at the clear-flash boundary below.
-        const cleanupTimer = window.setTimeout(() => {
-          pendingSplashTimers.delete(cleanupTimer);
-          const stale = svg.querySelectorAll('[data-splash-temp="1"]');
-          for (const el of Array.from(stale)) {
-            if (el.parentNode !== null) el.parentNode.removeChild(el);
-          }
-        }, CLEAR_MS + SPLASH_TAIL_MS);
+        const cleanupTimer = window.setTimeout(
+          () => {
+            pendingSplashTimers.delete(cleanupTimer);
+            const stale = svg.querySelectorAll('[data-splash-temp="1"]');
+            for (const el of Array.from(stale)) {
+              if (el.parentNode !== null) el.parentNode.removeChild(el);
+            }
+          },
+          CLEAR_MS + SPLASH_TAIL_MS + maxDelayMs,
+        );
         pendingSplashTimers.add(cleanupTimer);
       }
 
@@ -593,7 +689,10 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
-  async function setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void> {
+  async function setTheme(
+    motifFiles: Readonly<Record<string, string>>,
+    motifColors: Readonly<Record<string, string>>,
+  ): Promise<void> {
     // Wait briefly for any in-flight animation method to settle; if still busy
     // after the cap, force the swap anyway (a stuck animation must not block
     // the player from changing themes).
@@ -606,6 +705,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
     // Update internal ref so future spawns use the new theme.
     currentMotifFiles = motifFiles;
+    currentMotifColors = motifColors;
     svg.classList.add("yn-theme-swapping");
     // Wait for the fade-out (CSS opacity transition: 100ms).
     await new Promise<void>((resolve) => window.setTimeout(resolve, 110));
@@ -787,6 +887,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     showPathTrace,
     showPathPreview,
     clearPathPreview,
+    showPreClearGlow,
     showClearFlash,
     showLandBounce,
     setTheme,

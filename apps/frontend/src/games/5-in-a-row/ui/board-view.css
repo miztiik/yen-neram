@@ -194,6 +194,7 @@
 @media (prefers-reduced-motion: reduce) {
   .yn-cell-selected .yn-motif,
   .yn-cell-clearing .yn-motif,
+  .yn-cell-preclear-glow .yn-motif,
   .yn-cell-shake,
   .yn-cell-shake .yn-cell-bg,
   .yn-cell-blocker-flash .yn-cell-bg,
@@ -201,12 +202,41 @@
     animation-duration: 1ms !important;
   }
 }
-/* Juice-splash overlay for clears (per design freeze 2026-06-07: vibrant Fruit Ninja celebration). */
+/* Pre-clear glow (ADR-0028): the just-completed line lights up in its own motif
+   colour for a beat before it bursts, so the player SEES what they made
+   (Player). The halo colour is the --yn-splash custom property set on the cell
+   <g> by the renderer. transform + filter only; the filter is a short one-shot,
+   the same class of effect as the selected-piece halo. Keyframe duration
+   mirrors balance.json clear.preclear_glow_ms (the host's await/teardown). */
+.yn-cell-preclear-glow .yn-motif {
+  animation: yn-preclear-glow 180ms ease-out;
+}
+@keyframes yn-preclear-glow {
+  0% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 0 var(--yn-splash, rgba(244, 114, 182, 0.6)));
+  }
+  60% {
+    transform: scale(1.14);
+    filter: drop-shadow(0 0 7px var(--yn-splash, rgba(244, 114, 182, 0.6)));
+  }
+  100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 3px var(--yn-splash, rgba(244, 114, 182, 0.6)));
+  }
+}
+/* Juice-splash overlay for clears: an expanding RING in the cleared motif's own
+   colour (ADR-0028). Stroked, not filled, so it reads as a shockwave/burst; the
+   stroke colour is the --yn-splash custom property set per element by the
+   renderer, and --yn-splash-peak scales the burst by the cleared line length. */
 .yn-splash {
   pointer-events: none;
   transform-box: fill-box;
   transform-origin: center;
   opacity: 0;
+  fill: none;
+  stroke: var(--yn-splash, rgba(244, 114, 182, 0.5));
+  stroke-width: 3;
 }
 .yn-splash.yn-splash-firing {
   animation: yn-splash 500ms ease-out forwards;
@@ -214,13 +244,13 @@
 @keyframes yn-splash {
   0% {
     transform: scale(0.2);
-    opacity: 0.9;
+    opacity: 0.95;
   }
   40% {
-    opacity: 0.7;
+    opacity: 0.75;
   }
   100% {
-    transform: scale(2.5);
+    transform: scale(var(--yn-splash-peak, 2.5));
     opacity: 0;
   }
 }

@@ -12,15 +12,17 @@ function clearResult(
   cellCount: number,
   longest: number,
   lineCount: number,
+  runGroup = 1,
 ): {
   cells: ReadonlySet<string>;
   lineCount: number;
   longestLineLength: number;
+  runGroup: number;
 } {
   // Build a fake cells set with `cellCount` unique entries.
   const cells = new Set<string>();
   for (let i = 0; i < cellCount; i++) cells.add(`fake-${String(i)}`);
-  return { cells, lineCount, longestLineLength: longest };
+  return { cells, lineCount, longestLineLength: longest, runGroup };
 }
 
 describe("scoreSingleClear", () => {
@@ -59,7 +61,7 @@ describe("scoreSingleClear", () => {
   it("empty result returns 0 (early exit on cells.size === 0)", () => {
     expect(
       scoreSingleClear(
-        { cells: new Set<string>(), lineCount: 0, longestLineLength: 0 },
+        { cells: new Set<string>(), lineCount: 0, longestLineLength: 0, runGroup: 0 },
         0,
         BALANCE,
       ),
@@ -128,7 +130,7 @@ describe("breakdownClear", () => {
   });
 
   it("empty result returns zero points and zero counts", () => {
-    const empty = { cells: new Set<string>(), lineCount: 0, longestLineLength: 0 };
+    const empty = { cells: new Set<string>(), lineCount: 0, longestLineLength: 0, runGroup: 0 };
     const b = breakdownClear(empty, 0, BALANCE);
     expect(b.cellCount).toBe(0);
     expect(b.points).toBe(0);
