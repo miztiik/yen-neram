@@ -17,7 +17,7 @@
    pixel rendered. */
 .yn-cell-bg {
   fill: #ffffff;
-  stroke: var(--yn-grid-line, #ede9fe);
+  stroke: var(--yn-grid-line, #ddd6fe);
   stroke-width: 1px;
 }
 /* Outer 9x9 board boundary (ADR-0021 polish round, 2026-06-08).

@@ -70,7 +70,7 @@
   --yn-accent: #f97316;
   /* Subtle cool hairline for the 9x9 grid -- decoupled from the page-bg
      token, which is now dark violet (far too strong for a gridline). */
-  --yn-grid-line: #ede9fe;
+  --yn-grid-line: #ddd6fe;
   /* Score-chip ink: deliberately COOL slate-900 so the score number
      does NOT belong to the warm-brown family the rest of the chrome
      uses. Two prior passes (terracotta #7c2d12, then espresso
