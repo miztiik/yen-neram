@@ -83,7 +83,14 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ["**/*.{html,js,css,svg,webmanifest,json}"],
-        globIgnores: ["**/sw.js", "**/workbox-*.js", "**/*.map"],
+        // Theme motif art is loaded ON-DEMAND per selected theme (theme-loader
+        // fetches only the chosen theme's images at runtime), so precaching
+        // EVERY theme's images bloats the SW install and contends with the
+        // throttled perf budget over Slow-4G as themes are added (ADR-0015
+        // amendment, 2026-06-27). Exclude theme motif images from the precache;
+        // each theme's manifest.json + the themes index.json stay precached for
+        // offline theme discovery, and a motif is browser-cached on first use.
+        globIgnores: ["**/sw.js", "**/workbox-*.js", "**/*.map", "**/assets/themes/*/*.{svg,png}"],
         runtimeCaching: [],
         // Base-aware (ADR-0022): on the /yen-neram/ project deploy the
         // precached shell is keyed `${REPO_BASE}index.html`, so the offline

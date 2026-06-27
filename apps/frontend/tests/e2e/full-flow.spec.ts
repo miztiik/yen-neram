@@ -108,7 +108,8 @@ test.describe("full v1 flow", () => {
     await expect(drawer.getByRole("heading", { name: "Menu" })).toBeVisible();
 
     const swatches = drawer.locator("[data-theme-id]");
-    await expect(swatches).toHaveCount(2);
+    await expect(swatches).toHaveCount(3);
+    await expect(drawer.locator('[data-theme-id="balls"]')).toBeVisible();
     await expect(drawer.locator('[data-theme-id="planets"]')).toBeVisible();
     await expect(drawer.locator('[data-theme-id="tropical-fruits"]')).toBeVisible();
   });

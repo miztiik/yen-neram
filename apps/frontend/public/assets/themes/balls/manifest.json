@@ -1,0 +1,27 @@
+{
+  "schema_version": 2,
+  "id": "balls",
+  "display_name": "Balls",
+  "description": "Bright glossy coloured balls.",
+  "license": "CC0-1.0",
+  "background": {
+    "fill": "#0f172a",
+    "grid": "#1e293b"
+  },
+  "motifs": {
+    "1": "blue.svg",
+    "2": "green.svg",
+    "3": "orange.svg",
+    "4": "purple.svg",
+    "5": "red.svg",
+    "6": "yellow.svg"
+  },
+  "motif_colors": {
+    "1": "#3b82f6",
+    "2": "#22c55e",
+    "3": "#f97316",
+    "4": "#a855f7",
+    "5": "#ef4444",
+    "6": "#facc15"
+  }
+}

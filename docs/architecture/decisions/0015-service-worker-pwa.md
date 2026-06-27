@@ -1,9 +1,18 @@
 # ADR-0015: Service worker via vite-plugin-pwa (autoUpdate)
 
-**Last Updated**: 2026-06-07
-**Status**: Accepted
+**Last Updated**: 2026-06-27
+**Status**: Accepted (amended 2026-06-27: theme motif art excluded from precache)
 **Born in**: v2 wave 3 (`feat/v2`)
 **Supersedes**: ADR-0007 (no-SW-v1)
+
+> **Amended 2026-06-27 (balls theme)**: theme motif images
+> (`assets/themes/*/*.{svg,png}`) are NO LONGER precached. They are loaded
+> on-demand per selected theme by the theme-loader, so precaching every theme's
+> art bloated the SW install and ate into the Slow-4G perf budget as themes were
+> added (the original "precache list grows linearly with assets" note below).
+> Each theme's `manifest.json` + the `index.json` roster stay precached for
+> offline theme discovery; a motif is browser-cached on first use. See
+> `vite.config.ts` `workbox.globIgnores`.
 
 ## Context
 
@@ -19,7 +28,8 @@ benefits from offline support (the player on the subway), and the
 Use vite-plugin-pwa with Workbox under the hood. Registration is
 `autoUpdate` - silent shell update on next navigation, no "reload to
 update" prompt. Precache all build artefacts (HTML, JS, CSS, SVG,
-JSON, manifest). Navigation fallback to /index.html so deep links work
+JSON, manifest) EXCEPT on-demand theme motif images (2026-06-27
+amendment above). Navigation fallback to /index.html so deep links work
 offline (mirrors the GH Pages 404.html behaviour per ADR-0001).
 
 ## Rejected alternatives
