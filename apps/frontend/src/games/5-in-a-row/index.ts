@@ -7,7 +7,7 @@ import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
-import { createBoardView } from "./ui/board-view.js";
+import { createBoardView, DEFAULT_TILE_SIZE } from "./ui/board-view.js";
 import {
   attemptMove,
   createInitialTurnState,
@@ -319,6 +319,7 @@ const mount: GameMount = async (container, options) => {
     pathPreviewEnabled: appPrefs.path_preview_enabled ?? true,
     showNextPreview: appPrefs.show_next_preview ?? true,
     previewBounceEnabled: appPrefs.preview_bounce_enabled ?? true,
+    tileSize: appPrefs.tile_size ?? DEFAULT_TILE_SIZE,
   };
   document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, settingsState.reduceMotion);
   if (!settingsState.showNextPreview) previewEl.style.display = "none";
@@ -411,6 +412,7 @@ const mount: GameMount = async (container, options) => {
     onCellTap,
     onCellLongPress,
     previewBounceEnabled: settingsState.previewBounceEnabled,
+    tileSize: settingsState.tileSize,
   });
   boardWrap.replaceChildren(boardView.element);
 
@@ -1071,6 +1073,14 @@ const mount: GameMount = async (container, options) => {
         settingsState.previewBounceEnabled = enabled;
         boardView.setPreviewBounceEnabled(enabled);
         updateAppPref({ preview_bounce_enabled: enabled });
+      },
+      onTileSizeChange(size) {
+        // Live rescale: re-size every motif in place + push the per-tier
+        // bounce ceiling to CSS, then persist (ADR-0026). The change is
+        // visible immediately behind the dimmed drawer backdrop.
+        settingsState.tileSize = size;
+        boardView.setTileSize(size);
+        updateAppPref({ tile_size: size });
       },
       onBackToHome() {
         // Was a standalone bottom-bar button; relocated under the menu

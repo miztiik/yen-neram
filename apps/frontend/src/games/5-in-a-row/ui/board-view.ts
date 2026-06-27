@@ -6,25 +6,48 @@ import type { Board, Coord, PreviewItem } from "../types.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BOARD_SIZE = 9;
-const CELL_SIZE = 40;
+// Exported so the tile-size invariant test (tests/unit/5-in-a-row/
+// tile-size.test.ts) asserts the geometry contract against the real cell
+// size rather than a magic 40.
+export const CELL_SIZE = 40;
 const VIEW_SIZE = BOARD_SIZE * CELL_SIZE; // 360
-// Motif occupies 75% of the cell (30 of 40 SVG units), leaving a 5-unit
-// margin on every side. The 25% headroom is the budget for shrink/grow
-// bounce animations (`yn-pulse`, `yn-land`) defined in board-view.css --
-// peak scale of 1.30 reaches the cell edge exactly. Applies uniformly to
-// every theme since all motifs render through the same <image> sizing.
-const MOTIF_SIZE = 30;
-// Preview motifs render at 45% of the cell (18 of 40 SVG units); real
-// pieces fill 75% (MOTIF_SIZE = 30). The 12-unit gap between preview and
-// real keeps the "next vs placed" cue legible while previews stay readable
-// at a glance. Size journey: 16 (original, too faint) -> 22 (too close to
-// real, lost the hierarchy) -> 18 (this); the visibility win is now
-// carried mostly by `.yn-preview-motif { opacity: 0.7 }` (was 0.4) in
-// board-view.css. The optional `yn-preview-breathe` animation (CSS,
-// gated by `previewBounceEnabled`) peaks at scale 1.06 -> 18 * 1.06 = 19.1
-// SVG units, well below MOTIF_SIZE, so it never overlaps an adjacent
-// placed piece.
-const PREVIEW_SIZE = 18;
+
+// Tile size is a player preference (ADR-0026). The player chooses how much of
+// each cell the theme motif fills, because theme images carry very different
+// internal padding (a tropical fruit fills its viewBox differently than a thin
+// glyph) and eyesight/feel vary. Three named steps; default "medium" is the
+// historical ADR-0017 75% fill, so a player who never opens the menu sees no
+// change at all.
+//
+// HARD INVARIANT (ADR-0017 + ADR-0026): the land bounce must never cross the
+// cell boundary, or it clips the always-on grid hairline and the chrome
+// flickers. So `motif * landPeak <= CELL_SIZE` holds for EVERY tier -- the
+// bounce peak is not a free multiplier layered on top of size; it is part of
+// each tier's geometry. Larger tiles therefore get a gentler bounce (there is
+// no room to grow past the edge). The peaks are pushed to CSS custom
+// properties (`--yn-land-peak`, `--yn-pulse-peak`) consumed by the keyframes
+// in board-view.css, keeping the renderer the single source of truth.
+//
+// `preview` is the next-piece preview size, kept well below `motif` so
+// "upcoming" stays visually distinct from "placed" (the medium preview size,
+// 18, is the value tuned across 16 -> 22 -> 18 in earlier rounds; the other
+// tiers scale it with the motif). The `yn-preview-breathe` animation peaks at
+// scale 1.06, which stays within headroom even for the large preview
+// (21 * 1.06 = 22.3 < 35). The invariant is pinned by the unit test.
+export const TILE_SIZE_VALUES = ["small", "medium", "large"] as const;
+export type TileSize = (typeof TILE_SIZE_VALUES)[number];
+export type TileSizeTier = {
+  readonly motif: number;
+  readonly preview: number;
+  readonly landPeak: number;
+  readonly pulsePeak: number;
+};
+export const TILE_SIZE_TIERS: Readonly<Record<TileSize, TileSizeTier>> = {
+  small: { motif: 25, preview: 15, landPeak: 1.3, pulsePeak: 1.18 },
+  medium: { motif: 30, preview: 18, landPeak: 1.3, pulsePeak: 1.18 },
+  large: { motif: 35, preview: 21, landPeak: 1.14, pulsePeak: 1.08 },
+};
+export const DEFAULT_TILE_SIZE: TileSize = "medium";
 const PREVIEW_BOUNCE_CLASS = "yn-preview-bounce";
 const LONG_PRESS_MS = 500;
 // Pixel distance after which a press is treated as "the finger is moving"
@@ -60,6 +83,11 @@ export type BoardViewOptions = {
   // CSS media query. Defaults to false at the createBoardView boundary so
   // forgetting the option does not silently animate.
   readonly previewBounceEnabled?: boolean;
+  // Player tile-size preference (ADR-0026). Controls how much of each cell
+  // the motif fills and the per-tier bounce ceiling. Defaults to
+  // DEFAULT_TILE_SIZE ("medium" == the historical 75% fill) at the
+  // createBoardView boundary, so omitting it preserves prior behaviour.
+  readonly tileSize?: TileSize;
 };
 
 export type CellVisualState =
@@ -90,6 +118,10 @@ export type BoardView = {
   showLandBounce(coord: Coord): Promise<void>;
   setTheme(motifFiles: Readonly<Record<string, string>>): Promise<void>;
   setPreviewBounceEnabled(enabled: boolean): void;
+  // Rescale every motif in place to the chosen tier and push the per-tier
+  // bounce ceiling to the CSS custom properties. No structural re-render --
+  // existing <image>s are re-sized via attributes (ADR-0026).
+  setTileSize(tile: TileSize): void;
   destroy(): void;
 };
 
@@ -160,6 +192,16 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   let currentPathPreview: SVGPolylineElement | null = null;
   let busyCount = 0;
 
+  // Tile-size state (ADR-0026). `motifSize` / `previewSize` are mutable so the
+  // player can rescale live via setTileSize without re-creating the board. The
+  // per-tier bounce peaks are pushed to CSS custom properties on the SVG root
+  // (function declaration `applyTierVars` is hoisted) so the keyframes in
+  // board-view.css read the correct ceiling for the active tier.
+  const initialTier = TILE_SIZE_TIERS[options.tileSize ?? DEFAULT_TILE_SIZE];
+  let motifSize = initialTier.motif;
+  let previewSize = initialTier.preview;
+  applyTierVars(initialTier);
+
   const cellGs: SVGGElement[][] = [];
   for (let r = 0; r < BOARD_SIZE; r++) {
     const row: SVGGElement[] = [];
@@ -223,18 +265,24 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     return rowGs[col] ?? null;
   }
 
+  // Position + size a motif <image> centred in its cell. Shared by
+  // createMotifImage (initial render) and setTileSize (live rescale) so the
+  // centring math lives in exactly one place.
+  function sizeMotifImage(img: SVGImageElement, size: number): void {
+    const offset = (CELL_SIZE - size) / 2;
+    img.setAttribute("width", String(size));
+    img.setAttribute("height", String(size));
+    img.setAttribute("x", String(offset));
+    img.setAttribute("y", String(offset));
+  }
+
   function createMotifImage(runGroup: number, isPreview: boolean): SVGImageElement {
     const img = document.createElementNS(SVG_NS, "image");
     const href = currentMotifFiles[String(runGroup)] ?? "";
     img.setAttribute("href", href);
     img.setAttribute("class", isPreview ? "yn-preview-motif" : "yn-motif");
     img.setAttribute("data-run-group", String(runGroup));
-    const size = isPreview ? PREVIEW_SIZE : MOTIF_SIZE;
-    const offset = (CELL_SIZE - size) / 2;
-    img.setAttribute("width", String(size));
-    img.setAttribute("height", String(size));
-    img.setAttribute("x", String(offset));
-    img.setAttribute("y", String(offset));
+    sizeMotifImage(img, isPreview ? previewSize : motifSize);
     img.setAttribute("preserveAspectRatio", "xMidYMid meet");
     return img;
   }
@@ -431,10 +479,10 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       const overlay = motif.cloneNode(true) as SVGImageElement;
       overlay.classList.remove("yn-motif");
       overlay.setAttribute("class", "yn-motif-overlay");
-      const startX = from.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-      const startY = from.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-      const endX = to.col * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
-      const endY = to.row * CELL_SIZE + (CELL_SIZE - MOTIF_SIZE) / 2;
+      const startX = from.col * CELL_SIZE + (CELL_SIZE - motifSize) / 2;
+      const startY = from.row * CELL_SIZE + (CELL_SIZE - motifSize) / 2;
+      const endX = to.col * CELL_SIZE + (CELL_SIZE - motifSize) / 2;
+      const endY = to.row * CELL_SIZE + (CELL_SIZE - motifSize) / 2;
       overlay.setAttribute("x", String(startX));
       overlay.setAttribute("y", String(startY));
       svg.appendChild(overlay);
@@ -515,6 +563,33 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       svg.classList.add(PREVIEW_BOUNCE_CLASS);
     } else {
       svg.classList.remove(PREVIEW_BOUNCE_CLASS);
+    }
+  }
+
+  // Push the per-tier bounce ceiling to CSS custom properties on the SVG root.
+  // The keyframes `yn-land` / `yn-pulse` read these (with the medium values as
+  // fallbacks), so the bounce never exceeds the cell for the active tier
+  // (ADR-0026 invariant). Custom properties inherit, so setting them on the
+  // root reaches every `.yn-motif` descendant.
+  function applyTierVars(tier: TileSizeTier): void {
+    svg.style.setProperty("--yn-land-peak", String(tier.landPeak));
+    svg.style.setProperty("--yn-pulse-peak", String(tier.pulsePeak));
+  }
+
+  function setTileSize(tile: TileSize): void {
+    const tier = TILE_SIZE_TIERS[tile];
+    motifSize = tier.motif;
+    previewSize = tier.preview;
+    applyTierVars(tier);
+    // Rescale existing motifs in place; no structural re-render. The next
+    // setBoard() would also pick up the new sizes, but rescaling here makes
+    // the change visible the instant the player picks a tier (the board is
+    // still painted behind the dimmed drawer backdrop).
+    for (const img of Array.from(svg.querySelectorAll<SVGImageElement>(".yn-motif"))) {
+      sizeMotifImage(img, motifSize);
+    }
+    for (const img of Array.from(svg.querySelectorAll<SVGImageElement>(".yn-preview-motif"))) {
+      sizeMotifImage(img, previewSize);
     }
   }
 
@@ -716,6 +791,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     showLandBounce,
     setTheme,
     setPreviewBounceEnabled,
+    setTileSize,
     destroy,
   };
 }

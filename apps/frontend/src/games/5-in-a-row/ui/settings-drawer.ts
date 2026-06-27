@@ -12,6 +12,7 @@ import { z } from "zod";
 import { SAVE_KEY_APP, readJson, writeJson } from "@/shared/save/index.js";
 import { ThemeIndexSchema } from "@/shared/schemas/theme-index.schema.js";
 import { assetPaths } from "@/shared/asset-paths.js";
+import type { TileSize } from "./board-view.js";
 
 // ---- Public types ----------------------------------------------------------
 
@@ -21,6 +22,7 @@ export type SettingsState = {
   pathPreviewEnabled: boolean;
   showNextPreview: boolean;
   previewBounceEnabled: boolean;
+  tileSize: TileSize;
 };
 
 export type SettingsActions = {
@@ -29,6 +31,7 @@ export type SettingsActions = {
   readonly onPathPreviewChange: (enabled: boolean) => void;
   readonly onShowNextPreviewChange: (enabled: boolean) => void;
   readonly onPreviewBounceChange: (enabled: boolean) => void;
+  readonly onTileSizeChange: (size: TileSize) => void;
   // Navigate-section actions (relocated from the bottom bar 2026-06-08
   // per ADR-0019). All three are "I want to leave this run" intents
   // and now share the Menu drawer's top section.
@@ -57,6 +60,13 @@ export type AvailableTheme = {
 // Inline schema co-located with its only readers/writers. Additive bumps:
 // missing fields fall back to the default applied at the call site.
 
+// Tile-size preference values (ADR-0026). The literal tuple is
+// `satisfies`-guarded against the renderer's TileSize so the persisted enum
+// can never silently drift from the geometry tiers in board-view.ts. Written
+// inline (not imported) so this module stays free of a runtime board-view
+// import (and its CSS side-effect); the type-only import above is erased.
+const TILE_SIZE_VALUES = ["small", "medium", "large"] as const satisfies readonly TileSize[];
+
 export const AppPrefsSchema = z
   .object({
     schema_version: z.literal(1),
@@ -67,6 +77,11 @@ export const AppPrefsSchema = z
     // Subtle scale 1.00 -> 1.06 -> 1.00 breathing on preview motifs.
     // Default on at the call site; persists when the player toggles it off.
     preview_bounce_enabled: z.boolean().optional(),
+    // How much of each cell the theme motif fills (ADR-0026). Additive +
+    // optional: a pref blob written before this field shipped parses fine and
+    // falls back to "medium" at the call site, so no schema_version bump /
+    // read-side migration is needed (Holy Law #11, additive case).
+    tile_size: z.enum(TILE_SIZE_VALUES).optional(),
     last_mode: z.enum(["infinite", "max-points", "timed"]).nullable().optional(),
   })
   .strict();
@@ -155,6 +170,53 @@ function makeToggle(
   });
   row.appendChild(btn);
   return row;
+}
+
+// Segmented radio control: a labelled 3-up row of mutually-exclusive options.
+// Jony's pick over a dropdown/slider for a small fixed set of named steps
+// (ADR-0026). Label on its own line, full-width equal-thirds group below so
+// the words fit at the 320px drawer width. Each segment is role=radio with an
+// accessible name == its label, so it is keyboard-reachable and the e2e test
+// can target it by role+name.
+function makeSegmented(
+  label: string,
+  options: readonly { readonly value: TileSize; readonly label: string }[],
+  initial: TileSize,
+  onChange: (value: TileSize) => void,
+): HTMLElement {
+  const wrap = el("div", "flex flex-col gap-1.5");
+  wrap.appendChild(el("span", "text-sm text-yn-ink", label));
+  const group = el(
+    "div",
+    "grid grid-cols-3 rounded-lg border border-yn-border divide-x divide-yn-border overflow-hidden",
+  );
+  group.setAttribute("role", "radiogroup");
+  group.setAttribute("aria-label", label);
+  let current = initial;
+  const segments: { value: TileSize; btn: HTMLButtonElement }[] = [];
+  const style = (btn: HTMLButtonElement, on: boolean): void => {
+    btn.className = on
+      ? "px-3 py-1.5 text-xs font-semibold bg-yn-accent text-white"
+      : "px-3 py-1.5 text-xs font-semibold bg-yn-tile text-yn-muted hover:bg-orange-200";
+    btn.setAttribute("aria-checked", on ? "true" : "false");
+  };
+  for (const opt of options) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.setAttribute("role", "radio");
+    btn.textContent = opt.label;
+    style(btn, opt.value === current);
+    btn.addEventListener("click", () => {
+      if (current === opt.value) return;
+      current = opt.value;
+      for (const s of segments) style(s.btn, s.value === current);
+      onChange(current);
+    });
+    segments.push({ value: opt.value, btn });
+    group.appendChild(btn);
+  }
+  wrap.appendChild(group);
+  return wrap;
 }
 
 function makeDestructiveButton(
@@ -271,6 +333,16 @@ export function openSettingsDrawer(
     ),
     makeToggle("Preview bounce", state.previewBounceEnabled, (v) =>
       actions.onPreviewBounceChange(v),
+    ),
+    makeSegmented(
+      "Tile size",
+      [
+        { value: "small", label: "Small" },
+        { value: "medium", label: "Medium" },
+        { value: "large", label: "Large" },
+      ],
+      state.tileSize,
+      (v) => actions.onTileSizeChange(v),
     ),
   );
 
