@@ -1,9 +1,15 @@
 # ADR-0017: Reward-loop is a "stacked wave" with named bonus pills
 
-**Last Updated**: 2026-06-08
-**Status**: Accepted (amended 2026-06-08)
+**Last Updated**: 2026-06-27
+**Status**: Accepted (amended 2026-06-08; clear ceremony extended 2026-06-27 by ADR-0028)
 **Born in**: v2 wave 4 (`feat/v2`)
 **Affects**: `apps/frontend/src/games/5-in-a-row/`
+
+> **Amended by [ADR-0028](0027-per-motif-clear-burst-color.md) (2026-06-27)**: the
+> clear ceremony's pink "juice-splash" became per-motif coloured (sourced from the
+> theme manifest), a stroked expanding ring, size-scaled by line length, rippled
+> on cascades, and preceded by a pre-clear glow. The bonus-pill wave described
+> below (LENGTH / INTERSECT / CASCADE + the flying +N) is unchanged.
 
 ## Context
 

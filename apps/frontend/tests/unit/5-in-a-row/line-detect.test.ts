@@ -109,4 +109,19 @@ describe("detectLines (minLineLength = 5)", () => {
     expect(result.lineCount).toBe(0);
     expect(result.longestLineLength).toBe(0);
   });
+
+  it("carries the run-group of the cleared line (drives the per-motif burst colour, ADR-0028)", () => {
+    // A 5-run of run-group 4 -> the result reports runGroup 4 so the renderer
+    // can burst the cleared cells in motif 4's own colour.
+    const board = placeRun(createEmptyBoard(), 4, 2, 0, 1, 5, 4);
+    const result = detectLines(board, { row: 4, col: 4 }, 5);
+    expect(result.cells.size).toBe(5);
+    expect(result.runGroup).toBe(4);
+  });
+
+  it("reports run-group 0 when there is no cleared line", () => {
+    expect(detectLines(createEmptyBoard(), { row: 4, col: 4 }, 5).runGroup).toBe(0);
+    const noRun = setCell(createEmptyBoard(), 4, 4, { runGroup: 2 });
+    expect(detectLines(noRun, { row: 4, col: 4 }, 5).runGroup).toBe(0);
+  });
 });

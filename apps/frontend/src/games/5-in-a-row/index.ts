@@ -57,11 +57,26 @@ type RewardTimings = {
   readonly score_chip_glow_ms: number;
   readonly best_chip_pulse_ms: number;
 };
+type ClearTimings = {
+  readonly preclear_glow_ms: number;
+  readonly cascade_step_ms: number;
+  readonly splash_scale_by_length: Readonly<Record<string, number>>;
+};
 type ExtendedBalance = BalanceLike & {
   readonly top_scores_max: number;
   readonly reward: RewardTimings;
+  readonly clear: ClearTimings;
 };
 const balanceConfig = balanceJson as unknown as ExtendedBalance;
+
+// Peak-scale multiplier for the clear-burst, by the cleared line's length
+// (size-by-length, ADR-0028). Clamped to the configured 5..9 keys; a longer
+// line bursts bigger.
+function splashPeakScale(longestLine: number): number {
+  const byLength = balanceConfig.clear.splash_scale_by_length;
+  const key = String(Math.max(5, Math.min(9, longestLine)));
+  return byLength[key] ?? 1;
+}
 const DEFAULT_THEME_ID = "tropical-fruits";
 const REDUCE_MOTION_CLASS = "prefers-reduced-motion-override";
 // Timer granularity. Fine enough that the displayed seconds digit never
@@ -409,6 +424,7 @@ const mount: GameMount = async (container, options) => {
   const boardView = createBoardView({
     motifSymbolUrl: "",
     motifFiles: theme.motifFiles,
+    motifColors: theme.motifColors,
     onCellTap,
     onCellLongPress,
     previewBounceEnabled: settingsState.previewBounceEnabled,
@@ -880,11 +896,31 @@ const mount: GameMount = async (container, options) => {
       //       calmer baseline so it doesn't shout.
       const moveTriggeredClear = outcome.clears.length > 0 && outcome.spawnedAt.length === 0;
       const spawnCascadeClear = outcome.clears.length > 0 && outcome.spawnedAt.length > 0;
+      // clearedKeys (a Set) feeds the bonus-wave centroid; clearedColorMap
+      // (cellKey -> run-group) drives the per-motif burst colour (ADR-0028).
       const clearedKeys = new Set<string>();
-      for (const r of outcome.clears) for (const k of r.cells) clearedKeys.add(k);
+      const clearedColorMap = new Map<string, number>();
+      let longestClearedLine = 0;
+      for (const r of outcome.clears) {
+        for (const k of r.cells) {
+          clearedKeys.add(k);
+          clearedColorMap.set(k, r.runGroup);
+        }
+        if (r.longestLineLength > longestClearedLine) longestClearedLine = r.longestLineLength;
+      }
+      // Burst tuning (ADR-0028): a bigger line bursts bigger; cascades ripple
+      // cell-by-cell; a pre-clear glow lights the line a beat before it goes.
+      // The app reduce-motion toggle zeroes the glow + ripple so there is no
+      // added latency (the splash itself is already defanged in CSS).
+      const reduceMotion = settingsState.reduceMotion;
+      const peakScale = splashPeakScale(longestClearedLine);
+      const isCascade = spawnCascadeClear || outcome.clears.length > 1;
+      const clearStepMs = isCascade && !reduceMotion ? balanceConfig.clear.cascade_step_ms : 0;
+      const preClearGlowMs = reduceMotion ? 0 : balanceConfig.clear.preclear_glow_ms;
 
       if (moveTriggeredClear) {
-        await boardView.showClearFlash(clearedKeys);
+        await boardView.showPreClearGlow(clearedColorMap, preClearGlowMs);
+        await boardView.showClearFlash(clearedColorMap, { peakScale, stepMs: clearStepMs });
       }
       state = outcome.postMoveState;
       render();
@@ -892,7 +928,7 @@ const mount: GameMount = async (container, options) => {
         await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
       if (spawnCascadeClear) {
-        await boardView.showClearFlash(clearedKeys);
+        await boardView.showClearFlash(clearedColorMap, { peakScale, stepMs: clearStepMs });
       }
       if (totalDelta > 0) {
         const breakdowns = breakdownChain(outcome.clears, balanceConfig);
@@ -1050,7 +1086,7 @@ const mount: GameMount = async (container, options) => {
     drawerClose = openSettingsDrawer(container, { ...settingsState }, availableThemes, {
       async onThemeChange(nextThemeId) {
         const newTheme = await loadTheme(nextThemeId);
-        await boardView.setTheme(newTheme.motifFiles);
+        await boardView.setTheme(newTheme.motifFiles, newTheme.motifColors);
         theme = newTheme;
         settingsState.themeId = newTheme.id;
         updateAppPref({ selected_theme: newTheme.id });

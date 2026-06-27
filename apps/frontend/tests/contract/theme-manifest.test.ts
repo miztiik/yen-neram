@@ -59,6 +59,49 @@ describe("theme manifests contract", () => {
           expect(data.motifs[rg], `missing run-group ${rg}`).toBeDefined();
         }
       });
+
+      it("motif_colors, when present, key only declared motifs and are valid hex (ADR-0028)", () => {
+        const data = readManifest(id) as {
+          motifs: Record<string, string>;
+          motif_colors?: Record<string, string>;
+        };
+        if (data.motif_colors === undefined) return;
+        for (const [rg, color] of Object.entries(data.motif_colors)) {
+          expect(data.motifs[rg], `motif_colors rg=${rg} has no matching motif`).toBeDefined();
+          expect(color, `motif_colors rg=${rg} not a hex colour`).toMatch(/^#[0-9a-fA-F]{3,8}$/);
+        }
+      });
     });
   }
+});
+
+describe("ThemeManifestSchema motif_colors field (ADR-0028, additive optional)", () => {
+  const base = {
+    schema_version: 2 as const,
+    id: "demo",
+    display_name: "Demo",
+    description: "Demo theme",
+    license: "CC0-1.0",
+    background: { fill: "#0f172a", grid: "#1e293b" },
+    motifs: { "1": "a.svg", "2": "b.svg", "3": "c.svg", "4": "d.svg", "5": "e.svg", "6": "f.svg" },
+  };
+
+  it("accepts a manifest WITHOUT motif_colors (optional -> stays schema_version 2)", () => {
+    expect(ThemeManifestSchema.safeParse(base).success).toBe(true);
+  });
+
+  it("accepts valid per-motif hex colours (incl. 8-digit alpha)", () => {
+    const ok = { ...base, motif_colors: { "1": "#38bdf8", "2": "#fb923c80" } };
+    expect(ThemeManifestSchema.safeParse(ok).success).toBe(true);
+  });
+
+  it("rejects a non-hex motif colour", () => {
+    const bad = { ...base, motif_colors: { "1": "blue" } };
+    expect(ThemeManifestSchema.safeParse(bad).success).toBe(false);
+  });
+
+  it("rejects an out-of-range motif-colour key", () => {
+    const bad = { ...base, motif_colors: { "8": "#38bdf8" } };
+    expect(ThemeManifestSchema.safeParse(bad).success).toBe(false);
+  });
 });

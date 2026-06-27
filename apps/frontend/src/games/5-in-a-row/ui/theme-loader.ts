@@ -14,10 +14,19 @@ export type LoadedTheme = {
   readonly id: string;
   readonly display_name: string;
   readonly motifFiles: Readonly<Record<string, string>>;
+  // Per-motif clear-burst color, keyed by run-group "1".."6". Every key is
+  // populated: a theme without a `motif_colors` entry for a run-group falls
+  // back to DEFAULT_SPLASH_COLOR so the renderer never sees a hole (ADR-0026).
+  readonly motifColors: Readonly<Record<string, string>>;
 };
 
 const FALLBACK_THEME_ID = "tropical-fruits";
 const MOTIF_KEYS: readonly string[] = ["1", "2", "3", "4", "5", "6"];
+
+// Fallback clear-burst color for a run-group a manifest does not declare. This
+// is the historical hardcoded pink; ADR-0026 keeps it ONLY as the last-resort
+// default, with themed manifests overriding it per motif.
+const DEFAULT_SPLASH_COLOR = "rgba(244, 114, 182, 0.5)";
 
 // Last-ditch motif filenames for the fallback theme (tropical-fruits), used only
 // when even its manifest fetch fails. Mirrors that theme's manifest; the
@@ -56,6 +65,24 @@ function buildDefaultMotifFiles(themeId: string): Readonly<Record<string, string
   return out;
 }
 
+function buildMotifColors(
+  motifColors: ThemeManifest["motif_colors"],
+): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const k of MOTIF_KEYS) {
+    out[k] = motifColors?.[k] ?? DEFAULT_SPLASH_COLOR;
+  }
+  return out;
+}
+
+function buildDefaultMotifColors(): Readonly<Record<string, string>> {
+  const out: Record<string, string> = {};
+  for (const k of MOTIF_KEYS) {
+    out[k] = DEFAULT_SPLASH_COLOR;
+  }
+  return out;
+}
+
 async function fetchManifest(themeId: string): Promise<ThemeManifest | null> {
   try {
     const response = await fetch(assetPaths.themeManifest(themeId));
@@ -76,6 +103,7 @@ export async function loadTheme(id: string): Promise<LoadedTheme> {
       id: primary.id,
       display_name: primary.display_name,
       motifFiles: buildMotifFiles(primary.id, primary.motifs),
+      motifColors: buildMotifColors(primary.motif_colors),
     };
   }
   if (id !== FALLBACK_THEME_ID) {
@@ -85,6 +113,7 @@ export async function loadTheme(id: string): Promise<LoadedTheme> {
         id: fallback.id,
         display_name: fallback.display_name,
         motifFiles: buildMotifFiles(fallback.id, fallback.motifs),
+        motifColors: buildMotifColors(fallback.motif_colors),
       };
     }
   }
@@ -93,5 +122,6 @@ export async function loadTheme(id: string): Promise<LoadedTheme> {
     id: FALLBACK_THEME_ID,
     display_name: "Tropical Fruits",
     motifFiles: buildDefaultMotifFiles(FALLBACK_THEME_ID),
+    motifColors: buildDefaultMotifColors(),
   };
 }

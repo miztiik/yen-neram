@@ -43,5 +43,16 @@
     "score_count_up_max_ms": 1100,
     "score_chip_glow_ms": 700,
     "best_chip_pulse_ms": 1000
+  },
+  "clear": {
+    "preclear_glow_ms": 180,
+    "cascade_step_ms": 120,
+    "splash_scale_by_length": {
+      "5": 1,
+      "6": 1.2,
+      "7": 1.45,
+      "8": 1.7,
+      "9": 2
+    }
   }
 }
