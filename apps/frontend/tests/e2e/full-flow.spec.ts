@@ -189,6 +189,50 @@ test.describe("full v1 flow", () => {
     expect(parsed.preview_bounce_enabled).toBe(false);
   });
 
+  test("tile size: default medium, switch to Large rescales motifs live, persists + survives reload", async ({
+    page,
+  }) => {
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+
+    const board = page.locator("svg.yn-board-svg");
+    await expect(board).toBeVisible({ timeout: 5_000 });
+
+    // Default tier is medium: placed motifs render at MOTIF size 30 (ADR-0026).
+    const motif = page.locator("image.yn-motif").first();
+    await expect(motif).toHaveAttribute("width", "30", { timeout: 2_000 });
+
+    // Open Menu -> Display -> Tile size, pick Large.
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+    const largeSegment = drawer.getByRole("radio", { name: "Large" });
+    await expect(largeSegment).toHaveAttribute("aria-checked", "false");
+    await largeSegment.click();
+    await expect(largeSegment).toHaveAttribute("aria-checked", "true");
+
+    // Live rescale: the existing motif grows to the Large size (35), no reload.
+    await expect(motif).toHaveAttribute("width", "35", { timeout: 1_000 });
+
+    // The per-tier bounce ceiling is pushed to a CSS custom property so the
+    // land/pulse keyframes stay inside the cell for the larger tile.
+    const landPeak = await board.evaluate((el) =>
+      getComputedStyle(el).getPropertyValue("--yn-land-peak").trim(),
+    );
+    expect(landPeak).toBe("1.14");
+
+    // Pref persists to `yn:app`.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:app"));
+    const parsed = JSON.parse(stored ?? "{}") as { tile_size?: string };
+    expect(parsed.tile_size).toBe("large");
+
+    // And survives a reload (the contract: a preference set yesterday loads
+    // today). Re-entering the in-progress game renders motifs at Large.
+    await page.reload();
+    const motifAfter = page.locator("image.yn-motif").first();
+    await expect(motifAfter).toHaveAttribute("width", "35", { timeout: 5_000 });
+  });
+
   test("long-pressing an empty cell does not crash the game", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();
