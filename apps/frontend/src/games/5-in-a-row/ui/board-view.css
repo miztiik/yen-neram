@@ -86,7 +86,11 @@
 }
 .yn-cell-selected .yn-motif {
   animation: yn-pulse 1.4s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px var(--yn-accent)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
+  /* Selection halo decoupled from the brand accent (ADR-0027): a hueless
+     dark lift reads as "raised off the cell" against ANY motif/theme; the
+     pulse carries the selection signal. Was var(--yn-accent) (orange),
+     which clashed with cool motifs like the Planets-theme Earth. */
+  filter: drop-shadow(0 0 6px var(--yn-select-glow)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
 }
 .yn-cell-clearing .yn-motif {
   animation: yn-clear 400ms ease-out forwards;

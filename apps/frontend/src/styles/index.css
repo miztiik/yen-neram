@@ -81,6 +81,14 @@
      the cool ink. Reserved to .yn-score-display; the rest of the
      chrome keeps --yn-ink (terracotta) for typographic continuity. */
   --yn-ink-deep: #0f172a;
+  /* Selected-piece halo (ADR-0027). DECOUPLED from --yn-accent: the
+     selection glow used to be the brand orange, which clashed with cool-
+     palette motifs (e.g. the blue-green Earth on the Planets theme). A
+     hueless dark lift (slate-900 at 0.45 alpha, the --yn-ink-deep family)
+     reads as the piece raised off the white cell against ANY motif on ANY
+     theme; the 1.18x pulse (ADR-0017) carries the selection signal. One
+     token, no per-motif colour authoring, scales to every future theme. */
+  --yn-select-glow: rgba(15, 23, 42, 0.45);
 }
 
 @layer base {
