@@ -21,7 +21,6 @@ export const BalanceSchema = z
     preview_count: z.number().int().positive(),
     initial_seed_count: z.number().int().nonnegative(),
     opening_cluster_size: z.number().int().nonnegative(),
-    spawn_avoid_triple: z.boolean(),
     length_multipliers: byLengthTable,
     intersection_bonus: z.number(),
     cascade_bonus: z.number(),

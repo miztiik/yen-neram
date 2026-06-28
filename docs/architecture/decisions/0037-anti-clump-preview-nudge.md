@@ -1,7 +1,7 @@
 # ADR-0037: Anti-clump preview nudge (no monochrome triple)
 
 **Last Updated**: 2026-06-28
-**Status**: Accepted
+**Status**: Superseded by [ADR-0039](0039-revert-anti-clump-preview-nudge.md) (the nudge shipped a difficulty regression in the harder direction; reverted)
 **Born in**: Player feedback ("three of the same colour I don't need, dumped at once - stings") + the spawn-fairness council
 **Affects**: `apps/frontend/src/games/5-in-a-row/{balance.json,balance.schema.ts}`, `.../ui/turn-loop.ts`, `apps/frontend/tests/unit/5-in-a-row/preview-anticlump.test.ts`
 

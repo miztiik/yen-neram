@@ -7,7 +7,6 @@
   "preview_count": 3,
   "initial_seed_count": 5,
   "opening_cluster_size": 3,
-  "spawn_avoid_triple": true,
   "length_multipliers": {
     "5": 1,
     "6": 1.5,
