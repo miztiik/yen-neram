@@ -17,6 +17,16 @@
   "intersection_bonus": 1.5,
   "cascade_bonus": 2,
   "top_scores_max": 10,
+  "recent_window": 15,
+  "milestones": {
+    "fractions": [0.6, 1, 1.4],
+    "cold_start": {
+      "infinite": [40, 80, 140],
+      "max_points": [40, 80, 140],
+      "timed": [60, 120, 200]
+    },
+    "toast_ms": 1100
+  },
   "long_press_ms": 500,
   "timed": {
     "window_ms": 60000,
