@@ -312,7 +312,7 @@ const mount: GameMount = async (container, options) => {
   // Stat line (ADR-0033): Best / Streak / Timer demoted into one muted row
   // beneath the hero score. The old "Next" HUD pill is GONE -- it duplicated the
   // on-board ghost previews (the player should look in ONE place); the "Show
-  // next 3 preview" toggle now gates those board ghosts directly.
+  // next 2 preview" toggle now gates those board ghosts directly.
   const statLine = document.createElement("div");
   // Whitespace-separated matched cells, top-aligned so the label/icon slots and
   // the numbers each share a line (Jony 2026-06-28). No divider -- gap only.
@@ -797,7 +797,7 @@ const mount: GameMount = async (container, options) => {
   // never bumps the count-up.
   const syncScoreSilently = (): void => animateScoreTo(state.score, false);
   const render = (): void => {
-    // "Show next 3 preview" now gates the ON-BOARD ghosts (ADR-0033): pass an
+    // "Show next 2 preview" now gates the ON-BOARD ghosts (ADR-0033): pass an
     // empty preview when the player turned it off, so the toggle actually hides
     // the previews instead of the (now-removed) HUD pill.
     const preview = settingsState.showNextPreview ? state.nextPreview : [];

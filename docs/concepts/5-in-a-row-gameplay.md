@@ -31,6 +31,8 @@ Future spawn tuning should protect this first-clear promise before optimizing fo
 
 Each non-clearing move spawns `spawn_per_turn` tiles (currently 2). Two tiles per turn drains slower than the board fills, which keeps mid-game scores reachable; three made skilled lines die before completing.
 
+`preview_count` must equal `spawn_per_turn`: the next-pieces ghosts promise where tiles will land, so showing three ghosts while only two spawn leaves a ghost that never arrives. Keep them in lockstep when tuning.
+
 Spawn cells are not uniform-random. The preview roll and the occupied-cell fallback both bias placement toward emptier neighbourhoods: an empty cell is weighted `5 - filledOrthogonalNeighbours`, so wide-open cells are up to five times likelier than a cell wedged inside the player's pocket. This stops new tiles dropping into the exact gap of an about-to-clear line while plenty of board is free. Concentration stays possible (packed cells are unlikely, not banned), so deliberate clear clusters survive. The draw count is unchanged, so daily determinism and the RNG-cursor save contract hold.
 
 This is cell placement, not colour, so it is distinct from the rejected experiment below.

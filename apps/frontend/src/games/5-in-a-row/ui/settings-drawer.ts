@@ -343,7 +343,7 @@ export function openSettingsDrawer(
   displaySection.append(
     makeToggle("Reduce motion", state.reduceMotion, (v) => actions.onReduceMotionChange(v)),
     makeToggle("Path preview", state.pathPreviewEnabled, (v) => actions.onPathPreviewChange(v)),
-    makeToggle("Show next 3 preview", state.showNextPreview, (v) =>
+    makeToggle("Show next 2 preview", state.showNextPreview, (v) =>
       actions.onShowNextPreviewChange(v),
     ),
     makeToggle("Preview bounce", state.previewBounceEnabled, (v) =>
