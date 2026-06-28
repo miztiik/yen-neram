@@ -19,8 +19,15 @@ test.describe("clear-burst per-motif colour (ADR-0028)", () => {
     await page.goto(GAME_URL);
     await page.evaluate(() => {
       // Pin the theme so the expected colour is deterministic regardless of
-      // the default; tropical-fruits motif 1 (watermelon) is #f43f5e.
-      localStorage.setItem("yn:app", JSON.stringify({ selected_theme: "tropical-fruits" }));
+      // the default; tropical-fruits motif 1 (watermelon) is #f43f5e. The
+      // `schema_version: 1` field is REQUIRED -- AppPrefsSchema is .strict()
+      // with a literal schema_version, so a blob missing it fails to parse and
+      // readAppPrefs() falls back to the default theme (which would defeat the
+      // pin).
+      localStorage.setItem(
+        "yn:app",
+        JSON.stringify({ schema_version: 1, selected_theme: "tropical-fruits" }),
+      );
 
       type Cell = null | { runGroup: number };
       const board: Cell[][] = Array.from({ length: 9 }, () =>
