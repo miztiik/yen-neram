@@ -12,7 +12,7 @@ import { z } from "zod";
 import { SAVE_KEY_APP, readJson, writeJson } from "@/shared/save/index.js";
 import { ThemeIndexSchema } from "@/shared/schemas/theme-index.schema.js";
 import { assetPaths } from "@/shared/asset-paths.js";
-import type { TileSize } from "./board-view.js";
+import type { ClearStyle, TileSize } from "./board-view.js";
 
 // ---- Public types ----------------------------------------------------------
 
@@ -23,6 +23,7 @@ export type SettingsState = {
   showNextPreview: boolean;
   previewBounceEnabled: boolean;
   tileSize: TileSize;
+  clearStyle: ClearStyle;
 };
 
 export type SettingsActions = {
@@ -32,6 +33,7 @@ export type SettingsActions = {
   readonly onShowNextPreviewChange: (enabled: boolean) => void;
   readonly onPreviewBounceChange: (enabled: boolean) => void;
   readonly onTileSizeChange: (size: TileSize) => void;
+  readonly onClearStyleChange: (style: ClearStyle) => void;
   // Navigate-section actions (relocated from the bottom bar 2026-06-08
   // per ADR-0019). All three are "I want to leave this run" intents
   // and now share the Menu drawer's top section.
@@ -66,6 +68,14 @@ export type AvailableTheme = {
 // inline (not imported) so this module stays free of a runtime board-view
 // import (and its CSS side-effect); the type-only import above is erased.
 const TILE_SIZE_VALUES = ["small", "medium", "large"] as const satisfies readonly TileSize[];
+// Line-clear style values (ADR-0030), mirrored inline (type-only import of
+// ClearStyle) for the same reason as TILE_SIZE_VALUES above. `satisfies` keeps
+// the persisted enum in lockstep with the renderer's ClearStyle.
+const CLEAR_STYLE_VALUES = [
+  "shockwave",
+  "from-coin",
+  "flash",
+] as const satisfies readonly ClearStyle[];
 
 export const AppPrefsSchema = z
   .object({
@@ -82,6 +92,11 @@ export const AppPrefsSchema = z
     // falls back to "medium" at the call site, so no schema_version bump /
     // read-side migration is needed (Holy Law #11, additive case).
     tile_size: z.enum(TILE_SIZE_VALUES).optional(),
+    // Line-clear animation style (ADR-0030). Additive + optional like
+    // tile_size: a blob written before this field shipped parses fine and
+    // falls back to DEFAULT_CLEAR_STYLE at the call site, so no
+    // schema_version bump / migration is needed.
+    clear_style: z.enum(CLEAR_STYLE_VALUES).optional(),
     last_mode: z.enum(["infinite", "max-points", "timed"]).nullable().optional(),
   })
   .strict();
@@ -178,11 +193,11 @@ function makeToggle(
 // the words fit at the 320px drawer width. Each segment is role=radio with an
 // accessible name == its label, so it is keyboard-reachable and the e2e test
 // can target it by role+name.
-function makeSegmented(
+function makeSegmented<T extends string>(
   label: string,
-  options: readonly { readonly value: TileSize; readonly label: string }[],
-  initial: TileSize,
-  onChange: (value: TileSize) => void,
+  options: readonly { readonly value: T; readonly label: string }[],
+  initial: T,
+  onChange: (value: T) => void,
 ): HTMLElement {
   const wrap = el("div", "flex flex-col gap-1.5");
   wrap.appendChild(el("span", "text-sm text-yn-ink", label));
@@ -192,8 +207,8 @@ function makeSegmented(
   );
   group.setAttribute("role", "radiogroup");
   group.setAttribute("aria-label", label);
-  let current = initial;
-  const segments: { value: TileSize; btn: HTMLButtonElement }[] = [];
+  let current: T = initial;
+  const segments: { value: T; btn: HTMLButtonElement }[] = [];
   const style = (btn: HTMLButtonElement, on: boolean): void => {
     btn.className = on
       ? "px-3 py-1.5 text-xs font-semibold bg-yn-accent text-white"
@@ -334,7 +349,7 @@ export function openSettingsDrawer(
     makeToggle("Preview bounce", state.previewBounceEnabled, (v) =>
       actions.onPreviewBounceChange(v),
     ),
-    makeSegmented(
+    makeSegmented<TileSize>(
       "Tile size",
       [
         { value: "small", label: "Small" },
@@ -343,6 +358,16 @@ export function openSettingsDrawer(
       ],
       state.tileSize,
       (v) => actions.onTileSizeChange(v),
+    ),
+    makeSegmented<ClearStyle>(
+      "Line clear",
+      [
+        { value: "shockwave", label: "Ripple" },
+        { value: "from-coin", label: "From coin" },
+        { value: "flash", label: "Flash" },
+      ],
+      state.clearStyle,
+      (v) => actions.onClearStyleChange(v),
     ),
   );
 

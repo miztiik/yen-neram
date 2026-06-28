@@ -145,21 +145,41 @@ export function openGameOverModal(
   // animations defang under prefers-reduced-motion (see board-view.css
   // game-over ceremony block).
   const scoreRow = document.createElement("div");
+  // Game-end ceremony, two tiers (ADR-0030; Palm + Player):
+  //   - non-PB: ONE soft warm bloom behind the score -- a positive
+  //     punctuation, deliberately not a "fake party" (Player vetoed
+  //     confetti on a run that did not beat the best).
+  //   - new PB: a brighter, bigger burst (an expanding ring + 10 radial
+  //     dots) so the rare moment is unmistakably louder. Distinct by
+  //     size/brightness, same visual language.
   scoreRow.className = context.isNewPersonalBest
     ? "yn-game-over-burst flex items-baseline gap-3"
-    : "flex items-baseline gap-3";
+    : "yn-game-over-bloom-host flex items-baseline gap-3";
   if (context.isNewPersonalBest) {
-    // Six absolute-positioned colour dots, 60deg-staggered around the
-    // score number. Per Palm's prescription: cream / coral / sage from
-    // the warm-vibrant palette family + one accent + one amber +
-    // another coral. Dots inherit colour via :nth-child rules in CSS.
-    for (let i = 0; i < 6; i++) {
+    // Bright expanding ring (the PB-only flourish), painted first so it
+    // sits behind the dots + score.
+    const ring = document.createElement("span");
+    ring.className = "yn-game-over-ring";
+    ring.setAttribute("aria-hidden", "true");
+    scoreRow.appendChild(ring);
+    // Ten colour dots, 36deg-staggered, radiating behind the score. Colour
+    // cycles through a 5-stop warm-vibrant palette set INLINE so the count
+    // is not tied to fragile CSS :nth-child rules.
+    const burstColors = ["#ea580c", "#fb923c", "#f472b6", "#fbbf24", "#38bdf8"];
+    for (let i = 0; i < 10; i++) {
       const dot = document.createElement("span");
       dot.className = "yn-game-over-burst-dot";
-      dot.style.setProperty("--yn-burst-angle", `${String(i * 60)}deg`);
+      dot.style.setProperty("--yn-burst-angle", `${String(i * 36)}deg`);
+      dot.style.background = burstColors[i % burstColors.length] ?? "#ea580c";
       dot.setAttribute("aria-hidden", "true");
       scoreRow.appendChild(dot);
     }
+  } else {
+    // Non-PB: a single gentle bloom. Warm, brief, understated.
+    const bloom = document.createElement("span");
+    bloom.className = "yn-game-over-bloom";
+    bloom.setAttribute("aria-hidden", "true");
+    scoreRow.appendChild(bloom);
   }
   const scoreEl = document.createElement("span");
   scoreEl.className =

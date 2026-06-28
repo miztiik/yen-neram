@@ -7,7 +7,12 @@ import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
-import { createBoardView, DEFAULT_TILE_SIZE } from "./ui/board-view.js";
+import {
+  createBoardView,
+  DEFAULT_CLEAR_STYLE,
+  DEFAULT_TILE_SIZE,
+  type ClearStyle,
+} from "./ui/board-view.js";
 import {
   attemptMove,
   createInitialTurnState,
@@ -59,7 +64,10 @@ type RewardTimings = {
 };
 type ClearTimings = {
   readonly preclear_glow_ms: number;
-  readonly cascade_step_ms: number;
+  // Per-distance-ring delay for the rippling clear styles (ADR-0030). "flash"
+  // uses 0 (simultaneous). Replaces the retired cascade_step_ms.
+  readonly shockwave_step_ms: number;
+  readonly from_coin_step_ms: number;
   readonly splash_scale_by_length: Readonly<Record<string, number>>;
 };
 type ExtendedBalance = BalanceLike & {
@@ -335,6 +343,7 @@ const mount: GameMount = async (container, options) => {
     showNextPreview: appPrefs.show_next_preview ?? true,
     previewBounceEnabled: appPrefs.preview_bounce_enabled ?? true,
     tileSize: appPrefs.tile_size ?? DEFAULT_TILE_SIZE,
+    clearStyle: appPrefs.clear_style ?? DEFAULT_CLEAR_STYLE,
   };
   document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, settingsState.reduceMotion);
   if (!settingsState.showNextPreview) previewEl.style.display = "none";
@@ -362,6 +371,19 @@ const mount: GameMount = async (container, options) => {
 
   let isAnimating = false;
   let drawerOpen = false;
+  // Input buffer (2026-06-28). A scoring move locks input for ~1.8s
+  // (slide + land + clear + reward wave). On touch the player's NEXT move
+  // -- which is TWO taps, select-source then tap-destination -- was
+  // silently dropped by the `if (isAnimating) return;` gate, the reported
+  // "second touch not registering" bug. We now buffer the taps made
+  // during the lock and replay them through onCellTap on settle
+  // (Carmack + Player). Cap is one move's worth so we never flush a deep
+  // queue ("feels possessed", Player); the first replayed move re-locks
+  // isAnimating, so further taps re-buffer and the pipeline stays one
+  // move at a time. Replay re-runs attemptMove against the LIVE board,
+  // so a now-filled / cleared destination self-revalidates.
+  const MAX_BUFFERED_TAPS = 2;
+  let bufferedTaps: Coord[] = [];
   let timerId: number | null = null;
   let timerDisplayedSec = -1;
   let gameOverModalClose: (() => void) | null = null;
@@ -790,6 +812,24 @@ const mount: GameMount = async (container, options) => {
     });
   }
 
+  // Clear-style resolution (ADR-0030). Kept next to the move handler that
+  // uses them. reduce-motion forces "flash"; "from-coin" needs a placed piece
+  // so it falls back to "shockwave" when there is none (a spawn cascade).
+  function resolveClearStyle(hasCoin: boolean): ClearStyle {
+    if (settingsState.reduceMotion) return "flash";
+    const s = settingsState.clearStyle;
+    return s === "from-coin" && !hasCoin ? "shockwave" : s;
+  }
+  function clearStepFor(style: ClearStyle): number {
+    if (style === "flash") return 0;
+    return style === "from-coin"
+      ? balanceConfig.clear.from_coin_step_ms
+      : balanceConfig.clear.shockwave_step_ms;
+  }
+  function cellKeyOf(c: Coord): string {
+    return `${String(c.row)},${String(c.col)}`;
+  }
+
   function onCellLongPress(coord: Coord): void {
     if (isAnimating || state.selected === null) return;
     // Long-press only previews destinations on EMPTY cells (we move motifs
@@ -805,7 +845,14 @@ const mount: GameMount = async (container, options) => {
   }
 
   async function onCellTap(coord: Coord): Promise<void> {
-    if (isAnimating) return;
+    if (isAnimating) {
+      // Queue the player's next intent rather than dropping it (the
+      // reported touch bug). Sliding window keeps the most recent
+      // move-worth of taps; replayed on settle (see flushBufferedTaps).
+      bufferedTaps.push(coord);
+      if (bufferedTaps.length > MAX_BUFFERED_TAPS) bufferedTaps.shift();
+      return;
+    }
     boardView.clearPathPreview();
     if (getCell(state.board, coord.row, coord.col) !== null) {
       // Tap-the-same-cell-again toggles deselection. Standard pattern in
@@ -914,13 +961,21 @@ const mount: GameMount = async (container, options) => {
       // added latency (the splash itself is already defanged in CSS).
       const reduceMotion = settingsState.reduceMotion;
       const peakScale = splashPeakScale(longestClearedLine);
-      const isCascade = spawnCascadeClear || outcome.clears.length > 1;
-      const clearStepMs = isCascade && !reduceMotion ? balanceConfig.clear.cascade_step_ms : 0;
+      // Resolve the player's clear style (ADR-0030). reduce-motion forces
+      // "flash" (the CSS then clamps it to ~1ms). "from-coin" needs a placed
+      // piece, so a spawn-cascade clear (no coin) falls back to "shockwave".
+      const moveClearStyle = resolveClearStyle(true);
+      const cascadeClearStyle = resolveClearStyle(false);
       const preClearGlowMs = reduceMotion ? 0 : balanceConfig.clear.preclear_glow_ms;
 
       if (moveTriggeredClear) {
         await boardView.showPreClearGlow(clearedColorMap, preClearGlowMs);
-        await boardView.showClearFlash(clearedColorMap, { peakScale, stepMs: clearStepMs });
+        await boardView.showClearFlash(clearedColorMap, {
+          peakScale,
+          style: moveClearStyle,
+          originKey: cellKeyOf(outcome.to),
+          stepMs: clearStepFor(moveClearStyle),
+        });
       }
       state = outcome.postMoveState;
       render();
@@ -928,7 +983,11 @@ const mount: GameMount = async (container, options) => {
         await Promise.all(outcome.spawnedAt.map((c) => boardView.showLandBounce(c)));
       }
       if (spawnCascadeClear) {
-        await boardView.showClearFlash(clearedColorMap, { peakScale, stepMs: clearStepMs });
+        await boardView.showClearFlash(clearedColorMap, {
+          peakScale,
+          style: cascadeClearStyle,
+          stepMs: clearStepFor(cascadeClearStyle),
+        });
       }
       if (totalDelta > 0) {
         const breakdowns = breakdownChain(outcome.clears, balanceConfig);
@@ -991,7 +1050,28 @@ const mount: GameMount = async (container, options) => {
       if (snapshotCapturedThisMove && !undoUsedThisGame) {
         setUndoEnabled(true);
       }
+      flushBufferedTaps();
     }
+  }
+
+  // Replay any taps the player made during the animation lock (input
+  // buffer, 2026-06-28). Scheduled off the finally stack via
+  // queueMicrotask so onCellTap is never re-entered synchronously (which
+  // would nest the move stack on a scoring chain). Taps are discarded if
+  // a menu/drawer or the game-over modal is up -- those were not aimed at
+  // a live board. The first replayed move re-locks isAnimating, so any
+  // remaining taps re-buffer: the pipeline stays one move at a time.
+  function flushBufferedTaps(): void {
+    if (bufferedTaps.length === 0) return;
+    if (drawerOpen || gameOverModalClose !== null) {
+      bufferedTaps = [];
+      return;
+    }
+    const pending = bufferedTaps;
+    bufferedTaps = [];
+    queueMicrotask(() => {
+      for (const c of pending) void onCellTap(c);
+    });
   }
 
   // Click-outside-the-board (on the padded boardArea bg, NOT on the SVG
@@ -1117,6 +1197,12 @@ const mount: GameMount = async (container, options) => {
         settingsState.tileSize = size;
         boardView.setTileSize(size);
         updateAppPref({ tile_size: size });
+      },
+      onClearStyleChange(style) {
+        // Cosmetic-only (ADR-0030): no live board change needed -- the next
+        // clear reads settingsState.clearStyle. Persist so it survives reload.
+        settingsState.clearStyle = style;
+        updateAppPref({ clear_style: style });
       },
       onBackToHome() {
         // Was a standalone bottom-bar button; relocated under the menu

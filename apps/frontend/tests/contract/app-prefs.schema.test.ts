@@ -35,3 +35,31 @@ describe("AppPrefs schema (yn:app) - tile_size contract (ADR-0026)", () => {
     expect(AppPrefsSchema.safeParse({ schema_version: 1, bogus_field: 1 }).success).toBe(false);
   });
 });
+
+// Contract: the `yn:app` blob's clear_style field (ADR-0030). Same additive +
+// optional shape as tile_size -- accept the three valid values, reject
+// anything else, and still parse a blob written before the field shipped.
+describe("AppPrefs schema (yn:app) - clear_style contract (ADR-0030)", () => {
+  it("accepts and round-trips a valid clear_style", () => {
+    const parsed = AppPrefsSchema.parse({ schema_version: 1, clear_style: "from-coin" });
+    expect(parsed.clear_style).toBe("from-coin");
+  });
+
+  it("accepts all three clear styles", () => {
+    for (const v of ["shockwave", "from-coin", "flash"] as const) {
+      expect(AppPrefsSchema.parse({ schema_version: 1, clear_style: v }).clear_style).toBe(v);
+    }
+  });
+
+  it("rejects an unknown clear_style value", () => {
+    expect(AppPrefsSchema.safeParse({ schema_version: 1, clear_style: "sparkle" }).success).toBe(
+      false,
+    );
+  });
+
+  it("back-compat: a pref blob written before clear_style shipped still parses; field is undefined", () => {
+    const r = AppPrefsSchema.safeParse({ schema_version: 1, tile_size: "large" });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.clear_style).toBeUndefined();
+  });
+});

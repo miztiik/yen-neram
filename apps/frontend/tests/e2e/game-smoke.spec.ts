@@ -234,4 +234,123 @@ test.describe("game smoke", () => {
       "after a jittery target tap, the destination cell must hold the piece",
     ).toMatch(/^Piece type /);
   });
+
+  test("a tap made during the move animation is buffered and replayed (not dropped)", async ({
+    page,
+  }) => {
+    // Regression (ADR-0029): a scoring move locks input for up to ~1.8s
+    // (slide + land + clear + reward wave). On touch the player's NEXT move
+    // -- two taps, select-source then tap-destination -- was silently
+    // dropped by the `if (isAnimating) return;` gate, the reported "second
+    // touch not registering" bug. We now buffer the taps and replay them on
+    // settle. This proves a tap fired DURING the animation is honoured once
+    // it ends instead of vanishing.
+    await page.goto("/play/5-in-a-row/");
+    const board = page.locator("svg.yn-board-svg");
+    await expect(board).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("[data-r][data-c]")).toHaveCount(81);
+
+    const outcome = await page.evaluate(async () => {
+      const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+      function tap(r: number, c: number): boolean {
+        const g = document.querySelector(`[data-r="${String(r)}"][data-c="${String(c)}"]`);
+        if (g === null) return false;
+        const b = g.getBoundingClientRect();
+        const o: PointerEventInit = {
+          pointerType: "touch",
+          bubbles: true,
+          cancelable: true,
+          clientX: b.x + b.width / 2,
+          clientY: b.y + b.height / 2,
+          pointerId: 1,
+          isPrimary: true,
+        };
+        g.dispatchEvent(new PointerEvent("pointerdown", o));
+        g.dispatchEvent(new PointerEvent("pointerup", o));
+        return true;
+      }
+      const isEmptyAt = (r: number, c: number): boolean => {
+        const g = document.querySelector(`[data-r="${String(r)}"][data-c="${String(c)}"]`);
+        return g !== null && (g.getAttribute("aria-label") ?? "").startsWith("Empty");
+      };
+      const selectedAt = (r: number, c: number): boolean =>
+        document
+          .querySelector(`[data-r="${String(r)}"][data-c="${String(c)}"]`)
+          ?.classList.contains("yn-cell-selected") ?? false;
+
+      const filledCells = Array.from(document.querySelectorAll("[data-r]")).filter((g) =>
+        (g.getAttribute("aria-label") ?? "").startsWith("Piece"),
+      );
+      // src = a filled cell with an empty orthogonal neighbour (a reachable
+      // move); second = a DIFFERENT filled cell to tap mid-animation.
+      let src: { r: number; c: number } | null = null;
+      let dst: { r: number; c: number } | null = null;
+      for (const g of filledCells) {
+        const r = Number(g.getAttribute("data-r"));
+        const c = Number(g.getAttribute("data-c"));
+        for (const [dr, dc] of [
+          [-1, 0],
+          [1, 0],
+          [0, -1],
+          [0, 1],
+        ] as const) {
+          if (isEmptyAt(r + dr, c + dc)) {
+            src = { r, c };
+            dst = { r: r + dr, c: c + dc };
+            break;
+          }
+        }
+        if (src !== null) break;
+      }
+      const secondEl = filledCells.find((g) => {
+        const r = Number(g.getAttribute("data-r"));
+        const c = Number(g.getAttribute("data-c"));
+        return !(src !== null && r === src.r && c === src.c);
+      });
+      const blank = {
+        error: "no usable cells",
+        sourceSelected: false,
+        tappedSecond: false,
+        secondSelectedMidAnim: false,
+        secondSelectedAfterSettle: false,
+      };
+      if (src === null || dst === null || secondEl === undefined) return blank;
+      const second = {
+        r: Number(secondEl.getAttribute("data-r")),
+        c: Number(secondEl.getAttribute("data-c")),
+      };
+
+      tap(src.r, src.c); // select the source
+      await sleep(60);
+      const sourceSelected = selectedAt(src.r, src.c);
+      tap(dst.r, dst.c); // start the move -> input locks
+      await sleep(150); // mid-animation
+      const tappedSecond = tap(second.r, second.c); // dropped pre-fix
+      await sleep(80);
+      const secondSelectedMidAnim = selectedAt(second.r, second.c);
+      await sleep(1300); // settle + microtask replay
+      const secondSelectedAfterSettle = selectedAt(second.r, second.c);
+      return {
+        error: null as string | null,
+        sourceSelected,
+        tappedSecond,
+        secondSelectedMidAnim,
+        secondSelectedAfterSettle,
+      };
+    });
+
+    expect(outcome.error, "found a usable source/second cell pair").toBeNull();
+    expect(outcome.sourceSelected, "source tap selects the piece").toBe(true);
+    expect(outcome.tappedSecond, "second tap dispatched during the animation").toBe(true);
+    // Input is still locked while the move animates, so the buffered tap is
+    // NOT applied yet.
+    expect(outcome.secondSelectedMidAnim, "second tap is buffered, not applied mid-animation").toBe(
+      false,
+    );
+    // Once the animation settles, the buffered tap replays and selects.
+    expect(
+      outcome.secondSelectedAfterSettle,
+      "buffered tap replays on settle instead of being dropped",
+    ).toBe(true);
+  });
 });

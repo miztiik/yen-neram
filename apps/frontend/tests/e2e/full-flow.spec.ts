@@ -234,6 +234,46 @@ test.describe("full v1 flow", () => {
     await expect(motifAfter).toHaveAttribute("width", "35", { timeout: 5_000 });
   });
 
+  test("line clear style: default Ripple, switch to Flash, persists + survives reload", async ({
+    page,
+  }) => {
+    // ADR-0030: the player can pick how a completed line leaves the board.
+    // The control is a segmented radio in Menu -> Display; the choice is a
+    // cosmetic, additive + optional pref on yn:app.
+    await page.goto(GAME_URL);
+    await page.getByRole("button", { name: "Infinite" }).click();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer).toBeVisible({ timeout: 1_000 });
+
+    // Default is Ripple (shockwave).
+    const ripple = drawer.getByRole("radio", { name: "Ripple" });
+    const flash = drawer.getByRole("radio", { name: "Flash" });
+    await expect(ripple).toHaveAttribute("aria-checked", "true");
+    await expect(flash).toHaveAttribute("aria-checked", "false");
+
+    await flash.click();
+    await expect(flash).toHaveAttribute("aria-checked", "true");
+    await expect(ripple).toHaveAttribute("aria-checked", "false");
+
+    // Pref persists to yn:app.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:app"));
+    const parsed = JSON.parse(stored ?? "{}") as { clear_style?: string };
+    expect(parsed.clear_style).toBe("flash");
+
+    // And survives a reload (a preference set yesterday loads today).
+    await page.reload();
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const drawer2 = page.getByRole("dialog", { name: "Menu" });
+    await expect(drawer2).toBeVisible({ timeout: 5_000 });
+    await expect(drawer2.getByRole("radio", { name: "Flash" })).toHaveAttribute(
+      "aria-checked",
+      "true",
+    );
+  });
+
   test("long-pressing an empty cell does not crash the game", async ({ page }) => {
     await page.goto(GAME_URL);
     await page.getByRole("button", { name: "Infinite" }).click();

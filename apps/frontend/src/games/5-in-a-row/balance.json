@@ -46,7 +46,8 @@
   },
   "clear": {
     "preclear_glow_ms": 180,
-    "cascade_step_ms": 120,
+    "shockwave_step_ms": 45,
+    "from_coin_step_ms": 55,
     "splash_scale_by_length": {
       "5": 1,
       "6": 1.2,

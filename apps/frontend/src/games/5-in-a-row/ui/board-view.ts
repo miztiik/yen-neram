@@ -48,6 +48,24 @@ export const TILE_SIZE_TIERS: Readonly<Record<TileSize, TileSizeTier>> = {
   large: { motif: 35, preview: 21, landPeak: 1.14, pulsePeak: 1.08 },
 };
 export const DEFAULT_TILE_SIZE: TileSize = "medium";
+
+// Line-clear animation style (ADR-0030). The player picks how a completed
+// line leaves the board:
+//   - "shockwave": ripples outward from the line's CENTRE; the burst ring is
+//      biggest at the centre and dissipates toward the rim. Default.
+//   - "from-coin": ripples outward from the piece the player just placed
+//      (cause-and-effect). A spawn-cascade clear has no placed piece, so the
+//      host falls back to "shockwave".
+//   - "flash": every cell bursts on the same frame (the original v1 burst);
+//      also the forced choice under reduce-motion.
+// The per-cell delay is the Chebyshev (chessboard) distance in CELLS from the
+// style's origin times a step (planClearTiming), NEVER the iteration index --
+// that is what makes a horizontal and a vertical line of the same length
+// ripple identically (the reported inconsistency).
+export const CLEAR_STYLE_VALUES = ["shockwave", "from-coin", "flash"] as const;
+export type ClearStyle = (typeof CLEAR_STYLE_VALUES)[number];
+export const DEFAULT_CLEAR_STYLE: ClearStyle = "shockwave";
+
 const PREVIEW_BOUNCE_CLASS = "yn-preview-bounce";
 const LONG_PRESS_MS = 500;
 // Pixel distance after which a press is treated as "the finger is moving"
@@ -83,8 +101,15 @@ export type ClearFlashOptions = {
   // Multiplier on the splash ring's base peak scale (size-by-length). 1 keeps
   // the historical size; >1 makes a longer line burst bigger.
   readonly peakScale?: number;
-  // When > 0, splashes fire staggered by this many ms in iteration order,
-  // rippling across the cleared cells (used for cascades, ADR-0028).
+  // Which clear style to play (ADR-0030). Defaults to "shockwave".
+  readonly style?: ClearStyle;
+  // For "from-coin", the cellKey ("row,col") the ripple radiates from -- the
+  // piece the player just placed. Ignored by the other styles, which radiate
+  // from the cleared line's centre.
+  readonly originKey?: string | null;
+  // Per-distance-ring delay in ms. Each cell's delay is this times its
+  // Chebyshev distance from the style's origin (planClearTiming), so the
+  // ripple is orientation-free. 0 (or "flash") fires every cell at once.
   readonly stepMs?: number;
 };
 
@@ -155,6 +180,69 @@ export type BoardView = {
 
 function cellKey(row: number, col: number): string {
   return `${String(row)},${String(col)}`;
+}
+
+function parseCellKey(key: string): { readonly r: number; readonly c: number } | null {
+  const parts = key.split(",");
+  const r = Number(parts[0]);
+  const c = Number(parts[1]);
+  if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
+  return { r, c };
+}
+
+// Resolve the cell a clear ripples out FROM. "flash" has no origin (every cell
+// fires together). "from-coin" uses the placed piece when supplied. Everything
+// else (and the from-coin fallback) uses the rounded centroid of the cleared
+// cells -- a virtual point is fine because Chebyshev distance does not require
+// an actual cell. See ADR-0030.
+function resolveClearOrigin(
+  coords: readonly { readonly r: number; readonly c: number }[],
+  style: ClearStyle,
+  originKey: string | null,
+): { readonly r: number; readonly c: number } | null {
+  if (style === "flash") return null;
+  if (style === "from-coin" && originKey !== null) {
+    const at = parseCellKey(originKey);
+    if (at !== null) return at;
+  }
+  if (coords.length === 0) return null;
+  let sumR = 0;
+  let sumC = 0;
+  for (const a of coords) {
+    sumR += a.r;
+    sumC += a.c;
+  }
+  return { r: Math.round(sumR / coords.length), c: Math.round(sumC / coords.length) };
+}
+
+// Pure timing plan for a clear (exported for unit tests). Maps each cleared
+// cellKey to its animation delay + splash peak. The delay is the Chebyshev
+// distance from the style's origin times `stepMs` -- orientation-free, so a
+// horizontal and a vertical line of the same length share the same delay
+// multiset (the fix for the reported inconsistency, ADR-0030). For "shockwave"
+// the splash peak also dissipates outward (biggest at the centre); other
+// styles keep a uniform peak.
+export function planClearTiming(
+  cellKeys: readonly string[],
+  style: ClearStyle,
+  originKey: string | null,
+  stepMs: number,
+  basePeak: number,
+): Map<string, { readonly delayMs: number; readonly peak: number }> {
+  const coords: { readonly key: string; readonly r: number; readonly c: number }[] = [];
+  for (const key of cellKeys) {
+    const at = parseCellKey(key);
+    if (at !== null) coords.push({ key, r: at.r, c: at.c });
+  }
+  const origin = resolveClearOrigin(coords, style, originKey);
+  const plan = new Map<string, { readonly delayMs: number; readonly peak: number }>();
+  for (const { key, r, c } of coords) {
+    const dist = origin === null ? 0 : Math.max(Math.abs(r - origin.r), Math.abs(c - origin.c));
+    const delayMs = stepMs * dist;
+    const peak = style === "shockwave" ? basePeak * Math.max(0.66, 1 - 0.16 * dist) : basePeak;
+    plan.set(key, { delayMs, peak });
+  }
+  return plan;
 }
 
 function findCellCoordFromEvent(svg: SVGSVGElement, target: EventTarget | null): Coord | null {
@@ -440,14 +528,6 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     return currentMotifColors[String(runGroup)] ?? SPLASH_FALLBACK_COLOR;
   }
 
-  function parseCellKey(key: string): { readonly r: number; readonly c: number } | null {
-    const parts = key.split(",");
-    const r = Number(parts[0]);
-    const c = Number(parts[1]);
-    if (!Number.isInteger(r) || !Number.isInteger(c)) return null;
-    return { r, c };
-  }
-
   // Light the about-to-clear cells in their own motif colour for a beat so the
   // player SEES the line they made before it bursts (ADR-0028, Player). The
   // halo colour is set on the <g> as the --yn-splash custom property which the
@@ -485,11 +565,21 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   ): Promise<void> {
     busyCount += 1;
     try {
-      const peak = SPLASH_BASE_PEAK * (options?.peakScale ?? 1);
+      const basePeak = SPLASH_BASE_PEAK * (options?.peakScale ?? 1);
       const stepMs = options?.stepMs ?? 0;
+      const style = options?.style ?? DEFAULT_CLEAR_STYLE;
+      // Distance-from-origin timing plan (ADR-0030): orientation-free, so a row
+      // and a column ripple identically. Replaces the old per-iteration stagger
+      // that made vertical and horizontal clears look different.
+      const plan = planClearTiming(
+        [...cells.keys()],
+        style,
+        options?.originKey ?? null,
+        stepMs,
+        basePeak,
+      );
       const promises: Promise<void>[] = [];
       const splashEls: SVGCircleElement[] = [];
-      let index = 0;
       let maxDelayMs = 0;
       for (const [key, runGroup] of cells) {
         const at = parseCellKey(key);
@@ -497,7 +587,8 @@ export function createBoardView(options: BoardViewOptions): BoardView {
         const g = getCellG(at.r, at.c);
         if (g === null) continue;
 
-        const delayMs = stepMs * index;
+        const timing = plan.get(key) ?? { delayMs: 0, peak: basePeak };
+        const delayMs = timing.delayMs;
         if (delayMs > maxDelayMs) maxDelayMs = delayMs;
 
         // Splash RING: stroked (not filled), so it reads as an expanding
@@ -512,7 +603,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
         splash.setAttribute("r", String(SPLASH_RADIUS));
         splash.style.setProperty("--yn-splash", splashColorFor(runGroup));
         splash.setAttribute("data-splash-temp", "1");
-        splash.style.setProperty("--yn-splash-peak", String(peak));
+        splash.style.setProperty("--yn-splash-peak", String(timing.peak));
         if (delayMs > 0) splash.style.animationDelay = `${String(delayMs)}ms`;
         svg.appendChild(splash);
         splashEls.push(splash);
@@ -525,7 +616,6 @@ export function createBoardView(options: BoardViewOptions): BoardView {
         }
 
         promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS + delayMs));
-        index += 1;
       }
 
       if (splashEls.length > 0) {
