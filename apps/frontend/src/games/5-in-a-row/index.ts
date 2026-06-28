@@ -1,6 +1,6 @@
 import type { GameMount, GameInstance } from "@/shared/contracts/game-module.js";
 import type { Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
-import balanceJson from "./balance.json";
+import { balance } from "./balance.schema.js";
 import { readSave, writeSave, makeFreshSave, makeFreshGame } from "./save.js";
 import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
@@ -76,7 +76,11 @@ type ExtendedBalance = BalanceLike & {
   readonly reward: RewardTimings;
   readonly clear: ClearTimings;
 };
-const balanceConfig = balanceJson as unknown as ExtendedBalance;
+// Runtime-validated tuning config (ADR-0034): balance.schema.ts parses
+// balance.json against BalanceSchema at module load, so a malformed knob throws
+// at startup instead of becoming a silent NaN. ExtendedBalance stays the
+// consuming type (Balance is structurally assignable to it).
+const balanceConfig: ExtendedBalance = balance;
 
 // Peak-scale multiplier for the clear-burst, by the cleared line's length
 // (size-by-length, ADR-0028). Clamped to the configured 5..9 keys; a longer
@@ -361,7 +365,13 @@ const mount: GameMount = async (container, options) => {
   const restoredSeed = save.in_progress?.turn_seed;
   const turnSeed =
     restoredSeed !== undefined && restoredSeed !== null ? restoredSeed : seedForMode(mode);
-  const rng = createRng(turnSeed);
+  // Resume the RNG at the EXACT cursor the in-progress save left off at, so a
+  // mid-game reload does not rewind the spawn stream to turn_seed (ADR-0034).
+  // Older saves (written before rng_cursor) fall back to the seed = the prior
+  // behaviour. createRng(cursor) reconstructs the precise stream position
+  // because the Mulberry32 cursor IS the full generator state.
+  const restoredCursor = save.in_progress?.rng_cursor;
+  const rng = createRng(restoredCursor ?? turnSeed);
 
   let state: TurnState;
   if (save.in_progress !== null) {
@@ -710,11 +720,14 @@ const mount: GameMount = async (container, options) => {
         next_preview: previewMut,
         score: state.score,
         turn_seed: turnSeed,
-        // Persist the spent/unspent state of this game's single undo
-        // so a reload of a game whose undo has been spent stays
-        // disabled. The snapshot itself is in-memory only this PR
-        // (would need rng_cursor + selected_cell + mode_state on
-        // UndoSnapshotSchema for reload-survival -- follow-up).
+        // Live RNG cursor so a mid-game reload resumes the exact spawn stream
+        // (ADR-0034) instead of rewinding to turn_seed.
+        rng_cursor: state.rng.getCursor(),
+        // Persist the spent/unspent state of this game's single undo so a
+        // reload of a game whose undo has been spent stays disabled. The undo
+        // SNAPSHOT itself is still in-memory only (reload-survival of an unspent
+        // undo would also need the snapshot's board + cursor persisted -- a
+        // separate follow-up); rng_cursor above governs the MAIN stream.
         undo: { available: !undoUsedThisGame, snapshot: null },
         mode_state: state.modeState,
       },

@@ -43,6 +43,15 @@ export type AttemptMoveOutcome =
       readonly spawnedAt: readonly Coord[];
     };
 
+// Single tested seam for the spawn colour draw (ADR-0034). Both the initial
+// seed and every per-turn preview pick a run-group HERE, so the RNG draw order
+// -- which the daily-seed golden master pins -- has exactly one home. A future
+// weighted / anti-streak distribution changes this one function, not two inline
+// call sites that could silently drift apart.
+function pickRunGroup(rng: Rng, numRunGroups: number): RunGroup {
+  return (rng.nextInt(numRunGroups) + 1) as RunGroup;
+}
+
 function rollPreview(
   board: Board,
   rng: Rng,
@@ -66,7 +75,7 @@ function rollPreview(
       remaining[idx] = last;
     }
     remaining.pop();
-    const kind = (rng.nextInt(numRunGroups) + 1) as RunGroup;
+    const kind = pickRunGroup(rng, numRunGroups);
     out.push({ row: picked.row, col: picked.col, kind });
   }
   return { preview: out, gameOver: false };
@@ -85,7 +94,7 @@ function seedInitialBoard(rng: Rng, seedCount: number, numRunGroups: number): Bo
       empties[idx] = last;
     }
     empties.pop();
-    const kind = (rng.nextInt(numRunGroups) + 1) as RunGroup;
+    const kind = pickRunGroup(rng, numRunGroups);
     board = setCell(board, picked.row, picked.col, { runGroup: kind });
   }
   return board;

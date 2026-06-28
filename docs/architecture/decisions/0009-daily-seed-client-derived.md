@@ -1,12 +1,12 @@
 # ADR-0009: Daily seed is client-derived from local-time date
 
-**Last Updated**: 2026-06-07
+**Last Updated**: 2026-06-28
 **Status**: Accepted
 **Born in**: PR 6 (`feat/5-in-a-row-modes`)
 
 ## Context
 
-Max-Points mode wants a daily seed: every player sees the same board sequence
+Max-Points mode wants a daily seed: every player sees the same STARTING board
 today, a new seed tomorrow. The architecture (CLAUDE.md sec 1 Holy Law 1) is
 static-bundle on GitHub Pages, no backend - the seed must be derivable in
 the browser with zero server help.
@@ -48,8 +48,32 @@ Cheap. Replacing the seed source is a single function swap. The save
 records the `seed_date` per max-points game so historical scores keep
 their date context regardless of seed-function changes.
 
+## Clarification (2026-06-28, ADR-0034)
+
+Two precision fixes to the language above, surfaced by the determinism council
+(Carmack / Fowler) and now pinned by a golden-master test:
+
+- **"Same board sequence" was too strong.** Spawn POSITIONS are sampled from the
+  currently-empty cells, so they are path-dependent: two players given the same
+  daily seed who play DIFFERENT moves diverge after the first move. What the
+  seed actually guarantees is the same STARTING board + first preview, plus a
+  reproducible replay along the *same* line of play. There are no leaderboards
+  (design freeze 2026-06-07), so per-route divergence corrupts nothing.
+- **The RNG cursor advances on every committed move**, not only when a tile
+  spawns: the end-of-turn preview roll consumes draws on clearing moves too
+  (plus the occasional occupied-cell re-roll). The anti-save-scum property
+  (retrying the same move reproduces the same spawn) still holds because undo
+  restores the cursor; ADR-0034 additionally PERSISTS that cursor so a mid-game
+  RELOAD resumes the exact stream instead of rewinding to the seed.
+
+The seed FUNCTION (FNV-1a + date format) remains locked; the golden-master test
+`tests/unit/5-in-a-row/daily-golden-master.test.ts` now pins the seed ->
+starting-board + first-preview mapping so a refactor that reorders engine draws
+fails loudly.
+
 ## See also
 
 - [../../../CLAUDE.md](../../../CLAUDE.md) Holy Law 1 (static-first).
 - [0003-mode-is-a-parameter-not-a-game.md](0003-mode-is-a-parameter-not-a-game.md).
+- [0034-persist-rng-cursor-and-pin-daily-board.md](0034-persist-rng-cursor-and-pin-daily-board.md) - persists the cursor + pins the golden master.
 - `../../../src/games/5-in-a-row/modes/index.ts` (implementation).
