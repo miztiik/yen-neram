@@ -25,6 +25,12 @@ export const BalanceSchema = z
     intersection_bonus: z.number(),
     cascade_bonus: z.number(),
     top_scores_max: z.number().int().positive(),
+    recent_window: z.number().int().positive(),
+    milestones: z.object({
+      fractions: z.array(z.number()),
+      cold_start: z.record(z.string(), z.array(z.number().int().nonnegative())),
+      toast_ms: z.number().int().nonnegative(),
+    }),
     long_press_ms: z.number().int().nonnegative(),
     timed: z.object({
       window_ms: z.number().int().positive(),

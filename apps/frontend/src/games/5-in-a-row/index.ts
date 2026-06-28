@@ -6,6 +6,7 @@ import { createRng } from "./engine/rng.js";
 import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
+import { appendCapped, deriveMilestones } from "./engine/milestones.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
 import { createBoardView, DEFAULT_TILE_SIZE, type ClearStyle } from "./ui/board-view.js";
 import {
@@ -71,8 +72,15 @@ type ClearTimings = {
   readonly splash_ring_count_by_length: Readonly<Record<string, number>>;
   readonly splash_ring_step_ms: number;
 };
+type MilestoneConfig = {
+  readonly fractions: readonly number[];
+  readonly cold_start: Readonly<Record<string, readonly number[]>>;
+  readonly toast_ms: number;
+};
 type ExtendedBalance = BalanceLike & {
   readonly top_scores_max: number;
+  readonly recent_window: number;
+  readonly milestones: MilestoneConfig;
   readonly reward: RewardTimings;
   readonly clear: ClearTimings;
 };
@@ -748,6 +756,66 @@ const mount: GameMount = async (container, options) => {
     return save.high_scores.infinite;
   }
 
+  // --- Adaptive milestones (ADR-0036) ------------------------------------
+  // Quiet "you reached N" beats whose targets ADAPT to the player's own recent
+  // runs (median of recent_scores[mode]) so they stay reachable-but-a-stretch
+  // (fixed 250/500/1000 proved far too high). Thresholds are frozen at run start
+  // (this mount; a new run reloads via Play-again so they re-derive with the
+  // just-finished run folded in) and are NEVER shown before they are crossed --
+  // which is what makes them safe to float down after a bad streak (council
+  // 2026-06-28). The all-time-best chip stays the fixed aspirational mountain.
+  const recentScoresForMode = (): readonly number[] => {
+    const rs = save.recent_scores;
+    if (rs === undefined) return [];
+    if (mode === "max-points") return rs.max_points;
+    if (mode === "timed") return rs.timed;
+    return rs.infinite;
+  };
+  const milestoneThresholds = deriveMilestones(
+    recentScoresForMode(),
+    balanceConfig.milestones.cold_start[mode] ?? [],
+    balanceConfig.milestones.fractions,
+  );
+  const firedMilestones = new Set<number>();
+  let recordedThisGame = false;
+
+  function appendRunToRecent(score: number): NonNullable<Save["recent_scores"]> {
+    const cap = balanceConfig.recent_window;
+    const cur: NonNullable<Save["recent_scores"]> = save.recent_scores ?? {
+      infinite: [],
+      max_points: [],
+      timed: [],
+    };
+    if (mode === "max-points") {
+      return { ...cur, max_points: appendCapped(cur.max_points, score, cap) };
+    }
+    if (mode === "timed") return { ...cur, timed: appendCapped(cur.timed, score, cap) };
+    return { ...cur, infinite: appendCapped(cur.infinite, score, cap) };
+  }
+
+  function showMilestoneToast(value: number): void {
+    const toast = document.createElement("div");
+    toast.className = "yn-milestone-toast";
+    toast.textContent = String(value);
+    toast.setAttribute("aria-hidden", "true");
+    toast.style.setProperty("--yn-milestone-ms", `${String(balanceConfig.milestones.toast_ms)}ms`);
+    document.body.appendChild(toast);
+    window.setTimeout(() => toast.remove(), balanceConfig.milestones.toast_ms + 120);
+  }
+
+  // Fire a beat for the HIGHEST newly-crossed threshold this update (a cascade
+  // can jump two at once; only the top one pops, so it never stacks toasts).
+  function checkMilestones(score: number): void {
+    let highest = 0;
+    for (const t of milestoneThresholds) {
+      if (!firedMilestones.has(t) && score >= t) {
+        firedMilestones.add(t);
+        if (t > highest) highest = t;
+      }
+    }
+    if (highest > 0) showMilestoneToast(highest);
+  }
+
   function recordHighScore(): RecordedScore {
     const entry: HighScoreEntry = {
       score: state.score,
@@ -755,24 +823,40 @@ const mount: GameMount = async (container, options) => {
     };
     const oldScores = highScoresForCurrentMode();
     const isNewPersonalBest = computeIsNewBest(entry.score, oldScores);
-    const cap = balanceConfig.top_scores_max;
-    const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
-      [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
-    let next_high_scores = save.high_scores;
-    if (mode === "max-points") {
-      next_high_scores = {
-        ...save.high_scores,
-        max_points: insertEntry(save.high_scores.max_points),
+    // Idempotency latch (ADR-0036): a game ends once; guard the persisted
+    // mutation so a stray double game-over cannot append a PHANTOM run to
+    // recent_scores and skew the adaptive-milestone median. entry +
+    // isNewPersonalBest are pure, so re-deriving them for the modal is safe.
+    if (!recordedThisGame) {
+      recordedThisGame = true;
+      const cap = balanceConfig.top_scores_max;
+      const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
+        [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
+      let next_high_scores = save.high_scores;
+      if (mode === "max-points") {
+        next_high_scores = {
+          ...save.high_scores,
+          max_points: insertEntry(save.high_scores.max_points),
+        };
+      } else if (mode === "timed") {
+        next_high_scores = { ...save.high_scores, timed: insertEntry(save.high_scores.timed) };
+      } else {
+        next_high_scores = {
+          ...save.high_scores,
+          infinite: insertEntry(save.high_scores.infinite),
+        };
+      }
+      const nextStreak = recordPlayedToday(save.streak);
+      save = {
+        ...save,
+        high_scores: next_high_scores,
+        in_progress: null,
+        streak: nextStreak,
+        recent_scores: appendRunToRecent(state.score),
       };
-    } else if (mode === "timed") {
-      next_high_scores = { ...save.high_scores, timed: insertEntry(save.high_scores.timed) };
-    } else {
-      next_high_scores = { ...save.high_scores, infinite: insertEntry(save.high_scores.infinite) };
+      writeSave(save);
+      renderStreak();
     }
-    const nextStreak = recordPlayedToday(save.streak);
-    save = { ...save, high_scores: next_high_scores, in_progress: null, streak: nextStreak };
-    writeSave(save);
-    renderStreak();
     return { entry, isNewPersonalBest };
   }
 
@@ -1026,6 +1110,7 @@ const mount: GameMount = async (container, options) => {
           syncScoreSilently();
         }
         updateBestOnScoreChange(state.score);
+        checkMilestones(state.score);
       } else {
         // No clears = no score change; silent sync is a no-op in
         // animateScoreTo (delta === 0 early return). Best chip

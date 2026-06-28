@@ -491,6 +491,49 @@
   overflow: visible;
 }
 
+/* Adaptive-milestone beat (ADR-0036): a quiet light number that rises a little
+ * and fades just below the HUD, distinct from the reward wave's flying +N and
+ * never over the board centre. pointer-events:none so it never steals a tap. */
+.yn-milestone-toast {
+  position: fixed;
+  left: 50%;
+  top: 16%;
+  transform: translate(-50%, 0);
+  pointer-events: none;
+  z-index: 45;
+  font-size: 1.6rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  color: var(--yn-hud-ink, #ede9fe);
+  text-shadow: 0 1px 8px rgba(76, 29, 149, 0.65);
+  opacity: 0;
+  animation: yn-milestone-rise var(--yn-milestone-ms, 1100ms) ease-out forwards;
+}
+@keyframes yn-milestone-rise {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 14px) scale(0.85);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  70% {
+    opacity: 1;
+    transform: translate(-50%, -12px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -30px) scale(1);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-milestone-toast {
+    animation-duration: 1ms !important;
+  }
+}
+
 /* Individual bonus pill. The renderer sets `top`, `left`, and
  * `--yn-pill-stagger-ms` inline per pill; CSS does the rest. */
 .yn-bonus-pill {

@@ -134,6 +134,19 @@ export const StreakSchema = z
   })
   .strict();
 
+// Rolling buffer of the last-N FINISHED run scores per mode, newest last
+// (ADR-0036). Unlike high_scores (top-10, survivorship-biased), this keeps the
+// bad runs too, so the adaptive-milestone baseline is a true recent median. The
+// .max(15) is the static hard ceiling; the write site trims to
+// balance.recent_window (mirrors the top_scores_max / .max(10) precedent).
+export const RecentScoresSchema = z
+  .object({
+    infinite: z.array(z.number().int().nonnegative()).max(15),
+    max_points: z.array(z.number().int().nonnegative()).max(15),
+    timed: z.array(z.number().int().nonnegative()).max(15),
+  })
+  .strict();
+
 // V1 schema kept verbatim for the read-side migrator. New callers must use
 // `SaveSchema` (alias of V2).
 export const SaveV1SchemaLegacy = z
@@ -158,6 +171,12 @@ export const SaveV2Schema = z
     in_progress: z.union([InProgressSchema, z.null()]),
     high_scores: HighScoresSchema,
     streak: z.union([StreakSchema, z.null()]),
+    // Additive + optional (ADR-0036): a save written before adaptive milestones
+    // shipped parses clean (field undefined -> host defaults to empty buckets),
+    // so no schema_version bump / migration is owed (CLAUDE.md sec 11). MUST be
+    // DECLARED here because SaveV2Schema is .strict() and writeSave parses on
+    // every write -- an undeclared key would throw.
+    recent_scores: RecentScoresSchema.optional(),
   })
   .strict();
 
