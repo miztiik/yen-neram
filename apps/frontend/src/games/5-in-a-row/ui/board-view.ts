@@ -77,6 +77,9 @@ const LONG_PRESS_MS = 500;
 // does NOT swallow the tap.
 const MOVE_THRESHOLD_PX = 8;
 const SLIDE_MS = 150;
+// Gentle impact overshoot for a piece that SLID into its cell (yn-settle in
+// board-view.css). Distinct from LAND_MS, which gates the spawn POP-IN bounce.
+const SETTLE_MS = 180;
 const LAND_MS = 200;
 const SHAKE_MS = 200;
 // Lifetime of the per-blocker red wash. Slightly longer than the shake
@@ -170,6 +173,9 @@ export type BoardView = {
   // ripples cascades.
   showClearFlash(cells: ReadonlyMap<string, number>, options?: ClearFlashOptions): Promise<void>;
   showLandBounce(coord: Coord): Promise<void>;
+  // Gentle impact overshoot for a piece that SLID into its cell (move settle).
+  // showLandBounce is the spawn pop-in; this is the move landing.
+  showMoveSettle(coord: Coord): Promise<void>;
   setTheme(
     motifFiles: Readonly<Record<string, string>>,
     motifColors: Readonly<Record<string, string>>,
@@ -511,6 +517,21 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
+  // The gentle impact overshoot for a piece that SLID into its cell (yn-settle
+  // / .yn-cell-settling in board-view.css). Distinct from showLandBounce, which
+  // is the pop-in (scale 0.3 -> 1.3) for pieces that SPAWN from nothing. Same
+  // await-the-animation contract so the caller's input gate is honoured.
+  async function showMoveSettle(coord: Coord): Promise<void> {
+    const g = getCellG(coord.row, coord.col);
+    if (g === null) return;
+    busyCount += 1;
+    try {
+      await awaitClassAnimation(g, "yn-cell-settling", SETTLE_MS);
+    } finally {
+      busyCount -= 1;
+    }
+  }
+
   function splashColorFor(runGroup: number): string {
     return currentMotifColors[String(runGroup)] ?? SPLASH_FALLBACK_COLOR;
   }
@@ -674,6 +695,15 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     }
   }
 
+  // Slide the moved piece from its old cell to the destination, then HAND THE
+  // PIECE NODE OFF to the destination cell -- the node that just slid becomes
+  // the landed piece. This replaces the old "animate a clone, then let the
+  // caller setBoard() the whole 81-cell board" dance: that full re-render sat in
+  // the seam between the slide and the settle bounce and dropped a frame
+  // mid-motion on a mid-tier Android (the player-reported "stutter"). Now the
+  // only DOM touched per move is the source <g> (emptied + deselected) and the
+  // dest <g> (receives the piece); a later render() reconciles spawns/clears
+  // (Carmack + Jony council).
   async function showPathTrace(path: readonly Coord[]): Promise<void> {
     if (path.length < 2) return;
     const from = path[0];
@@ -681,13 +711,16 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     if (from === undefined || to === undefined) return;
     const fromG = getCellG(from.row, from.col);
     if (fromG === null) return;
+    const toG = getCellG(to.row, to.col);
     const motif = fromG.querySelector(".yn-motif");
     if (motif === null) return;
 
     busyCount += 1;
     try {
       // Clone the source motif as a temporary overlay on the SVG root so it paints
-      // above every cell and isn't clipped by sibling z-order.
+      // above every cell and isn't clipped by sibling z-order. The clone is the
+      // thing that visibly slides; the REAL motif (hidden below) is handed to the
+      // destination cell when the slide finishes.
       const overlay = motif.cloneNode(true) as SVGImageElement;
       overlay.classList.remove("yn-motif");
       overlay.setAttribute("class", "yn-motif-overlay");
@@ -699,7 +732,8 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       overlay.setAttribute("y", String(startY));
       svg.appendChild(overlay);
 
-      (motif as SVGElement).style.visibility = "hidden";
+      const landed = motif as SVGImageElement;
+      landed.style.visibility = "hidden";
 
       const dx = endX - startX;
       const dy = endY - startY;
@@ -712,7 +746,27 @@ export function createBoardView(options: BoardViewOptions): BoardView {
           if (overlay.parentNode !== null) {
             overlay.parentNode.removeChild(overlay);
           }
-          (motif as SVGElement).style.visibility = "";
+          // Hand the real piece node off to the destination cell. Its x/y are the
+          // standard cell-local motif offset (identical for every cell), so no
+          // repositioning is needed once it is reparented under the dest <g>.
+          landed.style.visibility = "";
+          if (toG !== null) {
+            // Drop any preview ghost sitting on the destination before the real
+            // piece lands on it.
+            clearCellContent(toG);
+            toG.appendChild(landed);
+            const runGroup = landed.getAttribute("data-run-group") ?? "";
+            toG.setAttribute(
+              "aria-label",
+              `Piece type ${runGroup} at row ${String(to.row + 1)}, column ${String(to.col + 1)}`,
+            );
+          }
+          // The source cell is now empty and is no longer the selected cell.
+          fromG.classList.remove("yn-cell-selected");
+          fromG.setAttribute(
+            "aria-label",
+            `Empty cell at row ${String(from.row + 1)}, column ${String(from.col + 1)}`,
+          );
           resolve();
         };
         try {
@@ -721,7 +775,9 @@ export function createBoardView(options: BoardViewOptions): BoardView {
               { transform: "translate(0px, 0px)" },
               { transform: `translate(${String(dx)}px, ${String(dy)}px)` },
             ],
-            { duration: SLIDE_MS, easing: "ease-in-out", fill: "forwards" },
+            // ease-OUT: decelerate into the destination so the settle overshoot
+            // (yn-settle) reads as the impact of arrival, not a second motion.
+            { duration: SLIDE_MS, easing: "ease-out", fill: "forwards" },
           );
           animation.addEventListener("finish", finish, { once: true });
           animation.addEventListener("cancel", finish, { once: true });
@@ -785,7 +841,11 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   // root reaches every `.yn-motif` descendant.
   function applyTierVars(tier: TileSizeTier): void {
     svg.style.setProperty("--yn-land-peak", String(tier.landPeak));
-    svg.style.setProperty("--yn-pulse-peak", String(tier.pulsePeak));
+    // --yn-pulse-peak is intentionally NOT pushed: the selected piece no longer
+    // breathes (it pops once via yn-select-in and holds), so there is no
+    // per-tier pulse ceiling for CSS to read. tier.pulsePeak stays in the config
+    // as the documented "if a selected-scale is reintroduced it must fit the
+    // cell" invariant (tile-size.test.ts).
   }
 
   function setTileSize(tile: TileSize): void {
@@ -1006,6 +1066,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     showPreClearGlow,
     showClearFlash,
     showLandBounce,
+    showMoveSettle,
     setTheme,
     setPreviewBounceEnabled,
     setTileSize,

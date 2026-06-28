@@ -3,7 +3,7 @@ import type { Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 import { balance } from "./balance.schema.js";
 import { readSave, writeSave, makeFreshSave, makeFreshGame } from "./save.js";
 import { createRng } from "./engine/rng.js";
-import { countFilled, getCell, setCell } from "./engine/board.js";
+import { countFilled, getCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
 import { appendCapped, deriveMilestones } from "./engine/milestones.js";
@@ -228,18 +228,25 @@ const mount: GameMount = async (container, options) => {
   // scored yet (there is nothing to chase and nothing to celebrate).
   const bestEl = document.createElement("div");
   bestEl.className =
-    // Stat-line item (ADR-0033): no pill, muted light ink. On crossing the
-    // all-time best it tints to accent + lifts (yn-best-chip--crossed/bumping).
-    "yn-best-chip hidden items-center gap-1.5 text-yn-hud-muted " +
-    "text-sm sm:text-base font-semibold tabular-nums";
+    // Matched stat-cell (Jony 2026-06-28): a fixed-height label slot above the
+    // number so every stat cell baselines its number on one shared line. No
+    // pill. On crossing the all-time best it tints to accent (yn-best-chip--
+    // crossed) and pops once (yn-best-bumping) -- colour carries the record,
+    // no "New Best" text churn.
+    "yn-best-chip hidden flex-col items-center gap-0.5";
   bestEl.setAttribute("aria-live", "polite");
+  const bestLabelSlot = document.createElement("div");
+  bestLabelSlot.className = "flex items-center justify-center h-3.5";
   const bestLabel = document.createElement("span");
-  bestLabel.className = "uppercase tracking-wider text-[10px] font-semibold opacity-80";
+  bestLabel.className =
+    "yn-best-label text-[10px] uppercase tracking-[0.14em] font-semibold leading-none text-yn-hud-muted";
   bestLabel.textContent = "Best";
+  bestLabelSlot.appendChild(bestLabel);
   const bestValue = document.createElement("span");
-  bestValue.className = "yn-best-display";
+  bestValue.className =
+    "yn-best-display text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
   bestValue.style.setProperty("--yn-best-count", "0");
-  bestEl.append(bestLabel, bestValue);
+  bestEl.append(bestLabelSlot, bestValue);
 
   // Streak chip (Jony pass 2026-06-08): was plain "3-day streak" text
   // in a muted cream pill; reads as a settings field, not a brag. Now:
@@ -249,7 +256,7 @@ const mount: GameMount = async (container, options) => {
   // a 14x14 hand-drawn path with a two-stop linear gradient (amber
   // outer, accent inner). Hidden at 0 streak.
   const streakEl = document.createElement("div");
-  streakEl.className = "yn-streak-chip";
+  streakEl.className = "yn-streak-chip flex flex-col items-center gap-0.5";
   streakEl.setAttribute("aria-live", "polite");
   streakEl.setAttribute("title", "Daily play streak");
   streakEl.style.display = "none";
@@ -274,28 +281,42 @@ const mount: GameMount = async (container, options) => {
     <path d="M12 2c1.2 3 4.5 5 4.5 9 0 3.6-2 6-4.5 6S7.5 14.6 7.5 11c0-1.7.8-3 1.6-3.9.3 1.4 1.1 2 1.9 2 0-2.6.4-5 1-7Z" fill="url(#yn-streak-flame-grad)" stroke="#9a3412" stroke-width="0.6" stroke-linejoin="round"/>
     <path d="M12 11.5c.7 1.2 1.6 1.8 1.6 3.2 0 1.3-.7 2.3-1.6 2.3s-1.6-1-1.6-2.3c0-.7.3-1.3.6-1.7.1.5.4.7.6.7.1-.7.2-1.4.4-2.2Z" fill="#fef3c7" opacity="0.85"/>
   `;
+  // Flame sits in the same fixed-height top slot as the Best label so the two
+  // stat numbers baseline-align; the flame IS the label (no "day streak" word).
+  const streakFlameSlot = document.createElement("div");
+  streakFlameSlot.className = "flex items-center justify-center h-3.5";
+  streakFlameSlot.appendChild(streakFlame);
   const streakCount = document.createElement("span");
-  streakCount.className = "yn-streak-chip__count";
-  streakEl.append(streakFlame, streakCount);
+  streakCount.className =
+    "yn-streak-chip__count text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
+  streakEl.append(streakFlameSlot, streakCount);
 
   // Timer chip: cream pill with mono mm:ss. Hidden outside timed mode.
   const timerEl = document.createElement("div");
-  timerEl.className =
-    // Stat-line item (ADR-0033): un-boxed mono mm:ss in light ink; gains the
-    // .yn-timer-urgent red pulse under 10s (the HUD's only urgency signal).
-    "yn-timer flex items-center gap-1 text-yn-hud-ink font-semibold tabular-nums";
+  // Matched stat-cell (Jony 2026-06-28): a clock glyph in the top slot, mm:ss
+  // below -- same shape as Best/Streak so timed-mode keeps the row aligned.
+  timerEl.className = "yn-timer flex flex-col items-center gap-0.5";
   // Coalesced updates only at second boundaries (see renderTimer) so
   // "polite" announcements don't flood the screen reader at 10Hz.
   timerEl.setAttribute("aria-live", "polite");
   timerEl.setAttribute("aria-label", "Time remaining");
   if (mode !== "timed") timerEl.style.display = "none";
+  const timerIconSlot = document.createElement("div");
+  timerIconSlot.className = "flex items-center justify-center h-3.5 text-yn-hud-muted";
+  timerIconSlot.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
+  const timerValue = document.createElement("span");
+  timerValue.className =
+    "yn-timer-value text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
+  timerEl.append(timerIconSlot, timerValue);
 
   // Stat line (ADR-0033): Best / Streak / Timer demoted into one muted row
   // beneath the hero score. The old "Next" HUD pill is GONE -- it duplicated the
   // on-board ghost previews (the player should look in ONE place); the "Show
   // next 3 preview" toggle now gates those board ghosts directly.
   const statLine = document.createElement("div");
-  statLine.className = "flex flex-row items-center justify-center gap-3 sm:gap-4 min-h-[1.25rem]";
+  // Whitespace-separated matched cells, top-aligned so the label/icon slots and
+  // the numbers each share a line (Jony 2026-06-28). No divider -- gap only.
+  statLine.className = "flex flex-row items-start justify-center gap-6 sm:gap-8 min-h-[2.25rem]";
   statLine.append(bestEl, streakEl, timerEl);
 
   topBar.append(scoreEl, statLine);
@@ -326,42 +347,55 @@ const mount: GameMount = async (container, options) => {
     // violet bg. The standalone "Back" lives under Menu (ADR-0019).
     "flex flex-row items-center justify-between gap-2 px-3 py-3 " +
     "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6";
+  // Bottom-bar control trio (Jony 2026-06-28): Undo + Shuffle + Menu now share
+  // ONE circular icon-button form; hierarchy is fill ONLY. Menu is the solid
+  // accent anchor; Undo + Shuffle are frosted peer tools. Glyphs are inline SVG
+  // (no icon library, ASCII source), ~22px so they read without a text label.
+  const ICON_BTN =
+    "w-11 h-11 rounded-full grid place-items-center transition-transform " +
+    "active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
+  const ICON_BTN_TOOL = `${ICON_BTN} bg-white/10 border border-white/15 text-yn-hud-ink hover:bg-white/20`;
+
   const undoBtn = document.createElement("button");
   undoBtn.type = "button";
-  // Initial state: disabled (no move to undo yet on a fresh game). The
-  // setUndoEnabled helper below toggles disabled + className + aria.
-  undoBtn.textContent = "\u21BA Undo";
+  // Icon-only (Jony 2026-06-28): a counter-clockwise back-arrow. The descriptive
+  // aria-label stays ("Undo last move") -- an icon button needs a spoken name,
+  // and the undo e2e selector keys off it. setUndoEnabled toggles the colourway.
+  undoBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>`;
   undoBtn.setAttribute("aria-label", "Undo last move");
+  undoBtn.setAttribute("title", "Undo");
 
   // Stuck-valve shuffle button (ADR-0038): a once-per-run lifeline that
   // re-colours a buried board. Hidden until the board crosses the fullness
   // threshold (and gone once spent) so it never clutters the bar in normal
-  // play -- it APPEARS exactly when the player is stuck.
+  // play -- it APPEARS exactly when the player is stuck, with a one-shot
+  // entrance pop (yn-icon-enter). Glyph = two weaving arrows, deliberately
+  // unlike Undo's single loop so the two controls never read as the same.
   const shuffleBtn = document.createElement("button");
   shuffleBtn.type = "button";
-  shuffleBtn.textContent = "\u21BB Shuffle";
+  shuffleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>`;
   shuffleBtn.setAttribute("aria-label", "Shuffle the board (once per game)");
-  shuffleBtn.className =
-    "px-4 py-1.5 rounded-full bg-yn-tile text-yn-ink text-sm font-medium border border-yn-border shadow-xs hover:bg-yn-bg transition-colors";
+  shuffleBtn.setAttribute("title", "Shuffle");
+  shuffleBtn.className = ICON_BTN_TOOL;
   shuffleBtn.style.display = "none";
 
-  // Menu button (replaces text "Pause" + standalone "Back" + the buried
-  // "Switch mode" / "Reset game" actions in the drawer's deep
-  // hierarchy). The icon is a 3-line hamburger -- the universal mobile
-  // pattern. The drawer now opens with Navigate (Back / Restart /
-  // Switch mode) as the first section so all "I'm done with this game"
-  // and "I want to leave" intents land in one place.
+  // Menu button: the solid accent ANCHOR of the trio (same circle envelope as
+  // Undo/Shuffle, accent fill instead of frosted). The 3-line hamburger opens
+  // the drawer (Navigate / Appearance / danger zone all live inside).
   const menuBtn = document.createElement("button");
   menuBtn.type = "button";
-  menuBtn.className =
-    "flex items-center justify-center w-11 h-11 rounded-full bg-yn-accent text-white shadow-xs " +
-    "hover:bg-orange-700 transition-colors";
+  menuBtn.className = `${ICON_BTN} bg-yn-accent text-white shadow-xs hover:bg-orange-700`;
   menuBtn.setAttribute("aria-label", "Open menu");
   menuBtn.setAttribute("title", "Menu");
-  // Inline SVG hamburger -- 3 stacked lines, 2px stroke, rounded caps.
-  // Cream lines on accent fill. No external icon library.
-  menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
-  bottomBar.append(undoBtn, shuffleBtn, menuBtn);
+  // Inline SVG hamburger -- matches the trio glyph family (stroke 2, round caps).
+  menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
+
+  // Undo + Shuffle cluster at the leading edge (gap-3); Menu anchors to the
+  // trailing edge so revealing Shuffle never shifts the Menu (anti-jump).
+  const toolsCluster = document.createElement("div");
+  toolsCluster.className = "flex flex-row items-center gap-3 lg:flex-col lg:gap-3";
+  toolsCluster.append(undoBtn, shuffleBtn);
+  bottomBar.append(toolsCluster, menuBtn);
 
   root.append(topBar, boardArea, bottomBar);
   container.appendChild(root);
@@ -518,13 +552,11 @@ const mount: GameMount = async (container, options) => {
   const setUndoEnabled = (enabled: boolean): void => {
     undoBtn.disabled = !enabled;
     undoBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
-    if (enabled) {
-      undoBtn.className =
-        "px-4 py-1.5 rounded-full bg-yn-tile text-yn-ink text-sm font-medium border border-yn-border shadow-xs hover:bg-yn-bg transition-colors";
-    } else {
-      undoBtn.className =
-        "px-4 py-1.5 rounded-full bg-yn-tile text-yn-muted text-sm font-medium border border-yn-border shadow-xs opacity-60 cursor-not-allowed";
-    }
+    // Enabled = frosted peer tool; disabled = same disc ghosted to 40% with the
+    // glyph muted and the border dropped (Jony 2026-06-28) -- never a grey shout.
+    undoBtn.className = enabled
+      ? ICON_BTN_TOOL
+      : `${ICON_BTN} bg-white/10 text-yn-hud-muted opacity-40 cursor-not-allowed`;
   };
   // Initial state: disabled. The first snapshot capture in onCellTap
   // enables it. A reload with `undo.available === true` and no in-memory
@@ -545,7 +577,16 @@ const mount: GameMount = async (container, options) => {
     return !shuffleUsedThisGame && !state.gameOver && shuffleFullnessReached();
   }
   function updateShuffleButton(): void {
-    shuffleBtn.style.display = canShuffle() ? "" : "none";
+    const show = canShuffle();
+    const wasHidden = shuffleBtn.style.display === "none";
+    shuffleBtn.style.display = show ? "" : "none";
+    if (show && wasHidden) {
+      // One-shot entrance pop when the lifeline first appears (Jony 2026-06-28).
+      // Reflow tap so the keyframe replays on every reveal; reduce-motion no-ops.
+      shuffleBtn.classList.remove("yn-icon-enter");
+      void shuffleBtn.getBoundingClientRect();
+      shuffleBtn.classList.add("yn-icon-enter");
+    }
   }
   function doShuffle(): void {
     if (isAnimating || !canShuffle()) return;
@@ -635,9 +676,9 @@ const mount: GameMount = async (container, options) => {
     timerDisplayedSec = seconds;
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    timerEl.textContent = `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+    timerValue.textContent = `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
     // Under 10s the timer is the HUD's only urgency signal (ADR-0033): red + pulse.
-    timerEl.classList.toggle("yn-timer-urgent", seconds <= 10 && seconds > 0);
+    timerValue.classList.toggle("yn-timer-urgent", seconds <= 10 && seconds > 0);
   };
 
   // Drive the count-up tween on the score chip. Duration scales with the
@@ -707,15 +748,11 @@ const mount: GameMount = async (container, options) => {
     bestEl.classList.remove("hidden");
     bestEl.classList.add("flex");
     bestValue.style.setProperty("--yn-best-count", String(display));
-    if (crossedAllTimeBest) {
-      bestEl.classList.add("yn-best-chip--crossed");
-      bestLabel.textContent = "New Best";
-      bestEl.setAttribute("aria-label", `New best ${String(display)}`);
-    } else {
-      bestEl.classList.remove("yn-best-chip--crossed");
-      bestLabel.textContent = "Best";
-      bestEl.setAttribute("aria-label", `Best ${String(display)}`);
-    }
+    // Crossed = accent tint only (Jony 2026-06-28): keep the label "Best" (no
+    // text churn to "New Best"); the colour shift carries the record state, and
+    // the aria-label mirrors the live value as "Best <n>" throughout.
+    bestEl.classList.toggle("yn-best-chip--crossed", crossedAllTimeBest);
+    bestEl.setAttribute("aria-label", `Best ${String(display)}`);
     if (justCrossed) {
       bestEl.style.setProperty(
         "--yn-best-bump-ms",
@@ -1051,16 +1088,17 @@ const mount: GameMount = async (container, options) => {
         snapshotCapturedThisMove = true;
       }
       boardView.clearReachabilityHints();
+      // The slide hands the moved piece node off to the destination cell
+      // (showPathTrace), so there is NO full-board setBoard wedged in the
+      // slide->settle seam anymore: the 81-cell teardown that used to
+      // drop a frame mid-motion is gone. The piece that slid in IS the piece
+      // that settles; the render() after spawns/clears reconciles the rest.
       await boardView.showPathTrace(outcome.path);
-      const moving = getCell(state.board, outcome.from.row, outcome.from.col);
-      let intermediate = setCell(state.board, outcome.from.row, outcome.from.col, null);
-      intermediate = setCell(intermediate, outcome.to.row, outcome.to.col, moving);
-      boardView.setBoard(
-        intermediate,
-        settingsState.showNextPreview ? state.nextPreview : [],
-        null,
-      );
-      await boardView.showLandBounce(outcome.to);
+      // A piece that SLID in never vanished, so it settles with a small impact
+      // overshoot (1 -> 1.08 -> 1), NOT the spawn pop-in (0.3 -> 1.3) that
+      // showLandBounce plays for newly spawned pieces. The 0.3-shrink right
+      // after a smooth slide was the perceived "stutter" (Jony).
+      await boardView.showMoveSettle(outcome.to);
       const scoreBefore = state.score;
       const totalDelta = outcome.postMoveState.score - scoreBefore;
       // Three post-move shapes from the engine:
