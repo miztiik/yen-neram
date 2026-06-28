@@ -7,12 +7,7 @@ import { getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
-import {
-  createBoardView,
-  DEFAULT_CLEAR_STYLE,
-  DEFAULT_TILE_SIZE,
-  type ClearStyle,
-} from "./ui/board-view.js";
+import { createBoardView, DEFAULT_TILE_SIZE, type ClearStyle } from "./ui/board-view.js";
 import {
   attemptMove,
   createInitialTurnState,
@@ -64,11 +59,17 @@ type RewardTimings = {
 };
 type ClearTimings = {
   readonly preclear_glow_ms: number;
-  // Per-distance-ring delay for the rippling clear styles (ADR-0030). "flash"
-  // uses 0 (simultaneous). Replaces the retired cascade_step_ms.
+  // Per-distance-ring delay for the centroid shockwave (ADR-0030 / ADR-0032).
+  // "flash" (reduce-motion) uses 0 (every cell fires on the same frame).
   readonly shockwave_step_ms: number;
-  readonly from_coin_step_ms: number;
   readonly splash_scale_by_length: Readonly<Record<string, number>>;
+  // Concentric shockwave rings emitted at the cleared-line centroid, escalating
+  // with line length (ADR-0032): a longer line drops a heavier stone. 1 = the
+  // base per-cell burst only; 2-3 add staggered centre rings. The signature
+  // stays ONE effect that grows in intensity, never a different effect per
+  // length (Palm/Jony/Carmack council 2026-06-28).
+  readonly splash_ring_count_by_length: Readonly<Record<string, number>>;
+  readonly splash_ring_step_ms: number;
 };
 type ExtendedBalance = BalanceLike & {
   readonly top_scores_max: number;
@@ -82,6 +83,13 @@ const balanceConfig = balanceJson as unknown as ExtendedBalance;
 // line bursts bigger.
 function splashPeakScale(longestLine: number): number {
   const byLength = balanceConfig.clear.splash_scale_by_length;
+  const key = String(Math.max(5, Math.min(9, longestLine)));
+  return byLength[key] ?? 1;
+}
+// Concentric-ring count for the centroid shockwave, by cleared-line length
+// (ADR-0032, escalate-by-length). Clamped to the configured 5..9 keys.
+function splashRingCount(longestLine: number): number {
+  const byLength = balanceConfig.clear.splash_ring_count_by_length;
   const key = String(Math.max(5, Math.min(9, longestLine)));
   return byLength[key] ?? 1;
 }
@@ -155,9 +163,12 @@ const mount: GameMount = async (container, options) => {
 
   const topBar = document.createElement("div");
   topBar.className =
-    // Chips float directly on the shared violet bg (consistent with the portal).
-    "flex flex-row items-center justify-between gap-3 px-3 py-3 " +
-    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6";
+    // 2027 HUD (ADR-0033): the score is the un-boxed hero, big + light, sitting
+    // DIRECTLY on the violet field; Best/Streak/Timer demote to one muted stat
+    // line beneath it. A single centred column in both orientations (top block
+    // on mobile, left rail on lg). No pills.
+    "flex flex-col items-center justify-center gap-1.5 px-3 py-3 " +
+    "lg:gap-2 lg:px-4 lg:py-6";
 
   // Score chip (ADR-0017 "Stacked Wave" pass, Jony pass 2026-06-08): the
   // NUMBER is the hero. Killed the "SCORE" label entirely -- the only big
@@ -174,9 +185,11 @@ const mount: GameMount = async (container, options) => {
   // file's reward-loop block.
   const scoreEl = document.createElement("div");
   scoreEl.className =
-    "yn-score-chip flex items-center justify-center px-5 py-2 rounded-2xl " +
-    "bg-yn-tile border border-yn-border shadow-xs " +
-    "text-5xl sm:text-6xl tabular-nums";
+    // Un-boxed hero (ADR-0033): no pill, no border, no shadow. Big light type
+    // straight on the violet field. The celebration glow still blooms from the
+    // bare number via .yn-score-celebrating.
+    "yn-score-chip flex items-center justify-center leading-none " +
+    "text-7xl sm:text-8xl tabular-nums";
   scoreEl.setAttribute("aria-live", "polite");
   scoreEl.setAttribute("aria-label", "Score 0");
   const scoreValue = document.createElement("span");
@@ -202,12 +215,13 @@ const mount: GameMount = async (container, options) => {
   // scored yet (there is nothing to chase and nothing to celebrate).
   const bestEl = document.createElement("div");
   bestEl.className =
-    "yn-best-chip hidden items-center gap-2 px-4 py-1.5 rounded-2xl " +
-    "bg-yn-tile border border-yn-border text-yn-ink shadow-xs " +
-    "text-base sm:text-lg font-semibold tabular-nums";
+    // Stat-line item (ADR-0033): no pill, muted light ink. On crossing the
+    // all-time best it tints to accent + lifts (yn-best-chip--crossed/bumping).
+    "yn-best-chip hidden items-center gap-1.5 text-yn-hud-muted " +
+    "text-sm sm:text-base font-semibold tabular-nums";
   bestEl.setAttribute("aria-live", "polite");
   const bestLabel = document.createElement("span");
-  bestLabel.className = "uppercase tracking-wider text-yn-muted text-[10px] font-semibold";
+  bestLabel.className = "uppercase tracking-wider text-[10px] font-semibold opacity-80";
   bestLabel.textContent = "Best";
   const bestValue = document.createElement("span");
   bestValue.className = "yn-best-display";
@@ -254,29 +268,25 @@ const mount: GameMount = async (container, options) => {
   // Timer chip: cream pill with mono mm:ss. Hidden outside timed mode.
   const timerEl = document.createElement("div");
   timerEl.className =
-    "flex items-center gap-1 px-3 py-1 rounded-full bg-yn-bg border border-yn-border text-yn-ink font-semibold tabular-nums";
+    // Stat-line item (ADR-0033): un-boxed mono mm:ss in light ink; gains the
+    // .yn-timer-urgent red pulse under 10s (the HUD's only urgency signal).
+    "yn-timer flex items-center gap-1 text-yn-hud-ink font-semibold tabular-nums";
   // Coalesced updates only at second boundaries (see renderTimer) so
   // "polite" announcements don't flood the screen reader at 10Hz.
   timerEl.setAttribute("aria-live", "polite");
   timerEl.setAttribute("aria-label", "Time remaining");
   if (mode !== "timed") timerEl.style.display = "none";
 
-  // Next chip: 3 mini motif thumbnails in a pill. Replaces "Next: 4 3 1"
-  // which was unreadable (run-group integers). Thumbnails are populated
-  // by render() once the theme has loaded.
-  const previewEl = document.createElement("div");
-  previewEl.className =
-    "flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-yn-bg border border-yn-border";
-  previewEl.setAttribute("aria-label", "Next pieces");
-  const previewLabel = document.createElement("span");
-  previewLabel.className = "text-[10px] uppercase tracking-wider text-yn-muted mr-0.5";
-  previewLabel.textContent = "Next";
-  previewEl.appendChild(previewLabel);
-  const nextPipsEl = document.createElement("div");
-  nextPipsEl.className = "flex items-center gap-1";
-  previewEl.appendChild(nextPipsEl);
+  // Stat line (ADR-0033): Best / Streak / Timer demoted into one muted row
+  // beneath the hero score. The old "Next" HUD pill is GONE -- it duplicated the
+  // on-board ghost previews (the player should look in ONE place); the "Show
+  // next 3 preview" toggle now gates those board ghosts directly.
+  const statLine = document.createElement("div");
+  statLine.className =
+    "flex flex-row items-center justify-center gap-3 sm:gap-4 min-h-[1.25rem]";
+  statLine.append(bestEl, streakEl, timerEl);
 
-  topBar.append(scoreEl, bestEl, streakEl, timerEl, previewEl);
+  topBar.append(scoreEl, statLine);
 
   const boardArea = document.createElement("div");
   // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
@@ -347,10 +357,8 @@ const mount: GameMount = async (container, options) => {
     showNextPreview: appPrefs.show_next_preview ?? true,
     previewBounceEnabled: appPrefs.preview_bounce_enabled ?? true,
     tileSize: appPrefs.tile_size ?? DEFAULT_TILE_SIZE,
-    clearStyle: appPrefs.clear_style ?? DEFAULT_CLEAR_STYLE,
   };
   document.documentElement.classList.toggle(REDUCE_MOTION_CLASS, settingsState.reduceMotion);
-  if (!settingsState.showNextPreview) previewEl.style.display = "none";
 
   const restoredSeed = save.in_progress?.turn_seed;
   const turnSeed =
@@ -560,20 +568,8 @@ const mount: GameMount = async (container, options) => {
     const minutes = Math.floor(seconds / 60);
     const secs = seconds % 60;
     timerEl.textContent = `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
-  };
-
-  const renderNextPips = (): void => {
-    nextPipsEl.replaceChildren();
-    for (const p of state.nextPreview) {
-      const src = theme.motifFiles[String(p.kind)];
-      if (src === undefined || src.length === 0) continue;
-      const img = document.createElement("img");
-      img.className = "w-5 h-5 sm:w-6 sm:h-6 rounded-xs";
-      img.src = src;
-      img.alt = `Piece type ${String(p.kind)}`;
-      img.setAttribute("draggable", "false");
-      nextPipsEl.appendChild(img);
-    }
+    // Under 10s the timer is the HUD's only urgency signal (ADR-0033): red + pulse.
+    timerEl.classList.toggle("yn-timer-urgent", seconds <= 10 && seconds > 0);
   };
 
   // Drive the count-up tween on the score chip. Duration scales with the
@@ -696,8 +692,11 @@ const mount: GameMount = async (container, options) => {
   // never bumps the count-up.
   const syncScoreSilently = (): void => animateScoreTo(state.score, false);
   const render = (): void => {
-    renderNextPips();
-    boardView.setBoard(state.board, state.nextPreview, state.selected);
+    // "Show next 3 preview" now gates the ON-BOARD ghosts (ADR-0033): pass an
+    // empty preview when the player turned it off, so the toggle actually hides
+    // the previews instead of the (now-removed) HUD pill.
+    const preview = settingsState.showNextPreview ? state.nextPreview : [];
+    boardView.setBoard(state.board, preview, state.selected);
     renderStreak();
     renderTimer();
   };
@@ -816,22 +815,15 @@ const mount: GameMount = async (container, options) => {
     });
   }
 
-  // Clear-style resolution (ADR-0030). Kept next to the move handler that
-  // uses them. reduce-motion forces "flash"; "from-coin" needs a placed piece
-  // so it falls back to "shockwave" when there is none (a spawn cascade).
-  function resolveClearStyle(hasCoin: boolean): ClearStyle {
-    if (settingsState.reduceMotion) return "flash";
-    const s = settingsState.clearStyle;
-    return s === "from-coin" && !hasCoin ? "shockwave" : s;
+  // Clear animation is now ONE signature (ADR-0032): a centroid shockwave that
+  // escalates with line length (size + concentric rings). The player no longer
+  // picks a style; reduce-motion is the only fork and snaps to the instant
+  // "flash" path (the CSS then clamps it to ~1ms).
+  function resolveClearStyle(): ClearStyle {
+    return settingsState.reduceMotion ? "flash" : "shockwave";
   }
   function clearStepFor(style: ClearStyle): number {
-    if (style === "flash") return 0;
-    return style === "from-coin"
-      ? balanceConfig.clear.from_coin_step_ms
-      : balanceConfig.clear.shockwave_step_ms;
-  }
-  function cellKeyOf(c: Coord): string {
-    return `${String(c.row)},${String(c.col)}`;
+    return style === "flash" ? 0 : balanceConfig.clear.shockwave_step_ms;
   }
 
   function onCellLongPress(coord: Coord): void {
@@ -914,7 +906,11 @@ const mount: GameMount = async (container, options) => {
       const moving = getCell(state.board, outcome.from.row, outcome.from.col);
       let intermediate = setCell(state.board, outcome.from.row, outcome.from.col, null);
       intermediate = setCell(intermediate, outcome.to.row, outcome.to.col, moving);
-      boardView.setBoard(intermediate, state.nextPreview, null);
+      boardView.setBoard(
+        intermediate,
+        settingsState.showNextPreview ? state.nextPreview : [],
+        null,
+      );
       await boardView.showLandBounce(outcome.to);
       const scoreBefore = state.score;
       const totalDelta = outcome.postMoveState.score - scoreBefore;
@@ -965,20 +961,25 @@ const mount: GameMount = async (container, options) => {
       // added latency (the splash itself is already defanged in CSS).
       const reduceMotion = settingsState.reduceMotion;
       const peakScale = splashPeakScale(longestClearedLine);
-      // Resolve the player's clear style (ADR-0030). reduce-motion forces
-      // "flash" (the CSS then clamps it to ~1ms). "from-coin" needs a placed
-      // piece, so a spawn-cascade clear (no coin) falls back to "shockwave".
-      const moveClearStyle = resolveClearStyle(true);
-      const cascadeClearStyle = resolveClearStyle(false);
+      const ringCount = splashRingCount(longestClearedLine);
+      // ONE signature clear (ADR-0032): a centroid shockwave that escalates with
+      // line length -- bigger ring (peakScale) plus more concentric rings
+      // (ringCount) for a longer line. reduce-motion is the only fork and snaps
+      // to the instant "flash" path. Both the move-clear and the spawn-cascade
+      // clear render with the identical signature now (no per-origin variants).
+      const clearStyle = resolveClearStyle();
+      const stepMs = clearStepFor(clearStyle);
+      const ringStepMs = balanceConfig.clear.splash_ring_step_ms;
       const preClearGlowMs = reduceMotion ? 0 : balanceConfig.clear.preclear_glow_ms;
 
       if (moveTriggeredClear) {
         await boardView.showPreClearGlow(clearedColorMap, preClearGlowMs);
         await boardView.showClearFlash(clearedColorMap, {
           peakScale,
-          style: moveClearStyle,
-          originKey: cellKeyOf(outcome.to),
-          stepMs: clearStepFor(moveClearStyle),
+          ringCount,
+          ringStepMs,
+          style: clearStyle,
+          stepMs,
         });
       }
       state = outcome.postMoveState;
@@ -989,8 +990,10 @@ const mount: GameMount = async (container, options) => {
       if (spawnCascadeClear) {
         await boardView.showClearFlash(clearedColorMap, {
           peakScale,
-          style: cascadeClearStyle,
-          stepMs: clearStepFor(cascadeClearStyle),
+          ringCount,
+          ringStepMs,
+          style: clearStyle,
+          stepMs,
         });
       }
       if (totalDelta > 0) {
@@ -1185,8 +1188,9 @@ const mount: GameMount = async (container, options) => {
         updateAppPref({ path_preview_enabled: enabled });
       },
       onShowNextPreviewChange(enabled) {
+        // Toggle the ON-BOARD ghost previews (the HUD pill is gone, ADR-0033).
         settingsState.showNextPreview = enabled;
-        previewEl.style.display = enabled ? "" : "none";
+        render();
         updateAppPref({ show_next_preview: enabled });
       },
       onPreviewBounceChange(enabled) {
@@ -1201,12 +1205,6 @@ const mount: GameMount = async (container, options) => {
         settingsState.tileSize = size;
         boardView.setTileSize(size);
         updateAppPref({ tile_size: size });
-      },
-      onClearStyleChange(style) {
-        // Cosmetic-only (ADR-0030): no live board change needed -- the next
-        // clear reads settingsState.clearStyle. Persist so it survives reload.
-        settingsState.clearStyle = style;
-        updateAppPref({ clear_style: style });
       },
       onBackToHome() {
         // Was a standalone bottom-bar button; relocated under the menu

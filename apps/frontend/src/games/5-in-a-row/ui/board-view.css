@@ -366,9 +366,12 @@
    * `inherits: false` so pseudo-element inheritance would always
    * snap to the initial value 0). */
   counter-reset: yn-score var(--yn-score-count);
-  color: var(--yn-ink-deep, #0f172a);
-  font-weight: 600;
-  letter-spacing: -0.025em;
+  /* 2027 hero (ADR-0033): big + LIGHT weight in light HUD ink straight on the
+     violet field. Light-and-large reads premium; the prior 600 on a cream pill
+     is retired with the pill. */
+  color: var(--yn-hud-ink, #ede9fe);
+  font-weight: 360;
+  letter-spacing: -0.02em;
 }
 .yn-score-display::after {
   content: counter(yn-score);
@@ -412,15 +415,15 @@
 @keyframes yn-score-pop {
   0% {
     transform: scale(1);
-    color: var(--yn-ink-deep, #0f172a);
+    filter: brightness(1);
   }
   30% {
-    transform: scale(1.08);
-    color: var(--yn-accent, #ea580c);
+    transform: scale(1.06);
+    filter: brightness(1.3);
   }
   100% {
     transform: scale(1);
-    color: var(--yn-ink-deep, #0f172a);
+    filter: brightness(1);
   }
 }
 
@@ -446,31 +449,30 @@
  * marker on the HUD that the player is currently in record-breaking
  * territory. Overrides the cream resting state via specificity (the
  * class is appended at the same level). */
+/* NEW BEST (un-boxed, ADR-0033): the stat-line item tints to the warm accent
+ * (text only -- there is no pill to fill) so the player sees they are in
+ * record territory. */
 .yn-best-chip.yn-best-chip--crossed {
-  background-color: var(--yn-accent, #ea580c);
-  border-color: var(--yn-accent, #ea580c);
-  color: #ffffff;
+  color: var(--yn-accent, #f97316);
 }
 .yn-best-chip.yn-best-chip--crossed .yn-best-display {
-  color: #ffffff;
+  color: var(--yn-accent, #f97316);
 }
-/* The label sub-element keeps its own muted style by default; force it
- * to white when crossed so it stays readable against the accent fill. */
 .yn-best-chip.yn-best-chip--crossed > span:first-child {
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--yn-accent, #f97316);
 }
 @keyframes yn-best-bump {
   0% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+    text-shadow: 0 0 0 rgba(249, 115, 22, 0);
   }
   20% {
-    transform: scale(1.12);
-    box-shadow: 0 0 0 6px rgba(234, 88, 12, 0.35);
+    transform: scale(1.18);
+    text-shadow: 0 0 10px rgba(249, 115, 22, 0.5);
   }
   100% {
     transform: scale(1);
-    box-shadow: 0 0 0 0 rgba(234, 88, 12, 0);
+    text-shadow: 0 0 0 rgba(249, 115, 22, 0);
   }
 }
 
@@ -622,7 +624,8 @@
   }
   .yn-score-chip.yn-score-celebrating,
   .yn-score-chip.yn-score-celebrating .yn-score-display,
-  .yn-best-chip.yn-best-bumping {
+  .yn-best-chip.yn-best-bumping,
+  .yn-timer-urgent {
     animation-duration: 1ms !important;
   }
   /* The integer transition is disabled by overriding the inline
@@ -796,16 +799,11 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px 4px 8px;
-  border-radius: 9999px;
-  background: linear-gradient(135deg, #fef3c7 0%, #fed7aa 100%);
-  border: 1px solid #fbbf24;
-  color: #7c2d12;
-  font-weight: 800;
+  color: var(--yn-hud-muted, #c4b5fd);
+  font-weight: 700;
   font-variant-numeric: tabular-nums;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
-  box-shadow: 0 1px 3px rgba(124, 45, 18, 0.18);
 }
 .yn-streak-chip__flame {
   width: 14px;
@@ -816,5 +814,23 @@
 .yn-streak-chip__count {
   font-size: 15px;
   line-height: 1;
-  color: var(--yn-ink-deep, #0f172a);
+  color: var(--yn-hud-ink, #ede9fe);
+}
+
+/* Timer urgency (ADR-0033): the un-boxed mm:ss goes warm-red and pulses under
+ * 10s -- the HUD's only urgency signal. transform + colour only (compositor). */
+.yn-timer-urgent {
+  color: #fca5a5;
+  animation: yn-timer-pulse 1s ease-in-out infinite;
+}
+@keyframes yn-timer-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 0.7;
+  }
 }

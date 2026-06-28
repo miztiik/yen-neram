@@ -40,6 +40,11 @@
   --color-yn-ink: #1e1b4b;
   --color-yn-muted: #64748b;
   --color-yn-accent: #f97316;
+  /* HUD ink for chrome that sits DIRECTLY on the dark violet game field (the
+     score hero + stat line, ADR-0033). Light, not the slate --yn-ink (tuned
+     for dark-on-white cards). A future light theme flips these two. */
+  --color-yn-hud-ink: #ede9fe;
+  --color-yn-hud-muted: #c4b5fd;
   --grid-template-columns-portal: repeat(3, minmax(0, 1fr));
   --grid-template-columns-portal-portrait: repeat(2, minmax(0, 1fr));
 }

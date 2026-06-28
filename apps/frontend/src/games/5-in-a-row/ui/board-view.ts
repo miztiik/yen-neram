@@ -49,20 +49,20 @@ export const TILE_SIZE_TIERS: Readonly<Record<TileSize, TileSizeTier>> = {
 };
 export const DEFAULT_TILE_SIZE: TileSize = "medium";
 
-// Line-clear animation style (ADR-0030). The player picks how a completed
-// line leaves the board:
-//   - "shockwave": ripples outward from the line's CENTRE; the burst ring is
-//      biggest at the centre and dissipates toward the rim. Default.
-//   - "from-coin": ripples outward from the piece the player just placed
-//      (cause-and-effect). A spawn-cascade clear has no placed piece, so the
-//      host falls back to "shockwave".
-//   - "flash": every cell bursts on the same frame (the original v1 burst);
-//      also the forced choice under reduce-motion.
+// Line-clear animation. The clear is ONE signature (ADR-0032): a centroid
+// shockwave that escalates in intensity with line length. The player no longer
+// picks a style (the ADR-0030 picker was retired); the two values below are the
+// renderer's internal render modes:
+//   - "shockwave": ripples outward from the cleared line's CENTRE; the burst
+//      ring is biggest at the centre and dissipates toward the rim. The one
+//      signature for all normal play.
+//   - "flash": every cell bursts on the same frame; the forced render under
+//      reduce-motion (the CSS then clamps it to ~1ms).
 // The per-cell delay is the Chebyshev (chessboard) distance in CELLS from the
-// style's origin times a step (planClearTiming), NEVER the iteration index --
-// that is what makes a horizontal and a vertical line of the same length
-// ripple identically (the reported inconsistency).
-export const CLEAR_STYLE_VALUES = ["shockwave", "from-coin", "flash"] as const;
+// centre times a step (planClearTiming), NEVER the iteration index -- that is
+// what makes a horizontal and a vertical line of the same length ripple
+// identically.
+export const CLEAR_STYLE_VALUES = ["shockwave", "flash"] as const;
 export type ClearStyle = (typeof CLEAR_STYLE_VALUES)[number];
 export const DEFAULT_CLEAR_STYLE: ClearStyle = "shockwave";
 
@@ -101,15 +101,19 @@ export type ClearFlashOptions = {
   // Multiplier on the splash ring's base peak scale (size-by-length). 1 keeps
   // the historical size; >1 makes a longer line burst bigger.
   readonly peakScale?: number;
-  // Which clear style to play (ADR-0030). Defaults to "shockwave".
+  // Which clear render to play. Defaults to "shockwave"; reduce-motion passes
+  // "flash".
   readonly style?: ClearStyle;
-  // For "from-coin", the cellKey ("row,col") the ripple radiates from -- the
-  // piece the player just placed. Ignored by the other styles, which radiate
-  // from the cleared line's centre.
-  readonly originKey?: string | null;
+  // Concentric centroid rings (ADR-0032, escalate-by-length). 1 (default) = the
+  // per-cell burst only; 2-3 add extra staggered rings at the cleared-line
+  // centroid so a longer line reads as a heavier stone dropped in water.
+  readonly ringCount?: number;
+  // Delay in ms between successive centroid rings (the "stone drop" cadence).
+  // Only used when ringCount > 1.
+  readonly ringStepMs?: number;
   // Per-distance-ring delay in ms. Each cell's delay is this times its
-  // Chebyshev distance from the style's origin (planClearTiming), so the
-  // ripple is orientation-free. 0 (or "flash") fires every cell at once.
+  // Chebyshev distance from the centre (planClearTiming), so the ripple is
+  // orientation-free. 0 (or "flash") fires every cell at once.
   readonly stepMs?: number;
 };
 
@@ -191,20 +195,14 @@ function parseCellKey(key: string): { readonly r: number; readonly c: number } |
 }
 
 // Resolve the cell a clear ripples out FROM. "flash" has no origin (every cell
-// fires together). "from-coin" uses the placed piece when supplied. Everything
-// else (and the from-coin fallback) uses the rounded centroid of the cleared
-// cells -- a virtual point is fine because Chebyshev distance does not require
-// an actual cell. See ADR-0030.
+// fires together). "shockwave" uses the rounded centroid of the cleared cells
+// -- a virtual point is fine because Chebyshev distance does not require an
+// actual cell. See ADR-0030 / ADR-0032.
 function resolveClearOrigin(
   coords: readonly { readonly r: number; readonly c: number }[],
   style: ClearStyle,
-  originKey: string | null,
 ): { readonly r: number; readonly c: number } | null {
   if (style === "flash") return null;
-  if (style === "from-coin" && originKey !== null) {
-    const at = parseCellKey(originKey);
-    if (at !== null) return at;
-  }
   if (coords.length === 0) return null;
   let sumR = 0;
   let sumC = 0;
@@ -225,7 +223,6 @@ function resolveClearOrigin(
 export function planClearTiming(
   cellKeys: readonly string[],
   style: ClearStyle,
-  originKey: string | null,
   stepMs: number,
   basePeak: number,
 ): Map<string, { readonly delayMs: number; readonly peak: number }> {
@@ -234,7 +231,7 @@ export function planClearTiming(
     const at = parseCellKey(key);
     if (at !== null) coords.push({ key, r: at.r, c: at.c });
   }
-  const origin = resolveClearOrigin(coords, style, originKey);
+  const origin = resolveClearOrigin(coords, style);
   const plan = new Map<string, { readonly delayMs: number; readonly peak: number }>();
   for (const { key, r, c } of coords) {
     const dist = origin === null ? 0 : Math.max(Math.abs(r - origin.r), Math.abs(c - origin.c));
@@ -561,13 +558,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
       // Distance-from-origin timing plan (ADR-0030): orientation-free, so a row
       // and a column ripple identically. Replaces the old per-iteration stagger
       // that made vertical and horizontal clears look different.
-      const plan = planClearTiming(
-        [...cells.keys()],
-        style,
-        options?.originKey ?? null,
-        stepMs,
-        basePeak,
-      );
+      const plan = planClearTiming([...cells.keys()], style, stepMs, basePeak);
       const promises: Promise<void>[] = [];
       const splashEls: SVGCircleElement[] = [];
       let maxDelayMs = 0;
@@ -606,6 +597,51 @@ export function createBoardView(options: BoardViewOptions): BoardView {
         }
 
         promises.push(awaitClassAnimation(g, "yn-cell-clearing", CLEAR_MS + delayMs));
+      }
+
+      // Concentric centroid rings (ADR-0032): a longer line drops a heavier
+      // stone. ringCount 1 adds nothing (the per-cell bursts above are the
+      // signature for short lines); 2-3 add extra staggered rings at the
+      // cleared-line centroid -- bigger peak + bolder stroke -- so the eye reads
+      // "more" without a different effect. Fire-and-forget: they do NOT extend
+      // the input gate (the per-cell `promises` already bound it); only the
+      // cleanup timer waits for them. transform + opacity only, like every other
+      // splash, so they stay compositor-cheap (Carmack council 2026-06-28).
+      const ringCount = Math.max(1, Math.floor(options?.ringCount ?? 1));
+      if (style !== "flash" && ringCount > 1 && cells.size > 0) {
+        const ringStepMs = options?.ringStepMs ?? 0;
+        let sumR = 0;
+        let sumC = 0;
+        let centroidColor = SPLASH_FALLBACK_COLOR;
+        let gotColor = false;
+        for (const [key, runGroup] of cells) {
+          const at = parseCellKey(key);
+          if (at === null) continue;
+          sumR += at.r;
+          sumC += at.c;
+          if (!gotColor) {
+            centroidColor = splashColorFor(runGroup);
+            gotColor = true;
+          }
+        }
+        const cx = (sumC / cells.size) * CELL_SIZE + CELL_SIZE / 2;
+        const cy = (sumR / cells.size) * CELL_SIZE + CELL_SIZE / 2;
+        for (let i = 1; i < ringCount; i++) {
+          const ring = document.createElementNS(SVG_NS, "circle");
+          ring.setAttribute("class", "yn-splash");
+          ring.setAttribute("cx", String(cx));
+          ring.setAttribute("cy", String(cy));
+          ring.setAttribute("r", String(SPLASH_RADIUS));
+          ring.style.setProperty("--yn-splash", centroidColor);
+          ring.style.setProperty("--yn-splash-peak", String(basePeak * (1 + i * 0.6)));
+          ring.style.strokeWidth = String(3 + i);
+          ring.setAttribute("data-splash-temp", "1");
+          const ringDelay = i * ringStepMs;
+          if (ringDelay > 0) ring.style.animationDelay = `${String(ringDelay)}ms`;
+          if (ringDelay > maxDelayMs) maxDelayMs = ringDelay;
+          svg.appendChild(ring);
+          splashEls.push(ring);
+        }
       }
 
       if (splashEls.length > 0) {
