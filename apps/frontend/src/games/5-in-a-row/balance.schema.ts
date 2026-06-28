@@ -20,6 +20,7 @@ export const BalanceSchema = z
     spawn_per_turn: z.number().int().positive(),
     preview_count: z.number().int().positive(),
     initial_seed_count: z.number().int().nonnegative(),
+    opening_cluster_size: z.number().int().nonnegative(),
     length_multipliers: byLengthTable,
     intersection_bonus: z.number(),
     cascade_bonus: z.number(),
