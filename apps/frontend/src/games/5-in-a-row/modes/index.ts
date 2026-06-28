@@ -3,7 +3,7 @@
 import type { GameMode, ModeState, Streak } from "../types.js";
 import type { TurnState } from "../ui/turn-loop.js";
 import { dailySeed } from "../engine/rng.js";
-import balanceJson from "../balance.json";
+import { balance } from "../balance.schema.js";
 
 type TimedConfig = {
   readonly window_ms: number;
@@ -12,7 +12,7 @@ type TimedConfig = {
   readonly extend_7plus_ms: number;
 };
 
-const TIMED: TimedConfig = (balanceJson as unknown as { readonly timed: TimedConfig }).timed;
+const TIMED: TimedConfig = balance.timed;
 
 export type ModeContract = {
   readonly kind: GameMode;

@@ -84,6 +84,14 @@ export const InProgressSchema = z
     next_preview: z.array(PreviewItemSchema).max(10),
     score: z.number().int().nonnegative(),
     turn_seed: z.number().int().nonnegative(),
+    // Live Mulberry32 cursor (the FULL 32-bit generator state) so a mid-game
+    // reload resumes the exact spawn-stream position instead of rewinding to
+    // turn_seed (ADR-0034). SIGNED: the recurrence applies `| 0`, so the cursor
+    // may be negative -- do NOT constrain the sign. Additive + optional: a V2
+    // save written before this field still parses (field undefined) and resume
+    // falls back to turn_seed = the prior behaviour, so no schema_version bump
+    // and no read-side migration are owed (CLAUDE.md sec 11, additive case).
+    rng_cursor: z.number().int().optional(),
     undo: z
       .object({
         available: z.boolean(),
