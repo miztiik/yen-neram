@@ -36,6 +36,10 @@ export type BalanceLike = {
   // Optional so existing BalanceLike constructors (tests) default it off; the
   // live balance.json sets it. < 2 = the pure-random opening.
   readonly opening_cluster_size?: number;
+  // When true, a preview that comes up entirely one colour gets its last item
+  // nudged to another colour (ADR-0037) -- kills the "three identical useless
+  // colours at once" feel-bad. Optional so existing fixtures default it off.
+  readonly spawn_avoid_triple?: boolean;
   readonly length_multipliers: Readonly<Record<string, number>>;
   readonly intersection_bonus: number;
   readonly cascade_bonus: number;
@@ -63,11 +67,32 @@ function pickRunGroup(rng: Rng, numRunGroups: number): RunGroup {
   return (rng.nextInt(numRunGroups) + 1) as RunGroup;
 }
 
+// Pure (exported for tests): if the WHOLE preview came up one colour -- the
+// "three identical useless colours dumped at once" feel-bad (Player) -- nudge
+// the last item to the next colour. Deterministic, NO RNG draw, so the daily
+// stays reproducible. A 2-of-3 preview is left alone (a pair is shruggable; a
+// clean monochrome sweep is the one that stings). See ADR-0037.
+export function avoidMonochromePreview(
+  preview: readonly PreviewItem[],
+  numRunGroups: number,
+): readonly PreviewItem[] {
+  const first = preview[0];
+  if (first === undefined || preview.length < 2 || numRunGroups < 2) return preview;
+  if (!preview.every((p) => p.kind === first.kind)) return preview;
+  const out = preview.map((p) => ({ ...p }));
+  const lastItem = out[out.length - 1];
+  if (lastItem !== undefined) {
+    lastItem.kind = ((lastItem.kind % numRunGroups) + 1) as RunGroup;
+  }
+  return out;
+}
+
 function rollPreview(
   board: Board,
   rng: Rng,
   count: number,
   numRunGroups: number,
+  avoidTriple: boolean,
 ): { readonly preview: readonly PreviewItem[]; readonly gameOver: boolean } {
   const empties = findEmptyCoords(board);
   if (empties.length === 0) {
@@ -89,7 +114,10 @@ function rollPreview(
     const kind = pickRunGroup(rng, numRunGroups);
     out.push({ row: picked.row, col: picked.col, kind });
   }
-  return { preview: out, gameOver: false };
+  // Anti-clump nudge (ADR-0037), gated so the pure i.i.d. baseline + golden
+  // master (flag off) are byte-identical.
+  const preview = avoidTriple ? avoidMonochromePreview(out, numRunGroups) : out;
+  return { preview, gameOver: false };
 }
 
 function seedInitialBoard(
@@ -148,6 +176,7 @@ export function createInitialTurnState(
     rng,
     balance.preview_count,
     balance.num_run_groups,
+    balance.spawn_avoid_triple ?? false,
   );
   return {
     board,
@@ -248,6 +277,7 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
     state.rng,
     balance.preview_count,
     balance.num_run_groups,
+    balance.spawn_avoid_triple ?? false,
   );
 
   const postMoveState: TurnState = {
