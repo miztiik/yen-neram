@@ -76,7 +76,7 @@ function filledNeighbors(board: Board, row: number, col: number): number {
 }
 
 // Spawn-placement bias (ADR-0040): pick an empty-cell index weighted TOWARD
-// emptier neighbourhoods (weight 5 for a wide-open cell, 1 for one surrounded
+// emptier neighbourhoods (weight 3 for a wide-open cell, 1 for one surrounded
 // on all sides). This stops new tiles dropping into the exact pocket the player
 // is packing -- the "it spawned in my about-to-clear line" complaint -- while
 // keeping concentration POSSIBLE (low-weight cells are unlikely, not banned),
@@ -86,7 +86,7 @@ function filledNeighbors(board: Board, row: number, col: number): number {
 function pickWeightedEmptyIndex(board: Board, cells: readonly Coord[], rng: Rng): number {
   let total = 0;
   const weights = cells.map((p) => {
-    const w = 5 - filledNeighbors(board, p.row, p.col);
+    const w = Math.max(1, 3 - filledNeighbors(board, p.row, p.col));
     total += w;
     return w;
   });

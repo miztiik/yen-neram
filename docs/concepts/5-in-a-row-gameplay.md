@@ -33,7 +33,7 @@ Each non-clearing move spawns `spawn_per_turn` tiles (currently 2). Two tiles pe
 
 `preview_count` must equal `spawn_per_turn`: the next-pieces ghosts promise where tiles will land, so showing three ghosts while only two spawn leaves a ghost that never arrives. Keep them in lockstep when tuning.
 
-Spawn cells are not uniform-random. The preview roll and the occupied-cell fallback both bias placement toward emptier neighbourhoods: an empty cell is weighted `5 - filledOrthogonalNeighbours`, so wide-open cells are up to five times likelier than a cell wedged inside the player's pocket. This stops new tiles dropping into the exact gap of an about-to-clear line while plenty of board is free. Concentration stays possible (packed cells are unlikely, not banned), so deliberate clear clusters survive. The draw count is unchanged, so daily determinism and the RNG-cursor save contract hold.
+Spawn cells are not uniform-random. The preview roll and the occupied-cell fallback both bias placement toward emptier neighbourhoods: an empty cell is weighted `max(1, 3 - filledOrthogonalNeighbours)`, so wide-open cells are three times likelier than a cell wedged inside the player's pocket. This keeps new tiles mostly out of an about-to-clear line, but the modest 3-to-1 spread (not 5-to-1) leaves some pressure so the game is not too easy. Concentration stays possible, so deliberate clear clusters survive. The draw count is unchanged, so daily determinism and the RNG-cursor save contract hold.
 
 This is cell placement, not colour, so it is distinct from the rejected experiment below.
 
