@@ -107,7 +107,7 @@ function splashRingCount(longestLine: number): number {
   const key = String(Math.max(5, Math.min(9, longestLine)));
   return byLength[key] ?? 1;
 }
-const DEFAULT_THEME_ID = "tropical-fruits";
+const DEFAULT_THEME_ID = "planets";
 const REDUCE_MOTION_CLASS = "prefers-reduced-motion-override";
 // Timer granularity. Fine enough that the displayed seconds digit never
 // visibly jitters; coarse enough that even on a hidden tab the wasted
