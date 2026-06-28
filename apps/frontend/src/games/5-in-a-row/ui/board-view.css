@@ -4,6 +4,15 @@
   height: 100%;
   touch-action: manipulation;
   -webkit-tap-highlight-color: transparent;
+  /* Round the board's own corners at the SOURCE (ADR-0031). The SVG has
+     filtered children (piece contact shadows + the boundary glow), which
+     promotes it to its own compositing layer -- and a composited child ESCAPES
+     an ancestor's `border-radius` + `overflow: hidden` clip in Chromium, so the
+     square SVG corner used to poke out past the rounded slab tray. clip-path on
+     the SVG itself clips its composited output reliably, killing that sharp-
+     corner artifact. Same radius token as the slab wrapper (.yn-board-slab) so
+     the tray edge and the grid edge round identically. */
+  clip-path: inset(0 round var(--yn-board-radius, 16px));
 }
 /* Always-on grid. Bound to the --yn-bg-deep palette token so the warm
    page color reads as flowing through the white tile area; the 9x9
@@ -20,21 +29,6 @@
   stroke: var(--yn-grid-line, #ddd6fe);
   stroke-width: 1px;
 }
-/* Outer 9x9 board boundary (ADR-0021 polish round, 2026-06-08).
-   A single rect painted on top of the cell grid so the board reads
-   as a defined surface, not a free-floating set of cells. Accent-
-   coloured rim with rounded corners + a soft warm-orange glow drop
-   so the boundary "frames" the play area without claiming any cell
-   width. pointer-events disabled at the element level so taps
-   inside the boundary still land on the per-cell <g>. */
-.yn-board-boundary {
-  fill: none;
-  stroke: #c4b5fd;
-  stroke-width: 2px;
-  rx: 8;
-  ry: 8;
-  filter: drop-shadow(0 0 10px rgba(124, 58, 237, 0.4));
-}
 /* No per-cell reachable highlight: the reachable BFS set on an early-game
    board is ~80 of 81 empty cells; any visible per-cell delta floods. The
    shake-on-invalid + long-press path preview cover the affordance. */
@@ -48,6 +42,15 @@
 .yn-motif {
   transform-box: fill-box;
   transform-origin: center;
+  /* Contact shadow (ADR-0031, "Lifted Chips"): placed pieces cast a soft cool
+     shadow so they read as physical chips raised off the (flat) board. Static
+     (never animated) so steady-state cost is ~0ms; one CSS rule, not 81 filter
+     nodes. Preview ghosts (.yn-preview-motif) deliberately get NO shadow, which
+     widens the placed-vs-upcoming distinction. The selected state overrides
+     `filter` with its halo (which already carries a contact drop-shadow); the
+     landing / clearing transforms ride on top of this base, so the shadow scales
+     with the piece during the bounce -- free drop-and-settle weight. */
+  filter: drop-shadow(0 2px 2px var(--yn-chip-shadow, rgba(30, 27, 75, 0.3)));
   transition:
     transform 200ms ease-out,
     opacity 200ms ease-in-out;

@@ -280,14 +280,18 @@ const mount: GameMount = async (container, options) => {
 
   const boardArea = document.createElement("div");
   // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
-  // root). Just a flex centerer for the board itself.
-  boardArea.className = "flex items-center justify-center p-2 min-h-0 overflow-hidden";
+  // root). A flex centerer for the board AND a size container (.yn-board-area
+  // -> container-type: size) so the board sizes to the smaller of this area's
+  // width/height and stays square on every viewport -- no letterbox. overflow
+  // stays VISIBLE so the board slab shadow is not clipped.
+  boardArea.className = "yn-board-area flex items-center justify-center p-2 min-h-0";
   const boardWrap = document.createElement("div");
-  // aspect-square + max-w-[800px] + max-h-full lets the browser pick the
-  // smaller of (parent.width, parent.height, 800) and keeps the board square
-  // at every viewport. Cap bumped 720 -> 800 to match the new middle-column
-  // ceiling on lg+ layouts.
-  boardWrap.className = "aspect-square w-full max-w-[800px] max-h-full";
+  // The board is sized + shaped entirely by .yn-board-slab (index.css):
+  // width = min(100cqw, 100cqh) capped at 800px + aspect-ratio 1, i.e. a square
+  // the size of the smaller axis of .yn-board-area. The SVG board is square, so
+  // the grid fills the tray edge-to-edge with NO letterbox on any viewport.
+  // overflow-hidden clips the grid to the tray's rounded corners (ADR-0031).
+  boardWrap.className = "yn-board-slab overflow-hidden";
   const loadingEl = document.createElement("p");
   loadingEl.className = "text-sm text-white/70 text-center";
   loadingEl.textContent = "Loading theme...";
