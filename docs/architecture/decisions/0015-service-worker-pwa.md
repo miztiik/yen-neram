@@ -3,7 +3,7 @@
 **Last Updated**: 2026-06-27
 **Status**: Accepted (amended 2026-06-27: theme motif art excluded from precache)
 **Born in**: v2 wave 3 (`feat/v2`)
-**Supersedes**: ADR-0007 (no-SW-v1)
+**Supersedes**: the original no-service-worker deferral and the manifest-only PWA setup.
 
 > **Amended 2026-06-27 (balls theme)**: theme motif images
 > (`assets/themes/*/*.{svg,png}`) are NO LONGER precached. They are loaded
@@ -16,12 +16,12 @@
 
 ## Context
 
-ADR-0007 deferred service workers until game #2 lands. The user chose
-to land SW earlier as part of v2 production polish - the trade is more
-generous than the ADR-0007 assumption: a single playable game still
-benefits from offline support (the player on the subway), and the
-~3 KB runtime + ~10 KB build-time tooling earn their bytes against the
-"player on the move" use case.
+The original v1 plan deferred service workers until game #2 lands. The
+user chose to land SW earlier as part of v2 production polish - the
+trade is more generous than the original assumption: a single playable
+game still benefits from offline support (the player on the subway),
+and the ~3 KB runtime + ~10 KB build-time tooling earn their bytes
+against the "player on the move" use case.
 
 ## Decision
 
@@ -46,7 +46,7 @@ offline (mirrors the GH Pages 404.html behaviour per ADR-0001).
   adds a modal nag for a hobby game. The autoUpdate model is silent
   and lossless (state is in localStorage which persists across SW
   swaps).
-- **Don't ship SW until game #2 (ADR-0007's original trigger)**:
+- **Don't ship SW until game #2 (the original trigger)**:
   superseded by user decision; the trigger was a heuristic, not a hard
   constraint.
 
@@ -70,12 +70,11 @@ build` -> served from `dist/sw.js`.
 ## Reversal cost
 
 Cheap. Delete VitePWA plugin from vite.config.ts + delete the SW
-registration in main.ts + delete this ADR. Manifest stays (it's
-independent per ADR-0012).
+registration in main.ts + delete this ADR. Manifest stays; it is a
+static publishing file independent of the service worker.
 
 ## See also
 
-- [0007-no-service-worker-v1.md](0007-no-service-worker-v1.md) (superseded).
-- [0012-pwa-manifest-without-service-worker.md](0012-pwa-manifest-without-service-worker.md) - the manifest that was already there.
 - [0001-routing-path-with-404-fallback.md](0001-routing-path-with-404-fallback.md) - the GH Pages SPA fallback that mirrors the offline navigation behaviour.
+- [../../how-to/ship-to-github-pages.md](../../how-to/ship-to-github-pages.md) - deployment and PWA publishing runbook.
 - [../../../CLAUDE.md](../../../CLAUDE.md) Holy Law 1 (static-first; SW does NOT change this).

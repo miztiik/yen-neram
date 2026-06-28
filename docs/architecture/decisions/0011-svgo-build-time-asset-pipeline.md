@@ -96,7 +96,7 @@ in their last-optimised form; nothing in the runtime bundle changes.
 - [0004-renderer-pick-svg.md](0004-renderer-pick-svg.md)
 - [0005-build-stack-vite-typescript-vanilla.md](0005-build-stack-vite-typescript-vanilla.md)
 - [0006-bundle-budget-and-codesplit.md](0006-bundle-budget-and-codesplit.md)
-- [0008-license-cc0.md](0008-license-cc0.md)
+- [../../concepts/theme-system.md](../../concepts/theme-system.md)
 - [../../../CLAUDE.md](../../../CLAUDE.md) sections 4, 9, 10
 
 ## Amendments

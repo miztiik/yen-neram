@@ -39,27 +39,27 @@ A topic that needs deeper nesting is two topics. Split it.
 
 Within the architecture tier, four typed classes exist. Each has one audience, one mutability rule, one allowed content type, and one forbidden content type. Routing is enforced at PR review time, not by tooling.
 
-| Class             | Path pattern                            | Audience                           | Mutability                                        | Contains                                                            | Forbidden                                         |
-| ----------------- | --------------------------------------- | ---------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------- | ------------------------------------------------- |
-| **ADR**           | `docs/architecture/decisions/NNNN-*.md` | Future agent debugging _why_       | Immutable once Accepted (Status field flips only) | One decision + rejected alternatives + reversal cost + consequences | Implementation detail; current-state snapshot     |
-| **Subsystem doc** | `docs/architecture/<area>/*.md`         | Engineer extending the subsystem   | Living snapshot (edit in place)                   | Shape, layout, contracts, invariants, write/read paths              | Rationale prose; rejected alternatives            |
-| **Concept doc**   | `docs/concepts/*.md`                    | Anyone learning project vocabulary | Living, terse                                     | One term, defined once, with cross-links                            | Duplication of any term defined elsewhere         |
-| **Plan-doc**      | `TODO/<YYYY-MM-DD>-<slug>.md`           | Next person picking up work        | Single-snapshot (no stacked headers)              | Phase status, active PR breakdown, TBD list, pointers               | Rationale prose; decisions; rejected alternatives |
+| Class                     | Path pattern                            | Audience                                            | Mutability                                        | Contains                                                                                         | Forbidden                                                      |
+| ------------------------- | --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
+| **Architecture decision** | `docs/architecture/decisions/NNNN-*.md` | Future agent debugging a costly architecture choice | Immutable once Accepted (Status field flips only) | One architecture choice + actively explored rejected alternatives + reversal cost + consequences | Implementation detail; gameplay tuning; current-state snapshot |
+| **Subsystem doc**         | `docs/architecture/<area>/*.md`         | Engineer extending the subsystem                    | Living snapshot (edit in place)                   | Shape, layout, contracts, invariants, write/read paths                                           | Long PR narrative; duplicate concept definitions               |
+| **Concept doc**           | `docs/concepts/*.md`                    | Anyone learning project vocabulary                  | Living, terse                                     | One term, defined once, with cross-links                                                         | Duplication of any term defined elsewhere                      |
+| **Plan-doc**              | `TODO/<YYYY-MM-DD>-<slug>.md`           | Next person picking up work                         | Single-snapshot (no stacked headers)              | Phase status, active PR breakdown, TBD list, pointers                                            | Rationale prose; decisions; rejected alternatives              |
 
 ### Routing rules (decide a new statement's home)
 
-1. Has a credible rejected alternative with non-trivial reversal cost AND cross-cuts multiple subsystems? -> **New ADR.**
-2. Current shape / layout / contract of one subsystem? -> **Subsystem doc.** Cite the ADR for rationale; do not restate it.
-3. Vocabulary term used across multiple subsystems? -> **Concept doc.** Defined once.
-4. "Which PRs land when"? -> **Plan-doc.** Cite both ADR and subsystem doc; carry no rationale.
-5. Step-by-step procedure an operator runs? -> **How-to doc.** Cite the ADR or subsystem doc for _why_.
+1. Current gameplay rule, UI shape, tuning invariant, or subsystem contract? -> **Concept doc**, **how-to doc**, or **subsystem doc**. This is the default.
+2. Vocabulary term used across multiple subsystems? -> **Concept doc.** Defined once.
+3. Step-by-step procedure an operator runs? -> **How-to doc.** Cite the concept or subsystem doc for why.
+4. "Which PRs land when"? -> **Plan-doc.** Carry pointers, not full rationale.
+5. Architecture choice with an actively explored rejected alternative, non-trivial reversal cost, and cross-system consequences? -> **New architecture decision.** If any leg is missing, update a living doc instead.
 
 ### Cross-doc consistency mechanism
 
-- ADRs are source-of-truth events. Once Accepted, the decision text is immutable; only the Status field changes.
-- Subsystem docs link UP to the ADR(s) that birthed each invariant (inline `(per ADR-NNNN)`).
-- Plan-docs link ACROSS to both (`**Spec**:` + `**Decision rationale**:`).
-- Concept docs link laterally and DOWN to operationalising subsystem docs.
+- Living docs are the default source of truth for current shape. Edit them in place as the game changes.
+- Architecture decisions are source-of-truth events only for costly architecture choices. Once Accepted, the decision text is immutable; only the Status field changes.
+- Plan-docs link ACROSS to the living doc that now owns the finding.
+- Concept docs link laterally and DOWN to operationalising subsystem docs and how-to docs.
 
 ### Plan-doc single-snapshot rule
 
