@@ -92,6 +92,10 @@ export const InProgressSchema = z
     // falls back to turn_seed = the prior behaviour, so no schema_version bump
     // and no read-side migration are owed (CLAUDE.md sec 11, additive case).
     rng_cursor: z.number().int().optional(),
+    // Whether this game's single stuck-valve shuffle has been spent (ADR-0038).
+    // Additive + optional like rng_cursor; a reload of a game whose shuffle was
+    // used stays used. No schema_version bump.
+    shuffle_used: z.boolean().optional(),
     undo: z
       .object({
         available: z.boolean(),

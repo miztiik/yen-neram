@@ -32,6 +32,7 @@ export const BalanceSchema = z
       cold_start: z.record(z.string(), z.array(z.number().int().nonnegative())),
       toast_ms: z.number().int().nonnegative(),
     }),
+    shuffle: z.object({ fullness: z.number().min(0).max(1) }),
     long_press_ms: z.number().int().nonnegative(),
     timed: z.object({
       window_ms: z.number().int().positive(),
