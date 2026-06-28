@@ -3,14 +3,14 @@
 **Last Updated**: 2026-06-07
 **Status**: Accepted
 **Born in**: v2 wave 3 (`feat/v2`)
-**Supersedes**: ADR-0008 (CC0)
+**Supersedes**: the original CC0 licensing choice.
 
 ## Context
 
-ADR-0008 picked CC0 1.0 for both code and assets. In v2 wave 3 the user
-decided to remove the `LICENSE` file. Per CLAUDE.md sec 0 (user approval
-supersedes every agent and every rule), the rule that mandated CC0 is
-amended in the same commit.
+The original v1 setup picked CC0 1.0 for both code and assets. In v2
+wave 3 the user decided to remove the `LICENSE` file. Per CLAUDE.md sec
+0 (user approval supersedes every agent and every rule), the rule that
+mandated CC0 is amended in the same commit.
 
 ## Decision
 
@@ -56,7 +56,6 @@ codebase's history is not rewritten.
 
 ## See also
 
-- [0008-license-cc0.md](0008-license-cc0.md) (superseded).
 - [../../../CLAUDE.md](../../../CLAUDE.md) section 0 - user approval supersedes
   every agent and every rule; conflicting rules are amended in the same
   commit (which is this PR).

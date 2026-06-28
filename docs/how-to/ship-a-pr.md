@@ -36,11 +36,11 @@ git checkout -b <type>/<scope>-<slug> origin/main
 
 ## The 2-commit-then-squash pattern
 
-Use this pattern when your PR's diff needs to cite its own to-be-allocated PR number (the most common case for any change that updates a plan-doc or an ADR with a `PR #_pending_` placeholder). The cost is one extra commit on the branch (~5 lines of churn) that vanishes at squash; the value is the in-doc PR# stamp lands in the same merge SHA as the work.
+Use this pattern when your PR's diff needs to cite its own to-be-allocated PR number (the most common case for any change that updates a plan-doc or durable doc with a `PR #_pending_` placeholder). The cost is one extra commit on the branch (~5 lines of churn) that vanishes at squash; the value is the in-doc PR# stamp lands in the same merge SHA as the work.
 
 ### Commit 1 - structural
 
-All file edits, deletes, schema bumps, test changes. The plan-doc / ADR / how-to entries that reference this PR cite `PR #_pending_` as a placeholder. Stage explicit paths only:
+All file edits, deletes, schema bumps, test changes. The plan-doc / concept / how-to / subsystem entries that reference this PR cite `PR #_pending_` as a placeholder. Stage explicit paths only:
 
 ```powershell
 git add <named paths>
@@ -67,11 +67,13 @@ Capture the PR number from the URL it prints.
 Replace `_pending_` with `#NNN` in every doc that references this PR:
 
 ```powershell
-# Edit files: plan-doc row + ADR retirement list + relevant subsystem doc + etc.
+# Edit files: plan-doc row + relevant concept/how-to/subsystem doc + etc.
 git add <stamped paths>
 git commit -m "stamp(<scope>): PR #NNN"
 git push
 ```
+
+Do not create a new architecture decision as a routine PR stamp. Update the living doc that owns the current shape. Create a new file under `docs/architecture/decisions/` only when this PR actively explored and rejected a real architecture alternative with non-trivial reversal cost.
 
 ## The Definition-of-Done gates
 

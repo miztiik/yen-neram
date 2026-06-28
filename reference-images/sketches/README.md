@@ -4,15 +4,17 @@
 
 Design-review artefact. Five candidate silhouette sets + 5 placeholder tiles for the Yen-Neram portal. User picks one motif set during review of PR 2 (per [TODO/2026-06-07-v1-shell-and-5-in-a-row.md](../../TODO/2026-06-07-v1-shell-and-5-in-a-row.md)).
 
-These SVGs are NOT production assets. They live here intentionally — outside `assets/` — so the build pipeline does not see them and the user can review without engineering scaffolding. On pick, the chosen set moves to `assets/themes/<theme-id>/` and goes through the SVGO pipeline (per ADR-0009 to land in PR 5).
+These SVGs are NOT production assets. They live here intentionally - outside `assets/` - so the build pipeline does not see them and the user can review without engineering scaffolding. On pick, the chosen set moves to `apps/frontend/public/assets/themes/<theme-id>/` and goes through the theme asset pipeline.
 
 ## How to review
 
 Open [index.html](index.html) in any browser (double-click works; no server needed). Each set is rendered at:
+
 - 36x36 px (the target on-device cell size on a mid-tier Android phone — Carmack's frame-budget profile per CLAUDE.md Holy Law #2)
 - 72x72 px (closer inspection)
 
 Two questions to answer while scanning:
+
 1. **Thumb test** — can you tell all 6 silhouettes in a set apart at arm's length on the 36px row?
 2. **Personality test** — which set feels like the Yen-Neram you want to ship first?
 

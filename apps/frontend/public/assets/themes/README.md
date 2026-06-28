@@ -10,7 +10,7 @@ source location; this folder IS the source and the served form.
 
 ```
 themes/
-  index.json        # generated roster (ThemeIndex, ADR-0023); do NOT hand-edit
+   index.json        # generated roster (ThemeIndex); do NOT hand-edit
   <theme-id>/
     manifest.json   # ThemeManifest (zod-validated, contract-tested)
     <motif>.svg     # 6 motif files, one per run-group (1..6). The
@@ -23,7 +23,7 @@ themes/
 - `<ext>` is `svg` or `png`. Both are first-class - the renderer is
   format-agnostic. A theme can ship all SVG, all PNG, or mixed; the
   manifest maps each run-group (1..6) to its motif filename.
-- Every theme manifest declares a `license` (CC0-1.0 per ADR-0008).
+- Every theme manifest declares a `license` for asset provenance.
 
 ## Adding or editing a theme
 
@@ -39,13 +39,13 @@ themes/
    pnpm -F frontend build:assets
    ```
 
-   This runs `tools/svgo-themes.mjs` (per ADR-0011), which rewrites
+   This runs `tools/svgo-themes.mjs` (per the SVGO pipeline decision), which rewrites
    each SVG motif IN PLACE to its optimised form. PNG motifs are
    ignored by this pass; if you want to shrink them, pre-process
    them with your own tool of choice (`oxipng`, `pngcrush`,
    `squoosh-cli`) before committing.
 
-   `build:assets` also runs `tools/themes-index.mjs` (per ADR-0023),
+   `build:assets` also runs `tools/themes-index.mjs` (per the theme-system concept),
    which regenerates `index.json` - the theme roster the settings
    picker reads. Adding or renaming a theme only needs the folder
    plus its `manifest.json`; the index follows. Never hand-edit
@@ -68,16 +68,16 @@ themes/
 
 The pipeline writes back to the same path it reads from. The
 canonical location IS the build output for SVG motifs - there is no
-separate `dist/` shape for theme SVGs. This is intentional (per
-ADR-0011): it keeps the artifact a player downloads identical to the
-one a maintainer inspects in git.
+separate `dist/` shape for theme SVGs. This is intentional: it keeps
+the artifact a player downloads identical to the one a maintainer
+inspects in git.
 
 If an editor or pre-commit hook auto-formats your SVG on save and the
 file balloons, just re-run `pnpm -F frontend build:assets`.
 
 ## Sizing guidance (advisory, not enforced)
 
-Per-motif byte cap was removed 2026-06-07 (ADR-0011 amendment). The
+Per-motif byte cap was removed 2026-06-07. The
 renderer decodes each motif once and caches the bitmap; click +
 move + theme-swap are compositor-thread operations whose cost is
 independent of source file size after first paint. The cost is
@@ -97,5 +97,5 @@ target device profile.
 ## See also
 
 - [../../../../../docs/architecture/decisions/0004-renderer-pick-svg.md](../../../../../docs/architecture/decisions/0004-renderer-pick-svg.md)
-- [../../../../../docs/architecture/decisions/0008-license-cc0.md](../../../../../docs/architecture/decisions/0008-license-cc0.md)
 - [../../../../../docs/architecture/decisions/0011-svgo-build-time-asset-pipeline.md](../../../../../docs/architecture/decisions/0011-svgo-build-time-asset-pipeline.md)
+- [../../../../../docs/concepts/theme-system.md](../../../../../docs/concepts/theme-system.md)

@@ -15,4 +15,5 @@ The save format is the per-game state-persistence contract. Each game writes ver
 
 - [../../CLAUDE.md](../../CLAUDE.md) section 11 (Schema Versioning)
 - [../architecture/decisions/0002-save-per-game-localstorage-keys.md](../architecture/decisions/0002-save-per-game-localstorage-keys.md)
+- [5-in-a-row-gameplay.md](5-in-a-row-gameplay.md)
 - `../architecture/save-format/5-in-a-row.md` (deferred; born in PR 4)

@@ -14,4 +14,6 @@ A multi-game shell is the architecture pattern where one app shell hosts multipl
 
 - [../architecture/decisions/0001-routing-path-with-404-fallback.md](../architecture/decisions/0001-routing-path-with-404-fallback.md)
 - [../architecture/decisions/0006-bundle-budget-and-codesplit.md](../architecture/decisions/0006-bundle-budget-and-codesplit.md)
+- [theme-system.md](theme-system.md)
+- [../how-to/ship-to-github-pages.md](../how-to/ship-to-github-pages.md)
 - `game-manifest.md` (deferred; born in PR 3)
