@@ -12,7 +12,7 @@ User approval supersedes every agent and every rule in this file. Amend conflict
 
 ## 0a. Non-Goals
 
-- ~~**Accessibility** (a11y / ARIA / WCAG / axe-core / contrast-ratio tooling / screen-reader hints). Descoped at project level. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement. Re-scope by editing this entry.~~ However, **basic ARIA + keyboard nav are IN scope** as of v2 production polish: visible focus rings, labelled controls, semantic landmarks, keyboard reachability of every interactive surface, screen-reader-friendly button names. The line is: design-level a11y choices (label your buttons, use real semantics) are encouraged; framework / audit tooling is not. Still descoped: no a11y deps, no automated audits, no doctrine pass that gates merges on WCAG levels. See [docs/architecture/decisions/0013-basic-a11y-keyboard-and-aria.md](docs/architecture/decisions/0013-basic-a11y-keyboard-and-aria.md).
+- ~~**Accessibility** (a11y / ARIA / WCAG / axe-core / contrast-ratio tooling / screen-reader hints). Descoped at project level. No a11y deps, assertions, agent doctrine, or `aria-*` enforcement. Re-scope by editing this entry.~~ However, **basic ARIA + keyboard nav are IN scope** as of v2 production polish: visible focus rings, labelled controls, semantic landmarks, keyboard reachability of every interactive surface, screen-reader-friendly button names. The line is: design-level a11y choices (label your buttons, use real semantics) are encouraged; framework / audit tooling is not. Still descoped: no a11y deps, no automated audits, no doctrine pass that gates merges on WCAG levels. See [docs/reference/ui-contract.md](docs/reference/ui-contract.md).
 - **Production backend.** See Holy Law #1.
 - **Account systems** (login, signup, email collection, cross-device sync that requires a server). Game state is `localStorage` / `IndexedDB` only.
 - **Push notifications.** The player decides when to play.
@@ -24,7 +24,7 @@ User approval supersedes every agent and every rule in this file. Amend conflict
 1. **Static-first production.** Deployed game is a static bundle on GitHub Pages. No production backend. Everything the game needs at runtime ships in the bundle.
 2. **The player's phone is the architecture.** Every runtime decision is measured against: input-to-photon <50ms, sustained 60fps (frame budget 16.7ms, game-logic budget ~4ms), <50KB shell + declared total-bundle cap, on a mid-tier Android (Snapdragon 6-series, 4GB RAM, ~2022 vintage) over patchy 4G. The target device is the contract; features bend to it. (See `.github/agents/carmack.agent.md`.)
 3. **Contracts before logic.** Every persisted shape - save format, level data, asset manifest - gets a typed schema before logic is written.
-4. **docs/ = agent memory, not ADR sprawl.** Gameplay rules, UI shape, tuning knobs, and current subsystem contracts live in `docs/concepts/`, `docs/how-to/`, or the relevant `docs/architecture/<area>/` living doc. Create a new file under `docs/architecture/decisions/` only for an actively explored architecture choice with a real rejected alternative, cross-system consequences, and non-trivial reversal cost.
+4. **docs/ = agent memory, not decision sprawl.** Gameplay rules, UI shape, tuning knobs, current subsystem contracts, and durable rationale live in `docs/concepts/`, `docs/how-to/`, `docs/reference/`, or the relevant `docs/architecture/<area>/` living doc. Do not create standalone decision-record files; put rejected alternatives and reversal notes in the owning living doc when they still matter.
 5. **Structural fixes only.** No band-aids, no monkey patches, no "temporary" hacks. Escalate the correction level instead.
 6. **No hardcoding.** Tunable knobs (game-balance numbers, asset paths, difficulty thresholds) live in `config/`; schema-validated.
 7. **No mocks unless asked.** Real implementations and real fixtures. Mocks only on explicit user request or for genuinely untestable external boundaries (DuckDB-style WASM modules in unit tests, `fetch` in loader unit tests).
@@ -76,7 +76,7 @@ Folders are created only when real code is about to land. The first real PR pick
 - One concept defined once; everywhere else links to it.
 - ASCII-only in all repo text: commit messages, docs, code comments, log strings, agent markdown, CLI output (use `-`, `->`, `>=`, "section", "INR"). No curly quotes, em-dashes, or non-ASCII symbols. Applies going forward; no retroactive fixing.
 - Agent memory (`AGENTS.md`, `/memories/repo/`) is derived, not authoritative; if it disagrees with `docs/`, docs win.
-- New ADRs are exceptional. Most changes update an existing concept, how-to, reference, or subsystem doc in place.
+- New decision-record files are not used. Most changes update an existing concept, how-to, reference, or subsystem doc in place.
 - Open questions live in the active plan-doc under `TODO/`, not in this file.
 - Docs-only PRs are a code smell.
 

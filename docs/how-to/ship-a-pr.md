@@ -73,7 +73,7 @@ git commit -m "stamp(<scope>): PR #NNN"
 git push
 ```
 
-Do not create a new architecture decision as a routine PR stamp. Update the living doc that owns the current shape. Create a new file under `docs/architecture/decisions/` only when this PR actively explored and rejected a real architecture alternative with non-trivial reversal cost.
+Do not create a separate decision-record file as a routine PR stamp. Update the living doc that owns the current shape. If the PR actively explored and rejected a real alternative with non-trivial reversal cost, add that rationale to the owning living doc.
 
 ## The Definition-of-Done gates
 

@@ -42,4 +42,4 @@ Game-over effects stay compositor-friendly. They should respect reduced motion a
 - [5-in-a-row-gameplay.md](5-in-a-row-gameplay.md) - gameplay pacing and modes.
 - [5-in-a-row-board-and-input.md](5-in-a-row-board-and-input.md) - board feedback and selection.
 - [../how-to/tune-5-in-a-row.md](../how-to/tune-5-in-a-row.md) - safe tuning procedure.
-- [../architecture/decisions/0004-renderer-pick-svg.md](../architecture/decisions/0004-renderer-pick-svg.md) - renderer and animation budget.
+- [../architecture/runtime/perf-budget.md](../architecture/runtime/perf-budget.md) - renderer and animation budget.

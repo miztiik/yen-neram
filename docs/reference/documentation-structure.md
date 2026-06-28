@@ -37,27 +37,26 @@ A topic that needs deeper nesting is two topics. Split it.
 
 ## Doc-class routing contract
 
-Within the architecture tier, four typed classes exist. Each has one audience, one mutability rule, one allowed content type, and one forbidden content type. Routing is enforced at PR review time, not by tooling.
+Each doc class has one audience, one mutability rule, one allowed content type, and one forbidden content type. Routing is enforced at PR review time, not by tooling.
 
-| Class                     | Path pattern                            | Audience                                            | Mutability                                        | Contains                                                                                         | Forbidden                                                      |
-| ------------------------- | --------------------------------------- | --------------------------------------------------- | ------------------------------------------------- | ------------------------------------------------------------------------------------------------ | -------------------------------------------------------------- |
-| **Architecture decision** | `docs/architecture/decisions/NNNN-*.md` | Future agent debugging a costly architecture choice | Immutable once Accepted (Status field flips only) | One architecture choice + actively explored rejected alternatives + reversal cost + consequences | Implementation detail; gameplay tuning; current-state snapshot |
-| **Subsystem doc**         | `docs/architecture/<area>/*.md`         | Engineer extending the subsystem                    | Living snapshot (edit in place)                   | Shape, layout, contracts, invariants, write/read paths                                           | Long PR narrative; duplicate concept definitions               |
-| **Concept doc**           | `docs/concepts/*.md`                    | Anyone learning project vocabulary                  | Living, terse                                     | One term, defined once, with cross-links                                                         | Duplication of any term defined elsewhere                      |
-| **Plan-doc**              | `TODO/<YYYY-MM-DD>-<slug>.md`           | Next person picking up work                         | Single-snapshot (no stacked headers)              | Phase status, active PR breakdown, TBD list, pointers                                            | Rationale prose; decisions; rejected alternatives              |
+| Class             | Path pattern                    | Audience                           | Mutability                           | Contains                                                       | Forbidden                                    |
+| ----------------- | ------------------------------- | ---------------------------------- | ------------------------------------ | -------------------------------------------------------------- | -------------------------------------------- |
+| **Subsystem doc** | `docs/architecture/<area>/*.md` | Engineer extending the subsystem   | Living snapshot (edit in place)      | Shape, layout, contracts, invariants, write/read paths         | Long PR narrative; duplicate concept terms   |
+| **Concept doc**   | `docs/concepts/*.md`            | Anyone learning project vocabulary | Living, terse                        | One term, rule set, or player-facing concept, with cross-links | Duplication of any term defined elsewhere    |
+| **Reference doc** | `docs/reference/*.md`           | Engineer checking exact contracts  | Living, exact                        | Commands, policies, values, schemas, and repository contracts  | Narrative, rationale sprawl, step-by-step UX |
+| **Plan-doc**      | `TODO/<YYYY-MM-DD>-<slug>.md`   | Next person picking up work        | Single-snapshot (no stacked headers) | Phase status, active PR breakdown, TBD list, pointers          | Canonical project knowledge                  |
 
 ### Routing rules (decide a new statement's home)
 
-1. Current gameplay rule, UI shape, tuning invariant, or subsystem contract? -> **Concept doc**, **how-to doc**, or **subsystem doc**. This is the default.
+1. Current gameplay rule, UI shape, tuning invariant, or subsystem contract? -> **Concept doc**, **how-to doc**, **reference doc**, or **subsystem doc**. This is the default.
 2. Vocabulary term used across multiple subsystems? -> **Concept doc.** Defined once.
 3. Step-by-step procedure an operator runs? -> **How-to doc.** Cite the concept or subsystem doc for why.
 4. "Which PRs land when"? -> **Plan-doc.** Carry pointers, not full rationale.
-5. Architecture choice with an actively explored rejected alternative, non-trivial reversal cost, and cross-system consequences? -> **New architecture decision.** If any leg is missing, update a living doc instead.
+5. Rejected alternatives or reversal cost that still matter? -> Put a short **Rejected alternatives** or **Reversal notes** section in the owning living doc. Do not create a separate decision-record file.
 
 ### Cross-doc consistency mechanism
 
 - Living docs are the default source of truth for current shape. Edit them in place as the game changes.
-- Architecture decisions are source-of-truth events only for costly architecture choices. Once Accepted, the decision text is immutable; only the Status field changes.
 - Plan-docs link ACROSS to the living doc that now owns the finding.
 - Concept docs link laterally and DOWN to operationalising subsystem docs and how-to docs.
 
