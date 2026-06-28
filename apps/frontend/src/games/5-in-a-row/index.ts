@@ -167,8 +167,7 @@ const mount: GameMount = async (container, options) => {
     // DIRECTLY on the violet field; Best/Streak/Timer demote to one muted stat
     // line beneath it. A single centred column in both orientations (top block
     // on mobile, left rail on lg). No pills.
-    "flex flex-col items-center justify-center gap-1.5 px-3 py-3 " +
-    "lg:gap-2 lg:px-4 lg:py-6";
+    "flex flex-col items-center justify-center gap-1.5 px-3 py-3 " + "lg:gap-2 lg:px-4 lg:py-6";
 
   // Score chip (ADR-0017 "Stacked Wave" pass, Jony pass 2026-06-08): the
   // NUMBER is the hero. Killed the "SCORE" label entirely -- the only big
@@ -282,8 +281,7 @@ const mount: GameMount = async (container, options) => {
   // on-board ghost previews (the player should look in ONE place); the "Show
   // next 3 preview" toggle now gates those board ghosts directly.
   const statLine = document.createElement("div");
-  statLine.className =
-    "flex flex-row items-center justify-center gap-3 sm:gap-4 min-h-[1.25rem]";
+  statLine.className = "flex flex-row items-center justify-center gap-3 sm:gap-4 min-h-[1.25rem]";
   statLine.append(bestEl, streakEl, timerEl);
 
   topBar.append(scoreEl, statLine);
