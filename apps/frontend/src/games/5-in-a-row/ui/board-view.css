@@ -88,11 +88,20 @@
   }
 }
 .yn-cell-selected .yn-motif {
-  animation: yn-pulse 1.4s ease-in-out infinite;
+  /* One-shot select-in pop, then STILL (2026-06-28). A perpetual
+     breathing pulse here (reintroduced by ADR-0026) regressed the exact
+     "constant motion reads nervous on mobile" problem PR #33 already fixed: on a
+     mid-tier Android the scale animation rides the two drop-shadow filters
+     below, and a filtered element can NEVER be promoted off the main thread, so
+     the GPU re-rasterises the blurred shadows every frame -- visible shimmer the
+     player reported as "vibrating". Motion on the transition, stillness on the
+     hold: the piece pops up once and holds at 1.08; the static halo carries the
+     selected state from then on (Carmack + Jony council). */
+  animation: yn-select-in 220ms ease-out forwards;
   /* Selection halo decoupled from the brand accent (ADR-0027): a hueless
-     dark lift reads as "raised off the cell" against ANY motif/theme; the
-     pulse carries the selection signal. Was var(--yn-accent) (orange),
-     which clashed with cool motifs like the Planets-theme Earth. */
+     dark lift reads as "raised off the cell" against ANY motif/theme. Was
+     var(--yn-accent) (orange), which clashed with cool motifs like the
+     Planets-theme Earth. */
   filter: drop-shadow(0 0 6px var(--yn-select-glow)) drop-shadow(0 2px 3px rgba(0, 0, 0, 0.2));
 }
 .yn-cell-clearing .yn-motif {
@@ -116,17 +125,18 @@
 .yn-cell-landing .yn-motif {
   animation: yn-land 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-/* Selected-piece breathing pulse. The peak scale is per-tile-size (ADR-0026):
-   board-view.ts sets `--yn-pulse-peak` on the SVG root so the bounce never
-   crosses the cell boundary for the chosen tier. The fallback 1.18 is the
-   medium-tier value, so the keyframe is unchanged if the var is never set. */
-@keyframes yn-pulse {
-  0%,
-  100% {
-    transform: scale(1) translateY(0);
+/* One-shot select-in pop for a tapped piece (replaces the old
+   perpetual yn-pulse breathing -- see .yn-cell-selected .yn-motif). Pure scale,
+   NO translate: a symmetric scale around the motif centre has no sub-pixel
+   vertical drift, and ending at a held 1.08 keeps the piece visibly enlarged
+   (selected) without any further motion. 1.08 is inside the cell for every
+   tile-size tier (largest motif 35 * 1.08 = 37.8 < 40 = CELL_SIZE). */
+@keyframes yn-select-in {
+  0% {
+    transform: scale(1);
   }
-  50% {
-    transform: scale(var(--yn-pulse-peak, 1.18)) translateY(-1px);
+  100% {
+    transform: scale(1.08);
   }
 }
 @keyframes yn-clear {
@@ -194,6 +204,29 @@
     transform: scale(1);
   }
 }
+/* Move settle (2026-06-28): a piece that SLID from its old cell into
+   the new one never disappeared, so it must NOT pop in from scale 0.3 like a
+   spawned piece (yn-land). It arrives and gives a small impact overshoot --
+   1 -> 1.08 -> 1 -- so the slide and the landing read as ONE motion, not
+   "slide, vanish, pop" (the player-reported "stutter"; Jony council). The slide
+   itself eases OUT (decelerates into the cell, see showPathTrace) so this
+   overshoot reads as the impact of arrival. Spawned pieces still pop in via
+   yn-land. Peak 1.08 fits every tile tier (largest motif 35 * 1.08 = 37.8 <
+   40 = CELL_SIZE). */
+.yn-cell-settling .yn-motif {
+  animation: yn-settle 180ms ease-out;
+}
+@keyframes yn-settle {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 @media (prefers-reduced-motion: reduce) {
   .yn-cell-selected .yn-motif,
   .yn-cell-clearing .yn-motif,
@@ -201,6 +234,7 @@
   .yn-cell-shake,
   .yn-cell-shake .yn-cell-bg,
   .yn-cell-blocker-flash .yn-cell-bg,
+  .yn-cell-settling .yn-motif,
   .yn-cell-landing .yn-motif {
     animation-duration: 1ms !important;
   }
@@ -376,13 +410,14 @@
 .yn-score-display::after {
   content: counter(yn-score);
 }
-/* Mirror for the BEST chip beside the score. Same trick. */
+/* Mirror for the BEST chip beside the score. Same trick. Now a standalone
+ * centred number in its stacked stat-cell (Jony 2026-06-28). */
 .yn-best-display {
   display: inline-block;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   min-width: 1.5ch;
-  text-align: right;
+  text-align: center;
   counter-reset: yn-best var(--yn-best-count);
 }
 .yn-best-display::after {
@@ -449,16 +484,14 @@
  * marker on the HUD that the player is currently in record-breaking
  * territory. Overrides the cream resting state via specificity (the
  * class is appended at the same level). */
-/* NEW BEST (un-boxed, ADR-0033): the stat-line item tints to the warm accent
- * (text only -- there is no pill to fill) so the player sees they are in
- * record territory. */
-.yn-best-chip.yn-best-chip--crossed {
-  color: var(--yn-accent, #f97316);
-}
+/* NEW BEST (un-boxed, ADR-0033; restructured Jony 2026-06-28): the stat cell
+ * tints to the warm accent (text only -- there is no pill to fill) so the
+ * player sees they are in record territory. Label + number both shift; the
+ * nested .yn-best-label/.yn-best-display beat their Tailwind colour utilities
+ * on specificity. The label text stays "Best" -- colour alone carries it. */
+.yn-best-chip.yn-best-chip--crossed,
+.yn-best-chip.yn-best-chip--crossed .yn-best-label,
 .yn-best-chip.yn-best-chip--crossed .yn-best-display {
-  color: var(--yn-accent, #f97316);
-}
-.yn-best-chip.yn-best-chip--crossed > span:first-child {
   color: var(--yn-accent, #f97316);
 }
 @keyframes yn-best-bump {
@@ -834,30 +867,15 @@
  * readers. The flame is a hand-drawn SVG path (no font, no
  * emoji per CLAUDE.md ASCII-only rule, no third-party icon set).
  * Two-colour gradient flame: amber #fbbf24 outer, accent #ea580c
- * inner. Pill bg matches a warm-warm gradient so the streak chip
- * carries its own micro-identity inside the HUD without
- * clashing with the cream score/best chips.
+ * inner. The cell layout (flex column) + the count's size/colour are
+ * Tailwind utilities now (Jony 2026-06-28 matched stat-cell); only the
+ * flame's intrinsic size lives here.
  * ============================================================ */
-.yn-streak-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  color: var(--yn-hud-muted, #c4b5fd);
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
-  font-size: 14px;
-  line-height: 1;
-}
 .yn-streak-chip__flame {
   width: 14px;
   height: 14px;
   flex: 0 0 14px;
   display: block;
-}
-.yn-streak-chip__count {
-  font-size: 15px;
-  line-height: 1;
-  color: var(--yn-hud-ink, #ede9fe);
 }
 
 /* Timer urgency (ADR-0033): the un-boxed mm:ss goes warm-red and pulses under
@@ -875,5 +893,28 @@
   50% {
     transform: scale(1.08);
     opacity: 0.7;
+  }
+}
+
+/* Icon-button entrance pop (Jony 2026-06-28): the stuck-valve Shuffle disc
+ * fades + scales in the first time it appears, so it reads as "a lifeline just
+ * arrived" rather than silently materialising. One-shot, compositor-only
+ * (transform + opacity), gated off under reduced motion. */
+@keyframes yn-icon-enter {
+  from {
+    transform: scale(0.8);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.yn-icon-enter {
+  animation: yn-icon-enter 200ms ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .yn-icon-enter {
+    animation: none;
   }
 }
