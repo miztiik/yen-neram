@@ -58,7 +58,7 @@ describe("daily-seed golden master (ADR-0034)", () => {
 
   it("a fixed seed always yields the SAME first preview (positions + colours)", () => {
     const state = createInitialTurnState(createRng(123456789), INFINITE, FIXED_BALANCE);
-    expect(renderPreview(state)).toMatchInlineSnapshot(`"3,3:3 5,0:2 4,3:5"`);
+    expect(renderPreview(state)).toMatchInlineSnapshot(`"3,4:3 5,0:2 4,4:5"`);
   });
 
   it("is reproducible: two runs from the same seed are byte-identical", () => {

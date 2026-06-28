@@ -27,6 +27,14 @@ The opening board plants one same-colour run so the first clear arrives quickly.
 
 Future spawn tuning should protect this first-clear promise before optimizing for later-game difficulty.
 
+## Spawn Pacing And Placement
+
+Each non-clearing move spawns `spawn_per_turn` tiles (currently 2). Two tiles per turn drains slower than the board fills, which keeps mid-game scores reachable; three made skilled lines die before completing.
+
+Spawn cells are not uniform-random. The preview roll and the occupied-cell fallback both bias placement toward emptier neighbourhoods: an empty cell is weighted `5 - filledOrthogonalNeighbours`, so wide-open cells are up to five times likelier than a cell wedged inside the player's pocket. This stops new tiles dropping into the exact gap of an about-to-clear line while plenty of board is free. Concentration stays possible (packed cells are unlikely, not banned), so deliberate clear clusters survive. The draw count is unchanged, so daily determinism and the RNG-cursor save contract hold.
+
+This is cell placement, not colour, so it is distinct from the rejected experiment below.
+
 ## Stuck-Valve Shuffle
 
 The stuck-valve shuffle is a once-per-run lifeline for boards that become unproductive. It recolours the board rather than injecting extra score or removing pieces, so the core line-building rules remain intact.
@@ -37,7 +45,7 @@ The shuffle is a game-feel valve, not monetisation, lives, or pay-to-skip. It mu
 
 The anti-clump preview nudge was tried and reverted. Preventing monochrome preview triples looked cleaner on paper, but in play it made the game harder in the wrong direction by reducing the concentrated colours that create satisfying clears.
 
-Current rule: spawn concentration is allowed and sometimes desirable. Do not reintroduce anti-clump logic unless a new playtest shows the same failure mode has been solved.
+Current rule: spawn colour concentration is allowed and sometimes desirable. Do not reintroduce anti-clump colour logic unless a new playtest shows the same failure mode has been solved. Cell placement bias (above) is the sanctioned anti-frustration lever, because it spreads tiles across the board without touching colour mix.
 
 ## See also
 
