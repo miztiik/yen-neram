@@ -6,4 +6,5 @@ export * from "./line-detect.js";
 export * from "./score.js";
 export * from "./rng.js";
 export * from "./milestones.js";
+export * from "./shuffle.js";
 export type * from "../types.js";

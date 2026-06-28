@@ -3,10 +3,11 @@ import type { Save } from "@/shared/schemas/5-in-a-row.save.schema.js";
 import { balance } from "./balance.schema.js";
 import { readSave, writeSave, makeFreshSave, makeFreshGame } from "./save.js";
 import { createRng } from "./engine/rng.js";
-import { getCell, setCell } from "./engine/board.js";
+import { countFilled, getCell, setCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
 import { appendCapped, deriveMilestones } from "./engine/milestones.js";
+import { shuffleBoard } from "./engine/shuffle.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
 import { createBoardView, DEFAULT_TILE_SIZE, type ClearStyle } from "./ui/board-view.js";
 import {
@@ -81,6 +82,7 @@ type ExtendedBalance = BalanceLike & {
   readonly top_scores_max: number;
   readonly recent_window: number;
   readonly milestones: MilestoneConfig;
+  readonly shuffle: { readonly fullness: number };
   readonly reward: RewardTimings;
   readonly clear: ClearTimings;
 };
@@ -331,6 +333,18 @@ const mount: GameMount = async (container, options) => {
   undoBtn.textContent = "\u21BA Undo";
   undoBtn.setAttribute("aria-label", "Undo last move");
 
+  // Stuck-valve shuffle button (ADR-0038): a once-per-run lifeline that
+  // re-colours a buried board. Hidden until the board crosses the fullness
+  // threshold (and gone once spent) so it never clutters the bar in normal
+  // play -- it APPEARS exactly when the player is stuck.
+  const shuffleBtn = document.createElement("button");
+  shuffleBtn.type = "button";
+  shuffleBtn.textContent = "\u21BB Shuffle";
+  shuffleBtn.setAttribute("aria-label", "Shuffle the board (once per game)");
+  shuffleBtn.className =
+    "px-4 py-1.5 rounded-full bg-yn-tile text-yn-ink text-sm font-medium border border-yn-border shadow-xs hover:bg-yn-bg transition-colors";
+  shuffleBtn.style.display = "none";
+
   // Menu button (replaces text "Pause" + standalone "Back" + the buried
   // "Switch mode" / "Reset game" actions in the drawer's deep
   // hierarchy). The icon is a 3-line hamburger -- the universal mobile
@@ -347,7 +361,7 @@ const mount: GameMount = async (container, options) => {
   // Inline SVG hamburger -- 3 stacked lines, 2px stroke, rounded caps.
   // Cream lines on accent fill. No external icon library.
   menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
-  bottomBar.append(undoBtn, menuBtn);
+  bottomBar.append(undoBtn, shuffleBtn, menuBtn);
 
   root.append(topBar, boardArea, bottomBar);
   container.appendChild(root);
@@ -470,6 +484,7 @@ const mount: GameMount = async (container, options) => {
   // spent). Reset to false on freshMakeSave / Play Again / Reset (the
   // freshly-minted save has available: true by schema default).
   let undoUsedThisGame = save.in_progress !== null && save.in_progress.undo.available === false;
+  let shuffleUsedThisGame = save.in_progress?.shuffle_used ?? false;
 
   const boardView = createBoardView({
     motifSymbolUrl: "",
@@ -516,6 +531,43 @@ const mount: GameMount = async (container, options) => {
   // snapshot also leaves it disabled until the player makes a move
   // (snapshot is not persisted this PR, see UndoSnap type comment).
   setUndoEnabled(false);
+
+  // --- Stuck-valve shuffle (ADR-0038) -----------------------------------
+  // One honest lifeline per run: when the board is crowded past a fullness
+  // threshold, re-colour every tile in place (engine/shuffleBoard) to unblock.
+  // No score, once per game, survives reload via shuffle_used. The button only
+  // shows while it is usable, so normal play stays uncluttered.
+  function shuffleFullnessReached(): boolean {
+    const total = balanceConfig.board_size * balanceConfig.board_size;
+    return total > 0 && countFilled(state.board) / total >= balanceConfig.shuffle.fullness;
+  }
+  function canShuffle(): boolean {
+    return !shuffleUsedThisGame && !state.gameOver && shuffleFullnessReached();
+  }
+  function updateShuffleButton(): void {
+    shuffleBtn.style.display = canShuffle() ? "" : "none";
+  }
+  function doShuffle(): void {
+    if (isAnimating || !canShuffle()) return;
+    state = {
+      ...state,
+      board: shuffleBoard(
+        state.board,
+        state.rng,
+        balanceConfig.num_run_groups,
+        balanceConfig.min_line_length,
+      ),
+      selected: null,
+    };
+    shuffleUsedThisGame = true;
+    boardView.clearPathPreview();
+    render();
+    syncScoreSilently();
+    persist();
+  }
+  shuffleBtn.addEventListener("click", () => {
+    doShuffle();
+  });
 
   undoBtn.addEventListener("click", () => {
     // Guards: no replay during an animation, no double-undo, no undo
@@ -715,6 +767,7 @@ const mount: GameMount = async (container, options) => {
     boardView.setBoard(state.board, preview, state.selected);
     renderStreak();
     renderTimer();
+    updateShuffleButton();
   };
 
   function persist(): void {
@@ -731,6 +784,7 @@ const mount: GameMount = async (container, options) => {
         // Live RNG cursor so a mid-game reload resumes the exact spawn stream
         // (ADR-0034) instead of rewinding to turn_seed.
         rng_cursor: state.rng.getCursor(),
+        shuffle_used: shuffleUsedThisGame,
         // Persist the spent/unspent state of this game's single undo so a
         // reload of a game whose undo has been spent stays disabled. The undo
         // SNAPSHOT itself is still in-memory only (reload-survival of an unspent

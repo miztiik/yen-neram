@@ -28,6 +28,9 @@
     },
     "toast_ms": 1100
   },
+  "shuffle": {
+    "fullness": 0.6
+  },
   "long_press_ms": 500,
   "timed": {
     "window_ms": 60000,
