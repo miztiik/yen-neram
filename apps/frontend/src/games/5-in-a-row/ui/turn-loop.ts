@@ -63,6 +63,41 @@ function pickRunGroup(rng: Rng, numRunGroups: number): RunGroup {
   return (rng.nextInt(numRunGroups) + 1) as RunGroup;
 }
 
+// Count filled orthogonal neighbours (0-4) of a cell. Drives spawn placement:
+// an empty cell wedged inside the player's pocket has many filled neighbours; a
+// cell in open board has few. Cheap (4 getCell lookups) vs frame budget.
+function filledNeighbors(board: Board, row: number, col: number): number {
+  let n = 0;
+  if (getCell(board, row - 1, col) !== null) n++;
+  if (getCell(board, row + 1, col) !== null) n++;
+  if (getCell(board, row, col - 1) !== null) n++;
+  if (getCell(board, row, col + 1) !== null) n++;
+  return n;
+}
+
+// Spawn-placement bias (ADR-0040): pick an empty-cell index weighted TOWARD
+// emptier neighbourhoods (weight 5 for a wide-open cell, 1 for one surrounded
+// on all sides). This stops new tiles dropping into the exact pocket the player
+// is packing -- the "it spawned in my about-to-clear line" complaint -- while
+// keeping concentration POSSIBLE (low-weight cells are unlikely, not banned),
+// so the satisfying clear cluster survives. Distinct from the reverted #61,
+// which nudged COLOUR; this nudges CELL. Exactly one rng draw, so the per-turn
+// draw count is unchanged (mid-game resume + cursor contract intact).
+function pickWeightedEmptyIndex(board: Board, cells: readonly Coord[], rng: Rng): number {
+  let total = 0;
+  const weights = cells.map((p) => {
+    const w = 5 - filledNeighbors(board, p.row, p.col);
+    total += w;
+    return w;
+  });
+  let t = rng.nextInt(total);
+  for (let i = 0; i < weights.length; i++) {
+    t -= weights[i] ?? 0;
+    if (t < 0) return i;
+  }
+  return cells.length - 1;
+}
+
 function rollPreview(
   board: Board,
   rng: Rng,
@@ -78,7 +113,7 @@ function rollPreview(
   const out: PreviewItem[] = [];
   const target = Math.min(count, remaining.length);
   for (let i = 0; i < target; i++) {
-    const idx = rng.nextInt(remaining.length);
+    const idx = pickWeightedEmptyIndex(board, remaining, rng);
     const picked = remaining[idx];
     if (picked === undefined) continue;
     const last = remaining[remaining.length - 1];
@@ -215,12 +250,13 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
     let cascadeIndex = 0;
     for (const preview of state.nextPreview.slice(0, balance.spawn_per_turn)) {
       // If the previewed cell is now occupied (e.g., the player moved into it),
-      // pick an alternate empty cell. Classic Color Lines behaviour.
+      // pick an alternate empty cell, biased toward open space (ADR-0040) so the
+      // fallback never drops into the player's pocket. Classic Color Lines behaviour.
       let spawnCoord: Coord = { row: preview.row, col: preview.col };
       if (getCell(board, spawnCoord.row, spawnCoord.col) !== null) {
         const empties = findEmptyCoords(board);
         if (empties.length === 0) break;
-        const alt = empties[state.rng.nextInt(empties.length)];
+        const alt = empties[pickWeightedEmptyIndex(board, empties, state.rng)];
         if (alt === undefined) break;
         spawnCoord = alt;
       }
