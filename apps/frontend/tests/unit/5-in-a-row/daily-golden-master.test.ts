@@ -78,3 +78,51 @@ describe("daily-seed golden master (ADR-0034)", () => {
     expect(dailySeed("5-in-a-row", new Date(2026, 0, 1))).toMatchInlineSnapshot(`78847860`);
   });
 });
+
+describe("opening cluster (ADR-0035, fast first clear)", () => {
+  const CLUSTER_BALANCE: BalanceLike = { ...FIXED_BALANCE, opening_cluster_size: 4 };
+  const cellAt = (b: Board, r: number, c: number): Board[number][number] => b[r]?.[c] ?? null;
+
+  it("plants a contiguous same-colour run of at least opening_cluster_size", () => {
+    const state = createInitialTurnState(createRng(7), INFINITE, CLUSTER_BALANCE);
+    let maxRun = 0;
+    for (let r = 0; r < 9; r++) {
+      let runLen = 0;
+      let runGroup = -1;
+      for (let c = 0; c < 9; c++) {
+        const cell = cellAt(state.board, r, c);
+        if (cell !== null && cell.runGroup === runGroup) {
+          runLen += 1;
+        } else if (cell !== null) {
+          runGroup = cell.runGroup;
+          runLen = 1;
+        } else {
+          runGroup = -1;
+          runLen = 0;
+        }
+        if (runLen > maxRun) maxRun = runLen;
+      }
+    }
+    expect(maxRun).toBeGreaterThanOrEqual(4);
+  });
+
+  it("still seeds exactly initial_seed_count tiles (the cluster counts toward it)", () => {
+    const state = createInitialTurnState(createRng(7), INFINITE, CLUSTER_BALANCE);
+    let count = 0;
+    for (const row of state.board) {
+      for (const cell of row) {
+        if (cell !== null) count += 1;
+      }
+    }
+    expect(count).toBe(CLUSTER_BALANCE.initial_seed_count);
+  });
+
+  it("opening_cluster_size 0/omitted = the pure-random opening (golden-master path)", () => {
+    const omitted = createInitialTurnState(createRng(123456789), INFINITE, FIXED_BALANCE);
+    const zero = createInitialTurnState(createRng(123456789), INFINITE, {
+      ...FIXED_BALANCE,
+      opening_cluster_size: 0,
+    });
+    expect(renderBoard(omitted.board)).toEqual(renderBoard(zero.board));
+  });
+});

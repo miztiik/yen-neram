@@ -2,7 +2,13 @@
 // NO DOM, no save imports. Composes the engine.
 
 import type { Board, Coord, ModeState, PreviewItem, RunGroup } from "../types.js";
-import { createEmptyBoard, findEmptyCoords, getCell, setCell } from "../engine/board.js";
+import {
+  BOARD_SIZE,
+  createEmptyBoard,
+  findEmptyCoords,
+  getCell,
+  setCell,
+} from "../engine/board.js";
 import { findPath } from "../engine/pathfind.js";
 import { detectLines, type LineDetectResult } from "../engine/line-detect.js";
 import { scoreSingleClear } from "../engine/score.js";
@@ -25,6 +31,11 @@ export type BalanceLike = {
   readonly spawn_per_turn: number;
   readonly preview_count: number;
   readonly initial_seed_count: number;
+  // Opening same-colour run length (ADR-0035): plant one contiguous run of this
+  // many same-colour tiles in the initial seed so the first clear comes fast.
+  // Optional so existing BalanceLike constructors (tests) default it off; the
+  // live balance.json sets it. < 2 = the pure-random opening.
+  readonly opening_cluster_size?: number;
   readonly length_multipliers: Readonly<Record<string, number>>;
   readonly intersection_bonus: number;
   readonly cascade_bonus: number;
@@ -81,10 +92,31 @@ function rollPreview(
   return { preview: out, gameOver: false };
 }
 
-function seedInitialBoard(rng: Rng, seedCount: number, numRunGroups: number): Board {
+function seedInitialBoard(
+  rng: Rng,
+  seedCount: number,
+  numRunGroups: number,
+  clusterSize: number,
+): Board {
   let board = createEmptyBoard();
+  let placed = 0;
+  // Opening cluster (ADR-0035): plant ONE contiguous same-colour horizontal run
+  // so the first clear comes fast and the move verb is legible from the very
+  // first board (Palm's first-60-seconds win). The run counts TOWARD seedCount
+  // (it is not extra tiles), so the board still holds exactly initial_seed_count
+  // motifs. clusterSize < 2 disables it -> the pure-random opening, unchanged.
+  const effCluster = Math.max(0, Math.min(clusterSize, seedCount, BOARD_SIZE));
+  if (effCluster >= 2) {
+    const colour = pickRunGroup(rng, numRunGroups);
+    const row = rng.nextInt(BOARD_SIZE);
+    const startCol = rng.nextInt(BOARD_SIZE - effCluster + 1);
+    for (let c = startCol; c < startCol + effCluster; c++) {
+      board = setCell(board, row, c, { runGroup: colour });
+      placed += 1;
+    }
+  }
   const empties = [...findEmptyCoords(board)];
-  const target = Math.min(seedCount, empties.length);
+  const target = Math.min(seedCount - placed, empties.length);
   for (let i = 0; i < target; i++) {
     const idx = rng.nextInt(empties.length);
     const picked = empties[idx];
@@ -105,7 +137,12 @@ export function createInitialTurnState(
   modeState: ModeState,
   balance: BalanceLike,
 ): TurnState {
-  const board = seedInitialBoard(rng, balance.initial_seed_count, balance.num_run_groups);
+  const board = seedInitialBoard(
+    rng,
+    balance.initial_seed_count,
+    balance.num_run_groups,
+    balance.opening_cluster_size ?? 0,
+  );
   const { preview, gameOver } = rollPreview(
     board,
     rng,
