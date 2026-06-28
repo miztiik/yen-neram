@@ -71,6 +71,16 @@
   /* Subtle cool hairline for the 9x9 grid -- decoupled from the page-bg
      token, which is now dark violet (far too strong for a gridline). */
   --yn-grid-line: #ddd6fe;
+  /* Placed-piece contact shadow (ADR-0031, "Lifted Chips"): a soft cool shadow
+     under each placed motif so pieces read as raised off the (flat) board. Cool
+     ink family so the shadow matches the slate ink rather than a neutral grey.
+     Consumed by the SVG board renderer (board-view.css, .yn-motif). */
+  --yn-chip-shadow: rgba(30, 27, 75, 0.3);
+  /* Board corner radius (ADR-0031). Shared by the slab tray wrapper
+     (.yn-board-slab border-radius) and the SVG board's own clip-path
+     (board-view.css .yn-board-svg) so the raised panel edge and the grid edge
+     round by the exact same amount -- no sharp-corner poke. */
+  --yn-board-radius: 16px;
   /* Score-chip ink: deliberately COOL slate-900 so the score number
      does NOT belong to the warm-brown family the rest of the chrome
      uses. Two prior passes (terracotta #7c2d12, then espresso
@@ -130,6 +140,44 @@
    chips + white board float on it, consistent with the portal). */
 .yn-board-bg {
   background: transparent;
+}
+
+/* The board's flex area is a SIZE container (both axes) so .yn-board-slab can
+   size to min(width, height) and stay square on EVERY viewport. boardArea's own
+   size comes from the root grid track, not its content, so size containment is
+   safe (ADR-0031). */
+.yn-board-area {
+  container-type: size;
+}
+
+/* Whole-board slab elevation (ADR-0031, "Lifted Chips"): the 9x9 board floats
+   above the violet page as ONE raised panel. The layered box-shadow lives on the
+   board WRAPPER div (.yn-board-slab is added to boardWrap in 5-in-a-row/index.ts),
+   NOT on the animating SVG -- so pieces sliding / landing / clearing never
+   re-rasterise it. The shadow is composited once and is independent of the
+   board's internal repaints (Carmack: no big animated filter region). Three
+   stacked layers = a tight contact shadow + a mid lift + a soft ambient pool,
+   the Material-elevation recipe. `overflow: hidden` on the wrapper clips the
+   white grid to the board radius for clean rounded corners (a wrapper's own
+   box-shadow is drawn outside its border-box, so it is NOT clipped by its own
+   overflow).
+
+   SIZING: the board is square on every viewport -- side = min(100cqw, 100cqh)
+   (the smaller axis of .yn-board-area), capped at 800px, with aspect-ratio 1.
+   The SVG board is square, so a square tray means the grid fills it edge-to-edge
+   with NO letterbox; the flex parent centers the square in the available area.
+   The white background is the tray fill (and the "Loading theme..." backdrop
+   before the SVG paints). */
+.yn-board-slab {
+  width: min(100cqw, 100cqh);
+  max-width: 800px;
+  aspect-ratio: 1 / 1;
+  background: #ffffff;
+  border-radius: var(--yn-board-radius, 16px);
+  box-shadow:
+    0 1px 2px rgba(30, 27, 75, 0.2),
+    0 10px 24px -6px rgba(30, 27, 75, 0.45),
+    0 24px 48px -16px rgba(30, 27, 75, 0.35);
 }
 
 /* Visually-hidden utility for screen-reader-only text (ADR-0013). */
