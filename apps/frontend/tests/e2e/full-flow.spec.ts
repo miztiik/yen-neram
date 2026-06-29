@@ -6,6 +6,15 @@ import { test, expect } from "@playwright/test";
 
 const GAME_URL = "/play/5-in-a-row/";
 
+// A cold app reboot -- first paint or a page.reload() that re-reads the save,
+// resolves the theme, skips the picker, then mounts the board SVG -- can exceed
+// a few seconds on the single-worker, CPU-throttled CI runner, so the
+// post-reboot board-mount waits need a generous ceiling. Playwright's
+// toBeVisible / toHaveAttribute poll and resolve the instant the board is
+// ready, so a high ceiling only bites the slow CI path; the happy path is
+// unaffected. (Fixes the full-flow post-reload board-mount flake, 2026-06-29.)
+const BOARD_REMOUNT_MS = 15_000;
+
 type CellSnapshot = {
   r: string | null;
   c: string | null;
@@ -231,7 +240,7 @@ test.describe("full v1 flow", () => {
     // today). Re-entering the in-progress game renders motifs at Large.
     await page.reload();
     const motifAfter = page.locator("image.yn-motif").first();
-    await expect(motifAfter).toHaveAttribute("width", "35", { timeout: 5_000 });
+    await expect(motifAfter).toHaveAttribute("width", "35", { timeout: BOARD_REMOUNT_MS });
   });
 
   test("long-pressing an empty cell does not crash the game", async ({ page }) => {
@@ -300,7 +309,7 @@ test.describe("full v1 flow", () => {
     });
     await page.reload();
 
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
 
     // Chip is visible (NOT hidden) and shows the stored all-time best.
     // The displayed integer lives in a CSS @property + counter() pseudo
@@ -450,7 +459,7 @@ test.describe("full v1 flow", () => {
     // disabled on mount because save.in_progress.undo.available is
     // false, which seeds undoUsedThisGame = true at mount time).
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
     const undoBtnAfterReload = page.getByRole("button", { name: "Undo last move" });
     await expect(undoBtnAfterReload).toBeDisabled();
   });
@@ -522,7 +531,7 @@ test.describe("full v1 flow", () => {
       // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
 
     // Pre-restart sanity: the score chip shows 99 via the inline CSS
     // custom property the count-up tween writes to.
@@ -540,7 +549,7 @@ test.describe("full v1 flow", () => {
     // to 0). The fresh board contains some seeded pieces (per
     // balance.json initial_seed_count), so we don't compare cell-by-
     // cell, just assert score is 0.
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
     const scoreAfter = await page
       .locator(".yn-score-display")
       .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
@@ -598,14 +607,14 @@ test.describe("full v1 flow", () => {
       // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
 
     // Restart via Menu.
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     await drawer.getByRole("button", { name: "Restart this game" }).click();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
 
     // Read the post-Restart save: in_progress fresh (score 0), but the
     // high_scores arrays + streak survive byte-identically. This is
@@ -661,7 +670,7 @@ test.describe("full v1 flow", () => {
       sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
 
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
