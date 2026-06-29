@@ -314,6 +314,31 @@ describe("attemptMove", () => {
     expect(outcome.spawnedAt.length).toBe(0);
   });
 
+  it("spawn-completed lines do NOT cascade: two spawn clears score x1 each (cascade is skill-only)", () => {
+    // Random drops are luck, so they never earn a cascade tier (council
+    // 2026-06-29). Two 4-runs; the move doesn't clear, so spawns fire and
+    // complete both rows. If spawns cascaded the second would pay x3 (15);
+    // skill-only cascade means each scores x1 (5) -> 10, not 20.
+    const baseline = buildState({
+      board: createEmptyBoard(),
+      selected: { row: 8, col: 0 },
+      nextPreview: [
+        { row: 0, col: 4, kind: 1 },
+        { row: 2, col: 4, kind: 1 },
+        { row: 6, col: 6, kind: 2 },
+      ],
+      rng: createRng(42),
+    });
+    let s = placeRun(baseline, 0, 0, 0, 1, 4, 1);
+    s = placeRun(s, 2, 0, 0, 1, 4, 1);
+    s = placeAt(s, { row: 8, col: 0, runGroup: 3 });
+    const outcome = attemptMove(s, { row: 8, col: 1 }, BALANCE);
+    expect(outcome.kind).toBe("moved");
+    if (outcome.kind !== "moved") return;
+    expect(outcome.clears.length).toBe(2);
+    expect(outcome.postMoveState.score).toBe(10);
+  });
+
   it("triggers gameOver when the move fills the last empty cell", () => {
     // 80 cells filled with a no-line 4-coloring; the single empty cell is (0, 1).
     // Source is the (0, 0) motif (runGroup 1 per the coloring). After moving

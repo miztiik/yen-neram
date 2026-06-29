@@ -389,10 +389,13 @@
   display: inline-block;
   font-variant-numeric: tabular-nums;
   line-height: 1;
-  /* Without explicit min-width the chip width breathes between
-   * 1-digit and 4-digit scores. 4.5ch covers up to "9999" with
-   * tabular-nums and stays centred for smaller scores. */
-  min-width: 2.5ch;
+  /* Without explicit min-width the chip width breathes as digit count
+   * grows. 5.5ch covers up to "99999" with tabular-nums and stays
+   * centred for smaller scores. Combination clears (intersect + length
+   * + cascade) push the score into 4-5 digits in a single run, so the
+   * old 2.5ch under-reserved and the number drifted off-centre at large
+   * scores. */
+  min-width: 5.5ch;
   text-align: center;
   /* counter-reset is HERE on the parent (not in ::after) so it
    * reads the inline `--yn-score-count` directly, without relying
@@ -602,8 +605,8 @@
  * (resize, rotate, settings drawer width) so a static keyframe
  * can't bake the destination. */
 .yn-bonus-pill--delta {
-  font-size: 20px;
-  padding: 6px 16px;
+  font-size: 28px;
+  padding: 7px 20px;
   font-weight: 800;
   background: var(--yn-accent, #ea580c);
   color: var(--yn-bg-tile, #fff7ed);
@@ -628,8 +631,8 @@
  * itself reuses the base keyframes; only the resting/rise look
  * changes. Compositor-only (transform + opacity + filter). */
 .yn-bonus-pill--delta-mult {
-  font-size: 26px;
-  padding: 7px 20px;
+  font-size: 36px;
+  padding: 8px 24px;
   font-weight: 900;
   letter-spacing: -0.01em;
   background: linear-gradient(135deg, #fb923c 0%, var(--yn-accent, #ea580c) 100%);

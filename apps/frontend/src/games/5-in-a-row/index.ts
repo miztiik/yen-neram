@@ -43,7 +43,7 @@ import {
   type ModeMeta,
   type TopThreeRow,
 } from "./ui/game-over-modal.js";
-import { derivePills } from "./ui/bonus-pills.js";
+import { derivePills, hasNamedBonus } from "./ui/bonus-pills.js";
 import { centroidOfClearedCells, createBonusWave, elementCenter } from "./ui/bonus-wave.js";
 import { assetPaths } from "@/shared/asset-paths.js";
 
@@ -1189,7 +1189,7 @@ const mount: GameMount = async (container, options) => {
         if (pills.length > 0) {
           const centroid = centroidOfClearedCells(boardView.element, clearedKeys);
           const target = elementCenter(scoreEl);
-          const vibrantDelta = pills.some((p) => p.kind !== "delta");
+          const vibrantDelta = hasNamedBonus(breakdowns);
           // wave.play resolves when the FINAL delta pill begins flying
           // toward the score chip -- the cause-and-effect beat. The
           // count-up + chip glow fire on the same tick.
