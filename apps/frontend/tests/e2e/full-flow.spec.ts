@@ -6,15 +6,6 @@ import { test, expect } from "@playwright/test";
 
 const GAME_URL = "/play/5-in-a-row/";
 
-// A cold app reboot -- first paint or a page.reload() that re-reads the save,
-// resolves the theme, skips the picker, then mounts the board SVG -- can exceed
-// a few seconds on the single-worker, CPU-throttled CI runner, so the
-// post-reboot board-mount waits need a generous ceiling. Playwright's
-// toBeVisible / toHaveAttribute poll and resolve the instant the board is
-// ready, so a high ceiling only bites the slow CI path; the happy path is
-// unaffected. (Fixes the full-flow post-reload board-mount flake, 2026-06-29.)
-const BOARD_REMOUNT_MS = 15_000;
-
 type CellSnapshot = {
   r: string | null;
   c: string | null;
@@ -240,7 +231,7 @@ test.describe("full v1 flow", () => {
     // today). Re-entering the in-progress game renders motifs at Large.
     await page.reload();
     const motifAfter = page.locator("image.yn-motif").first();
-    await expect(motifAfter).toHaveAttribute("width", "35", { timeout: BOARD_REMOUNT_MS });
+    await expect(motifAfter).toHaveAttribute("width", "35", { timeout: 5_000 });
   });
 
   test("long-pressing an empty cell does not crash the game", async ({ page }) => {
@@ -287,9 +278,13 @@ test.describe("full v1 flow", () => {
   });
 
   test("BEST chip shows the all-time top score for the current mode on mount", async ({ page }) => {
-    // Seed the per-game save with a stored high score and the mode
-    // picker skip key. Schema v2 shape (see 5-in-a-row.save.schema.ts).
-    await page.goto(GAME_URL);
+    // Seed the per-game save + one-shot replay flag while still on "/"
+    // (beforeEach left us there), THEN navigate to the game ONCE. Seeding
+    // before the single mount keeps replay-flag consumption deterministic:
+    // the old goto -> seed -> reload pattern raced the first mount, which
+    // reads AND clears the flag (consumeReplayMode), so an interleaving
+    // where that first mount consumed the flag stranded the reload on the
+    // picker, not the board. Mirrors game-smoke.spec.ts. Schema v2 shape.
     await page.evaluate(() => {
       const save = {
         schema_version: 2,
@@ -303,13 +298,13 @@ test.describe("full v1 flow", () => {
         streak: null,
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      // in_progress is null here, so seed the one-shot replay flag to skip
-      // the picker on the reload and land on a fresh board (ADR-0023).
+      // in_progress is null, so the one-shot replay flag skips the picker
+      // and lands a fresh board for the (single) first mount (ADR-0023).
       sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
-    await page.reload();
+    await page.goto(GAME_URL);
 
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
     // Chip is visible (NOT hidden) and shows the stored all-time best.
     // The displayed integer lives in a CSS @property + counter() pseudo
@@ -459,7 +454,7 @@ test.describe("full v1 flow", () => {
     // disabled on mount because save.in_progress.undo.available is
     // false, which seeds undoUsedThisGame = true at mount time).
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
     const undoBtnAfterReload = page.getByRole("button", { name: "Undo last move" });
     await expect(undoBtnAfterReload).toBeDisabled();
   });
@@ -531,7 +526,7 @@ test.describe("full v1 flow", () => {
       // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
     // Pre-restart sanity: the score chip shows 99 via the inline CSS
     // custom property the count-up tween writes to.
@@ -549,7 +544,7 @@ test.describe("full v1 flow", () => {
     // to 0). The fresh board contains some seeded pieces (per
     // balance.json initial_seed_count), so we don't compare cell-by-
     // cell, just assert score is 0.
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
     const scoreAfter = await page
       .locator(".yn-score-display")
       .evaluate((el) => (el as HTMLElement).style.getPropertyValue("--yn-score-count"));
@@ -607,14 +602,14 @@ test.describe("full v1 flow", () => {
       // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
     // Restart via Menu.
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
     await expect(drawer).toBeVisible({ timeout: 1_000 });
     await drawer.getByRole("button", { name: "Restart this game" }).click();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
     // Read the post-Restart save: in_progress fresh (score 0), but the
     // high_scores arrays + streak survive byte-identically. This is
@@ -651,7 +646,8 @@ test.describe("full v1 flow", () => {
     // Same regression class as the Restart test above, but for the
     // mode-swap path. Switching to a different mode must NOT wipe the
     // leaderboard for the mode you're leaving.
-    await page.goto(GAME_URL);
+    // Seed while on "/" then a single navigation (see the BEST-chip test
+    // above for why goto -> seed -> reload raced the replay-flag consume).
     await page.evaluate(() => {
       const save = {
         schema_version: 2,
@@ -665,12 +661,12 @@ test.describe("full v1 flow", () => {
         streak: { current: 2, longest: 4, last_played_date: "2026-06-07" },
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      // in_progress is null here, so seed the one-shot replay flag to land
-      // on the board for the first mount (ADR-0023).
+      // in_progress is null, so the one-shot replay flag lands the board
+      // for the (single) first mount (ADR-0023).
       sessionStorage.setItem("yn:game:5-in-a-row:replay-mode", "infinite");
     });
-    await page.reload();
-    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: BOARD_REMOUNT_MS });
+    await page.goto(GAME_URL);
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
     await page.getByRole("button", { name: "Open menu" }).click();
     const drawer = page.getByRole("dialog", { name: "Menu" });
