@@ -135,4 +135,83 @@ test.describe("move + selection feel", () => {
     }
     expect(errors, `no console errors during a move, saw: ${errors.join(" | ")}`).toEqual([]);
   });
+
+  // Async reward (2026-06-30): the flying "+N" badge and the score count-up are
+  // cosmetic and MUST NOT gate the next move. After a clearing move the input
+  // lock reopens at board-commit, then the reward tail plays in the background.
+  // This pins the player-reported fix: "while the score/text is flying I should
+  // already be able to select my next piece."
+  test("the reward can fly while the player already selects the next piece", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "error") errors.push(msg.text());
+    });
+    page.on("pageerror", (err) => errors.push(err.message));
+
+    await page.evaluate(() => {
+      localStorage.clear();
+      type Cell = null | { runGroup: number };
+      const board: Cell[][] = Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, (): Cell => null),
+      );
+      // One legal move from a 5-clear of run-group 1: (0,1)..(0,4) + a mover at
+      // (1,0). Sliding the mover up to (0,0) completes (0,0)..(0,4).
+      board[0]![1] = { runGroup: 1 };
+      board[0]![2] = { runGroup: 1 };
+      board[0]![3] = { runGroup: 1 };
+      board[0]![4] = { runGroup: 1 };
+      board[1]![0] = { runGroup: 1 };
+      // Two spare pieces that SURVIVE the clear, so there is a piece to select
+      // while the +N badge is still in the air.
+      board[5]![5] = { runGroup: 2 };
+      board[5]![6] = { runGroup: 2 };
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: {
+          board,
+          selected_cell: null,
+          next_preview: [
+            { row: 8, col: 0, kind: 2 },
+            { row: 8, col: 1, kind: 3 },
+            { row: 8, col: 2, kind: 4 },
+          ],
+          score: 0,
+          turn_seed: 42,
+          undo: { available: true, snapshot: null },
+          mode_state: { kind: "infinite" },
+        },
+        high_scores: { infinite: [], max_points: [], timed: [] },
+        streak: null,
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+    });
+    await page.goto("/play/5-in-a-row/");
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    // Make the clearing move: select the mover, then move it into (0,0).
+    await page.locator('[data-r="1"][data-c="0"]').click();
+    await page.locator('[data-r="0"][data-c="0"]').click();
+
+    // The flying "+N" badge appears the instant the input lock reopens (the
+    // reward tail fires AFTER isAnimating is cleared). Its presence === "the
+    // score/text is flying".
+    const badge = page.locator(".yn-bonus-wave .yn-bonus-pill--delta");
+    await expect(badge).toBeVisible({ timeout: 4_000 });
+    await expect(badge).toHaveText(/^\+\d+$/);
+
+    // ...and the player can ALREADY select their next piece. If input were
+    // still locked behind the reward, this selection would not land promptly.
+    await page.locator('[data-r="5"][data-c="5"]').click();
+    await expect(page.locator('[data-r="5"][data-c="5"]')).toHaveClass(/yn-cell-selected/, {
+      timeout: 1_000,
+    });
+
+    // The detached count-up still lands the real score (the clear scored).
+    await expect(page.locator(".yn-score-chip")).toHaveAttribute("aria-label", /Score [1-9]/, {
+      timeout: 4_000,
+    });
+
+    expect(errors, `no console errors, saw: ${errors.join(" | ")}`).toEqual([]);
+  });
 });

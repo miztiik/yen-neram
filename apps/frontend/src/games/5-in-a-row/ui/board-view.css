@@ -590,14 +590,6 @@
   animation: yn-pill-rise-hold-exit calc(var(--yn-pill-life-ms, 800ms)) ease-out
     var(--yn-pill-stagger-ms, 0ms) forwards;
 }
-/* The cascade pill renders with an accent-tinted background so a
- * 3-step cascade reads as three escalating beats, not as repeating
- * filler. Background only -- no text-colour change (kept terracotta
- * for legibility on warm bg). */
-.yn-bonus-pill--cascade {
-  background: color-mix(in oklab, var(--yn-accent, #ea580c) 14%, var(--yn-bg-tile, #fff7ed));
-  border-color: var(--yn-accent, #ea580c);
-}
 /* The final delta badge is bigger, accent-filled, cream text. It
  * flies INTO the score chip instead of fading up. The fly vector
  * is supplied as CSS variables (`--yn-fly-dx`, `--yn-fly-dy`) by

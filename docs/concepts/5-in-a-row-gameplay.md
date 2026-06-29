@@ -1,6 +1,6 @@
 # 5-in-a-Row Gameplay
 
-**Last Updated**: 2026-06-28
+**Last Updated**: 2026-06-30
 
 This document is the living gameplay spec for 5-in-a-Row. It records the current player-facing rules and tuning invariants. Historical experiments stay in git history and old plan-doc ledgers; this file keeps the shape future agents should preserve or deliberately change.
 
@@ -29,9 +29,9 @@ Future spawn tuning should protect this first-clear promise before optimizing fo
 
 ## Spawn Pacing And Placement
 
-Each non-clearing move spawns `spawn_per_turn` tiles (currently 2). Two tiles per turn drains slower than the board fills, which keeps mid-game scores reachable; three made skilled lines die before completing.
+Each non-clearing move spawns `spawn_per_turn` tiles (currently 3). Three per turn is the canonical Color Lines pressure: the board fills unless the player keeps making lines, which is the point. Two per turn drained too slowly and the game felt too easy, so the count is locked at three (player call, 2026-06-30). The fairness lever for three-per-turn is the preview, not a softer spawn count.
 
-`preview_count` must equal `spawn_per_turn`: the next-pieces ghosts promise where tiles will land, so showing three ghosts while only two spawn leaves a ghost that never arrives. Keep them in lockstep when tuning.
+`preview_count` must be at least `spawn_per_turn`, and is kept EQUAL to it: the next-pieces ghosts promise where every spawned tile will land, so the player plans around the incoming flood instead of being buried by it. Showing fewer ghosts than tiles that land leaves a tile arriving unannounced; showing the full set is what makes three-per-turn read as fair-but-tougher rather than punishing. `BalanceSchema` now rejects `preview_count < spawn_per_turn` at load, because the spawn loop draws straight from the preview queue (`nextPreview.slice(0, spawn_per_turn)`) -- a preview shorter than the spawn count silently clamped spawns to its own length, which was the "spawns 2 not 3" bug.
 
 Spawn cells are not uniform-random. The preview roll and the occupied-cell fallback both bias placement toward emptier neighbourhoods: an empty cell is weighted `max(1, 3 - filledOrthogonalNeighbours)`, so wide-open cells are three times likelier than a cell wedged inside the player's pocket. This keeps new tiles mostly out of an about-to-clear line, but the modest 3-to-1 spread (not 5-to-1) leaves some pressure so the game is not too easy. Concentration stays possible, so deliberate clear clusters survive. The draw count is unchanged, so daily determinism and the RNG-cursor save contract hold.
 
