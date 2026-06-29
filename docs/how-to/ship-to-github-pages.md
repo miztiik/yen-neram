@@ -1,8 +1,19 @@
 # How To Ship To GitHub Pages
 
-**Last Updated**: 2026-06-29
+**Last Updated**: 2026-06-30
 
 Use this runbook when changing routing, deployment, PWA metadata, service-worker behaviour, or URLs that need to work under the GitHub Pages project base path.
+
+## Deployment Pipeline
+
+Two workflows under `.github/workflows/` cooperate so only CI-green commits reach the live site:
+
+- `ci.yml` runs on every push and PR: `gates` (lint, typecheck, unit + contract tests, format, build, bundle-size budget) then `e2e` (Playwright).
+- `deploy.yml` does NOT fire on the raw push to `main`. It triggers on `workflow_run` when `ci` completes on `main`, and its build job runs only when `github.event.workflow_run.conclusion == 'success'`. It checks out the exact commit CI validated (`workflow_run.head_sha`), rebuilds, and publishes to GitHub Pages.
+
+Net effect: a merge to `main` publishes automatically, but a red CI on `main` blocks the publish - the live site stays on the last green commit. Branch protection on `main` additionally requires the `gates` and `e2e` checks before a PR can merge.
+
+Manual re-publish: run the `deploy` workflow via `workflow_dispatch` (Actions tab -> deploy -> Run workflow). It rebuilds and redeploys current `main` without a new commit - the escape hatch when a flaky CI blocks an otherwise-good deploy.
 
 ## Base Path Rules
 

@@ -1,9 +1,17 @@
 name: deploy
 
+# Publish to GitHub Pages only AFTER ci passes on main, so a red commit never
+# reaches the live site. The deploy is decoupled from the raw push event and
+# keyed to the ci workflow's conclusion (see ci.yml). workflow_dispatch is a
+# manual escape hatch to re-publish the current main without a new commit.
 on:
-  push:
+  workflow_run:
+    workflows: ["ci"]
+    types:
+      - completed
     branches:
       - main
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -16,9 +24,18 @@ concurrency:
 
 jobs:
   build:
+    # Gate: a workflow_run trigger must carry a successful ci conclusion; a
+    # manual dispatch is an explicit human action and always proceeds.
+    if: >-
+      ${{ github.event_name == 'workflow_dispatch'
+          || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+        with:
+          # Build the exact commit ci validated (head_sha); fall back to the
+          # dispatched ref for a manual re-publish.
+          ref: ${{ github.event.workflow_run.head_sha || github.ref }}
       - uses: pnpm/action-setup@v6
         with:
           version: 9
