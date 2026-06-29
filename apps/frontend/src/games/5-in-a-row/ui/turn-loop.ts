@@ -75,6 +75,21 @@ function filledNeighbors(board: Board, row: number, col: number): number {
   return n;
 }
 
+// Scan the whole board for the first cell that sits on a clearable line.
+// Drives the player-clear CASCADE chain: after cells are removed, removal
+// can complete a fresh line elsewhere. Pure (no RNG); returns null when no
+// line remains. O(81) per pass, a handful of passes max -- inside budget.
+function detectFirstLine(board: Board, minLineLength: number): LineDetectResult | null {
+  for (let r = 0; r < BOARD_SIZE; r++) {
+    for (let c = 0; c < BOARD_SIZE; c++) {
+      if (getCell(board, r, c) === null) continue;
+      const res = detectLines(board, { row: r, col: c }, minLineLength);
+      if (res.cells.size > 0) return res;
+    }
+  }
+  return null;
+}
+
 // Spawn-placement bias (ADR-0040): pick an empty-cell index weighted TOWARD
 // emptier neighbourhoods (weight 3 for a wide-open cell, 1 for one surrounded
 // on all sides). This stops new tiles dropping into the exact pocket the player
@@ -234,20 +249,31 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
   const spawnedAt: Coord[] = [];
 
   if (moveClear.cells.size > 0) {
-    // Clears triggered by the move: score with cascadeIndex 0, no spawn this turn.
-    score += scoreSingleClear(moveClear, 0, balance);
-    clears.push(moveClear);
-    for (const key of moveClear.cells) {
-      const parts = key.split(",");
-      const r = Number(parts[0]);
-      const c = Number(parts[1]);
-      if (Number.isFinite(r) && Number.isFinite(c)) {
-        board = setCell(board, r, c, null);
+    // Player-placed clear (skill). It scores at cascadeIndex 0, then CHAINS:
+    // removing the cells can complete further lines, each paying the next
+    // cascade tier (x3, x5...). The chain is pure board re-detection -- no
+    // spawn, no RNG -- so cascade rewards the player who engineers overlaps,
+    // not random drops (council 2026-06-29). No spawn on a clearing move.
+    let cascadeIndex = 0;
+    let step: LineDetectResult | null = moveClear;
+    while (step !== null && step.cells.size > 0) {
+      score += scoreSingleClear(step, cascadeIndex, balance);
+      clears.push(step);
+      for (const key of step.cells) {
+        const parts = key.split(",");
+        const r = Number(parts[0]);
+        const c = Number(parts[1]);
+        if (Number.isFinite(r) && Number.isFinite(c)) {
+          board = setCell(board, r, c, null);
+        }
       }
+      cascadeIndex += 1;
+      step = detectFirstLine(board, balance.min_line_length);
     }
   } else {
-    // No clears: spawn from the preview queue, with cascade scoring on chain reactions.
-    let cascadeIndex = 0;
+    // No clears: spawn from the preview queue. A spawned tile that happens
+    // to complete a line is luck, not skill, so it scores at cascadeIndex 0
+    // only -- no cascade tier for random drops.
     for (const preview of state.nextPreview.slice(0, balance.spawn_per_turn)) {
       // If the previewed cell is now occupied (e.g., the player moved into it),
       // pick an alternate empty cell, biased toward open space (ADR-0040) so the
@@ -264,9 +290,8 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
       spawnedAt.push(spawnCoord);
       const spawnClear = detectLines(board, spawnCoord, balance.min_line_length);
       if (spawnClear.cells.size > 0) {
-        score += scoreSingleClear(spawnClear, cascadeIndex, balance);
+        score += scoreSingleClear(spawnClear, 0, balance);
         clears.push(spawnClear);
-        cascadeIndex += 1;
         for (const key of spawnClear.cells) {
           const parts = key.split(",");
           const r = Number(parts[0]);

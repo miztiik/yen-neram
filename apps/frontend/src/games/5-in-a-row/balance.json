@@ -48,7 +48,7 @@
   },
   "reward": {
     "wave_pill_rise_ms": 220,
-    "wave_pill_hold_ms": 380,
+    "wave_pill_hold_ms": 600,
     "wave_pill_exit_ms": 200,
     "wave_pill_stagger_ms": 60,
     "wave_fly_to_score_ms": 280,

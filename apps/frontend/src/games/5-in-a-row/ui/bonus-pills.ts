@@ -1,9 +1,9 @@
 // Pure derivation of bonus-wave pills from a chain breakdown.
-// Per ADR-0017 (reward-loop stacked-wave).
+// Per ADR-0017 (reward-loop stacked-wave); word pills retired 2026-06-29.
 //
-// Vocabulary intentionally minimal: LENGTH N (length>=6 only),
-// INTERSECT (lineCount>=2 in any step), CASCADE x N (one pill per
-// cascade step >= 1). The final +delta badge always rides last.
+// Only the +N delta badge is rendered now -- the readable, real score
+// delta. Named bonuses (length/intersect/cascade) become a size+colour
+// signal on the badge via `hasNamedBonus`, never a printed word.
 //
 // NO DOM, NO timing. The renderer in `bonus-wave.ts` stages these
 // pills with the per-pill animation defined in `board-view.css`.
@@ -24,45 +24,27 @@ export type BonusPill = {
   readonly isFinalBadge: boolean;
 };
 
-// Format a multiplier value as e.g. "1.5", "2", "5". Trailing-zero strip
-// so "x1.5" reads cleaner than "x1.50" and integer multipliers don't show
-// a decimal point. Locale-independent (no thousands separators on small
-// integers; the scoring engine never produces multipliers > 9).
-function formatMult(value: number): string {
-  if (Number.isInteger(value)) return String(value);
-  // Trim "1.50" -> "1.5", "1.500" -> "1.5".
-  return value.toFixed(2).replace(/\.?0+$/, "");
-}
-
 export function derivePills(
   breakdowns: readonly ClearBreakdown[],
   totalDelta: number,
 ): readonly BonusPill[] {
+  // Player council 2026-06-29: the named word pills (LENGTH/INTERSECT/
+  // CASCADE) were a blur nobody could read mid-flight and added no value.
+  // The only pill is now the +N badge -- the real, readable delta. Bonus
+  // tiers still register via `hasNamedBonus` (drives the vibrant/larger
+  // badge), so a multiplier turn looks bigger without printing a word.
   const pills: BonusPill[] = [];
-  for (const b of breakdowns) {
-    if (b.points === 0) continue;
-    if (b.length >= 6) {
-      pills.push({ kind: "length", text: `LENGTH ${String(b.length)}`, isFinalBadge: false });
-    }
-    if (b.intersection_mult > 1) {
-      pills.push({
-        kind: "intersect",
-        text: `INTERSECT \u00D7${formatMult(b.intersection_mult)}`,
-        isFinalBadge: false,
-      });
-    }
-    if (b.cascadeIndex >= 1) {
-      pills.push({
-        kind: "cascade",
-        text: `CASCADE \u00D7${formatMult(b.cascade_mult)}`,
-        isFinalBadge: false,
-      });
-    }
-  }
   if (totalDelta > 0) {
     pills.push({ kind: "delta", text: `+${String(totalDelta)}`, isFinalBadge: true });
   }
   return pills;
+}
+
+// True when any step earned a named bonus (length>=6, intersection, or a
+// cascade depth>=1). Drives the larger/vibrant +N badge -- the bonus signal
+// is now size+colour, not a printed word.
+export function hasNamedBonus(breakdowns: readonly ClearBreakdown[]): boolean {
+  return breakdowns.some((b) => b.length >= 6 || b.intersection_mult > 1 || b.cascadeIndex >= 1);
 }
 
 // Classifier for the tier-1 floor: TRUE when the breakdown chain has no

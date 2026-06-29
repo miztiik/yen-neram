@@ -124,15 +124,14 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
     const deltaStaggerMs = nonDelta.length * timing.pill_stagger_ms;
 
     const deltaEl = document.createElement("div");
-    // Vibrant variant when the pill stack carries at least one NAMED
-    // pill (LENGTH / INTERSECT / CASCADE) -- a tier-2+ scoring beat.
-    // Plain tier-1 +5 stays on the calmer baseline (`--delta` only)
-    // so the badge style itself encodes "small win" vs "big win".
+    // Vibrant variant when the clear earned a named bonus (length 6+,
+    // intersect, or cascade) -- a tier-2+ beat. The bonus reads as a
+    // bigger, brighter +N, not a word. Plain tier-1 stays calm.
     const deltaModifierClass = vibrantDelta ? ` ${PILL_KIND_PREFIX}delta-mult` : "";
     deltaEl.className = `${PILL_CLASS} ${PILL_KIND_PREFIX}delta${deltaModifierClass}`;
     deltaEl.textContent = deltaPill.text;
-    deltaEl.style.left = `${String(centroid.x)}px`;
-    deltaEl.style.top = `${String(centroid.y)}px`;
+    deltaEl.style.left = `${String(Math.round(centroid.x))}px`;
+    deltaEl.style.top = `${String(Math.round(centroid.y))}px`;
     deltaEl.style.setProperty("--yn-pill-stack-offset", `${String(deltaStackOffsetPx)}px`);
     deltaEl.style.setProperty("--yn-pill-stagger-ms", `${String(deltaStaggerMs)}ms`);
     deltaEl.style.setProperty("--yn-pill-rise-ms", `${String(timing.pill_rise_ms)}ms`);
