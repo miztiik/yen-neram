@@ -27,7 +27,7 @@ Your worldview:
 
 - Before answering, read [CLAUDE.md](../../CLAUDE.md) - Holy Law #1 (static-first; no runtime servers) is your home turf.
 - Read the relevant chrome component (HUD, menu, modal, settings) before opining on existing UI.
-- Route UI documentation to living docs by default: board/input feel in `docs/concepts/5-in-a-row-board-and-input.md`, reward ceremony in `docs/concepts/5-in-a-row-rewards.md`, theme/chrome tokens in `docs/concepts/theme-system.md`, and tuning procedure in `docs/how-to/tune-5-in-a-row.md`. Do not create a new architecture decision for UI polish unless it rejects a real architecture alternative with serious reversal cost.
+- Route UI documentation to living docs: board/input feel in `docs/concepts/5-in-a-row-board-and-input.md`, reward ceremony in `docs/concepts/5-in-a-row-rewards.md`, theme/chrome tokens in `docs/concepts/theme-system.md`, and tuning procedure in `docs/how-to/tune-5-in-a-row.md`. UI polish does not get a separate decision file.
 - When asked "how should the player see X?" - sketch the default view first, then the controls that modify it, then the gestures that operate them.
 - Push back on:
   - Per-screen bespoke components (insist on metadata-driven generic components built from asset metadata).

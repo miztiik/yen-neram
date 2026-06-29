@@ -21,7 +21,7 @@ The 8 PRs ship in this order. Dependencies in column 4. A row stays `Open` until
 | 5   | `feat/5-in-a-row-ui`               | Blocked | PR 1, PR 2 (user pick), PR 4 | SVG board renderer + motif `<symbol>` sprite + HUD (top: score + next-3 preview; bottom: back + undo + pause) + theme system (1 default theme inline, BAKED sprites) + selected-motif feedback (lift + halo + 2s loop) + animations (slide 150ms / bounce 200ms / shake 200ms / clear 400ms / pulse 600ms) + first-launch ghost hint + long-press path preview (500ms).                                                                     |
 | 6   | `feat/5-in-a-row-modes`            | Blocked | PR 4, PR 5                   | Mode-picker screen (first launch only; remembers afterwards). Infinite mode (classic fail-state). Max-Points mode (client-derived daily seed `hash('yen-neram-5inarow-' + YYYYMMDD)`, local-midnight rollover, unlimited attempts, best-of-day = today's PB). Unsolvable-detector + re-roll.                                                                                                                                                |
 | 7   | `feat/settings-and-highscores`     | Blocked | PR 5, PR 6                   | Pause drawer: theme picker (modal grid, hot-swap with 200ms cross-fade), reduce-motion toggle, path-preview toggle (default ON), reset-game (confirm), clear-high-scores (confirm), how-to-play modal, mode switcher, next-3-preview toggle. Top-10 leaderboard modal with mode-tabs (`yn:game:5-in-a-row.top_scores[]`, N from `config/`). Reduce-motion halves all animation durations. Additional 2 themes (alt + distinctive) wired in. |
-| 8   | `feat/e2e-and-deploy`              | Blocked | PR 3, PR 7                   | Playwright e2e flows: first-load to playable; one turn updates state; save-and-reload preserves; portal↔game preserves save; 404 SPA fallback on deep route; mode-picker first launch; long-press path preview; theme hot-swap mid-session. CPU 4x + Slow-4G throttling perf check against frame budget (per ADR-0004). GH Pages deploy action. README.                                                                                     |
+| 8   | `feat/e2e-and-deploy`              | Blocked | PR 3, PR 7                   | Playwright e2e flows: first-load to playable; one turn updates state; save-and-reload preserves; portal↔game preserves save; 404 SPA fallback on deep route; mode-picker first launch; long-press path preview; theme hot-swap mid-session. CPU 4x + Slow-4G throttling perf check against frame budget. GH Pages deploy action. README.                                                                                                    |
 
 ### Per-PR Definition of Done
 
@@ -138,7 +138,7 @@ The 8 planned PRs were collapsed into squash-merges on `main` rather than landin
 
 ### Distillation routing
 
-As of the 2026-06-28 docs cleanup, the old ADR table was decomposed. The surviving architecture decisions are the small set under [docs/architecture/decisions/](../docs/architecture/decisions/). Gameplay, UI, theme, and deployment current state now lives in living docs:
+As of the 2026-06-29 docs cleanup, the old decision table was decomposed completely. Gameplay, UI, theme, toolchain, licensing, and deployment current state now lives in living docs:
 
 Concept docs landed:
 
@@ -150,6 +150,14 @@ Concept docs landed:
 | Board and input     | cleanup    | [docs/concepts/5-in-a-row-board-and-input.md](../docs/concepts/5-in-a-row-board-and-input.md) |
 | Rewards             | cleanup    | [docs/concepts/5-in-a-row-rewards.md](../docs/concepts/5-in-a-row-rewards.md)                 |
 | Theme system        | cleanup    | [docs/concepts/theme-system.md](../docs/concepts/theme-system.md)                             |
+
+Reference docs landed:
+
+| Reference doc | Born in PR | File                                                              |
+| ------------- | ---------- | ----------------------------------------------------------------- |
+| Toolchain     | cleanup    | [docs/reference/toolchain.md](../docs/reference/toolchain.md)     |
+| Licensing     | cleanup    | [docs/reference/licensing.md](../docs/reference/licensing.md)     |
+| UI contract   | cleanup    | [docs/reference/ui-contract.md](../docs/reference/ui-contract.md) |
 
 Subsystem docs landed:
 
@@ -188,5 +196,5 @@ Per [distill-a-plan.md](../docs/how-to/distill-a-plan.md) "Distilling speculatio
 
 - `feat/v1-skeleton` branch deleted (was the staging integration branch; squashed at PR-1 merge).
 - `feat/v2` branch deleted (was staging integration; squashed at PR-2 merge).
-- Session memory `/memories/session/yen-neram-design-consultation.md`: superseded by the kept architecture decisions and living docs; may be deleted.
+- Session memory `/memories/session/yen-neram-design-consultation.md`: superseded by living docs; may be deleted.
 - This plan-doc is the audit ledger; new work starts a new plan-doc per [distill-a-plan.md](../docs/how-to/distill-a-plan.md) "Step 5".

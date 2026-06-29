@@ -1,6 +1,6 @@
 # Frame budget and perf gates
 
-**Last Updated**: 2026-06-07
+**Last Updated**: 2026-06-29
 
 Operational profile of how Yen-Neram stays inside CLAUDE.md Holy Law 2
 (target: mid-tier Android, Snapdragon 6-series, ~2022 vintage, 4 GB RAM,
@@ -41,6 +41,11 @@ exists to catch a regression that would betray the renderer pick (e.g.
 someone adds a requestAnimationFrame loop, or the shell starts shipping
 a framework).
 
+Per-game code splitting protects the shell budget. The portal, router,
+shared save reader, and app preferences are always loaded; each game is
+dynamically imported when entered. A new game should not add its full
+payload to the first-playable frame for 5-in-a-Row.
+
 ## When the numbers change
 
 A new game (game #2, game #3) ADDS to first-playable-frame budget if it
@@ -53,7 +58,7 @@ Holy Law 50 KB shell cap, which is permanent).
 
 ## See also
 
-- [../decisions/0004-renderer-pick-svg.md](../decisions/0004-renderer-pick-svg.md)
-- [../decisions/0006-bundle-budget-and-codesplit.md](../decisions/0006-bundle-budget-and-codesplit.md)
 - [../../concepts/5-in-a-row-board-and-input.md](../../concepts/5-in-a-row-board-and-input.md)
+- [../../concepts/multi-game-shell.md](../../concepts/multi-game-shell.md)
+- [../../reference/toolchain.md](../../reference/toolchain.md)
 - [../../../CLAUDE.md](../../../CLAUDE.md) Holy Law #2, sec 9, sec 12.

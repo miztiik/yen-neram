@@ -18,7 +18,7 @@ pnpm build
 - Engineering contract: [CLAUDE.md](CLAUDE.md)
 - Concepts: [docs/concepts/](docs/concepts/)
 - How-to runbooks: [docs/how-to/](docs/how-to/)
-- Architecture decisions: [docs/architecture/decisions/](docs/architecture/decisions/) (small set of durable architecture choices only)
+- Reference contracts: [docs/reference/](docs/reference/)
 
 ## Bundle budgets
 
@@ -31,7 +31,7 @@ Enforced in CI via `size-limit` (see [apps/frontend/.size-limit.json](apps/front
 
 ## License
 
-No `LICENSE` file. Per [the license decision](docs/architecture/decisions/0016-license-removed.md) the codebase is all-rights-reserved by default. Theme assets retain per-manifest licenses.
+No `LICENSE` file. Per [docs/reference/licensing.md](docs/reference/licensing.md) the codebase is all-rights-reserved by default. Theme assets retain per-manifest licenses.
 
 ## See also
 

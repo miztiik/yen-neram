@@ -1,8 +1,16 @@
 # Save format
 
-**Last Updated**: 2026-06-07
+**Last Updated**: 2026-06-29
 
 The save format is the per-game state-persistence contract. Each game writes versioned JSON to `localStorage` under the key `yn:game:<slug>`; app-level preferences live under `yn:app`. Every value carries a top-level `schema_version: number` that the reader inspects before parsing the rest of the payload.
+
+## Storage Keys
+
+- Game state lives under `yn:game:<slug>`.
+- App-level preferences live under `yn:app`.
+- Game keys are isolated so adding or changing one game does not force a global read-modify-write of every other game.
+
+`localStorage` is the current persistence surface because saves are small and synchronous reads keep boot simple. IndexedDB remains available if a future game needs larger or binary state, but it should not be introduced for the current small game saves.
 
 ## Migration rules
 
@@ -14,6 +22,5 @@ The save format is the per-game state-persistence contract. Each game writes ver
 ## See also
 
 - [../../CLAUDE.md](../../CLAUDE.md) section 11 (Schema Versioning)
-- [../architecture/decisions/0002-save-per-game-localstorage-keys.md](../architecture/decisions/0002-save-per-game-localstorage-keys.md)
 - [5-in-a-row-gameplay.md](5-in-a-row-gameplay.md)
 - `../architecture/save-format/5-in-a-row.md` (deferred; born in PR 4)

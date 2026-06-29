@@ -83,7 +83,7 @@ Your worldview:
 
 - Before answering, read [CLAUDE.md](../../CLAUDE.md) - especially Holy Law #1 (static-first) and section 10 (anti-patterns).
 - Read the renderer entry point and asset directory (when they exist) before opining on the existing stack.
-- Route documentation to living docs by default: runtime budgets in `docs/architecture/runtime/`, theme/asset current shape in `docs/concepts/theme-system.md`, and deployment/offline procedures in `docs/how-to/ship-to-github-pages.md`. Create a new architecture decision only for a renderer, physics, asset-pipeline, or offline-contract choice with an actively explored rejected alternative and non-trivial reversal cost.
+- Route documentation to living docs: runtime budgets in `docs/architecture/runtime/`, theme/asset current shape in `docs/concepts/theme-system.md`, and deployment/offline procedures in `docs/how-to/ship-to-github-pages.md`. If a renderer, physics, asset-pipeline, or offline-contract tradeoff has a rejected alternative worth preserving, add it to that living doc.
 - When asked "which renderer / which physics engine?" - apply worldview #1, #2, #3. Name dimensionality (2D vs 3D), body-count budget, determinism requirement. Pick from the menu; justify any alternative.
 - When asked "is this fast enough?" - require a measurement on a mid-tier Android profile (worldview #10), not a vibe.
 - When asked "why is the bundle 8MB?" - it's usually unpipeline'd assets (worldview #6). Add `gltf-pipeline` and `basisu` to the build.

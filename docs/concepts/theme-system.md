@@ -1,6 +1,6 @@
 # Theme System
 
-**Last Updated**: 2026-06-28
+**Last Updated**: 2026-06-29
 
 Themes provide the motif art and display metadata for 5-in-a-Row. They are static bundle assets, validated by schemas and build-time tools, and loaded through base-path-aware asset helpers.
 
@@ -15,6 +15,14 @@ Each theme folder owns its `manifest.json` and motif files. Motif filenames are 
 Theme manifests are schema-versioned. They declare identity, display name, motifs, and license metadata. The manifest is authoritative for motif files and theme metadata.
 
 SVG and PNG motifs are both first-class. SVGs are optimized by the build-time SVGO pass. PNGs pass through as static assets. Do not hardcode `motif-N.svg` in loaders; read the manifest.
+
+## Build Pipeline
+
+`tools/svgo-themes.mjs` optimizes SVG motifs in place. It keeps `viewBox` and `xmlns`, drops dimensions, uses a stable float precision, reports byte deltas, and fails if a file grows. There is no `predev` hook because dev startup should not mutate source assets.
+
+`pnpm -F frontend build:assets` runs the asset pipeline and regenerates the theme index. The committed theme files are the canonical served form. PNGs pass through the SVGO step unchanged; shrink them before commit with a PNG tool when needed.
+
+Rejected pipeline options for the current app: runtime optimization, service-worker optimization, and sprite-sheet indirection. The player benefits from build-time optimization and simple static files.
 
 ## Generated Theme Index
 
@@ -33,6 +41,5 @@ Any test fixture that writes `yn:app` must include the app-prefs schema version.
 ## See also
 
 - [5-in-a-row-board-and-input.md](5-in-a-row-board-and-input.md) - how motifs are sized and rendered.
-- [../architecture/decisions/0011-svgo-build-time-asset-pipeline.md](../architecture/decisions/0011-svgo-build-time-asset-pipeline.md) - build-time motif optimization rationale.
-- [../architecture/decisions/0004-renderer-pick-svg.md](../architecture/decisions/0004-renderer-pick-svg.md) - inline SVG renderer choice.
+- [../architecture/runtime/perf-budget.md](../architecture/runtime/perf-budget.md) - bundle and runtime budget.
 - [../../apps/frontend/public/assets/themes/README.md](../../apps/frontend/public/assets/themes/README.md) - operator README for theme files.

@@ -39,13 +39,13 @@ themes/
    pnpm -F frontend build:assets
    ```
 
-   This runs `tools/svgo-themes.mjs` (per the SVGO pipeline decision), which rewrites
+   This runs `tools/svgo-themes.mjs`, which rewrites
    each SVG motif IN PLACE to its optimised form. PNG motifs are
    ignored by this pass; if you want to shrink them, pre-process
    them with your own tool of choice (`oxipng`, `pngcrush`,
    `squoosh-cli`) before committing.
 
-   `build:assets` also runs `tools/themes-index.mjs` (per the theme-system concept),
+   `build:assets` also runs `tools/themes-index.mjs`,
    which regenerates `index.json` - the theme roster the settings
    picker reads. Adding or renaming a theme only needs the folder
    plus its `manifest.json`; the index follows. Never hand-edit
@@ -96,6 +96,5 @@ target device profile.
 
 ## See also
 
-- [../../../../../docs/architecture/decisions/0004-renderer-pick-svg.md](../../../../../docs/architecture/decisions/0004-renderer-pick-svg.md)
-- [../../../../../docs/architecture/decisions/0011-svgo-build-time-asset-pipeline.md](../../../../../docs/architecture/decisions/0011-svgo-build-time-asset-pipeline.md)
 - [../../../../../docs/concepts/theme-system.md](../../../../../docs/concepts/theme-system.md)
+- [../../../../../docs/architecture/runtime/perf-budget.md](../../../../../docs/architecture/runtime/perf-budget.md)

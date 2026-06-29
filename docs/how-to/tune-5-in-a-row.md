@@ -33,7 +33,7 @@ Do not add mocks for game logic. Use real fixtures and deterministic seeds.
 
 Run the focused tests for the touched area first. Before merge, run the repo gates appropriate to the change: typecheck, lint, unit/contract tests, e2e for runtime behaviour, format check, and a browser smoke for visual/runtime changes.
 
-Docs-only tuning notes require `pnpm format:check` and a reference grep for stale ADR links.
+Docs-only tuning notes require `pnpm format:check` and a reference grep for stale links.
 
 ## See also
 
