@@ -41,6 +41,19 @@ describe("BalanceSchema (balance.json contract, ADR-0034)", () => {
     );
   });
 
+  it("rejects preview_count < spawn_per_turn (silent spawn-clamp guard)", () => {
+    // The spawn loop draws from the preview queue, so a preview shorter than
+    // spawn_per_turn silently clamps how many tiles actually land (the
+    // "spawns 2 not 3" bug). The schema must reject it loudly.
+    expect(
+      BalanceSchema.safeParse({ ...balanceJson, preview_count: 2, spawn_per_turn: 3 }).success,
+    ).toBe(false);
+    // Equal is the shipped contract; preview larger than spawn is also fine.
+    expect(
+      BalanceSchema.safeParse({ ...balanceJson, preview_count: 3, spawn_per_turn: 3 }).success,
+    ).toBe(true);
+  });
+
   it("rejects an unknown top-level knob (strict)", () => {
     expect(BalanceSchema.safeParse({ ...balanceJson, bogus: 1 }).success).toBe(false);
   });

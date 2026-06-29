@@ -4,7 +4,7 @@
   "min_line_length": 5,
   "num_run_groups": 6,
   "spawn_per_turn": 3,
-  "preview_count": 2,
+  "preview_count": 3,
   "initial_seed_count": 5,
   "opening_cluster_size": 3,
   "length_multipliers": {

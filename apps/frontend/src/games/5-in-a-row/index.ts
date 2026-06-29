@@ -1060,6 +1060,11 @@ const mount: GameMount = async (container, options) => {
     // enabled in finally based on this so an enabled button is always
     // a click-ready button.
     let snapshotCapturedThisMove = false;
+    // Cosmetic reward tail (flying +N badge + score count-up). Captured at
+    // board-commit and fired AFTER the input lock reopens, so the player can
+    // line up their next move while the score still animates (async reward;
+    // Carmack/Fowler/Player council 2026-06-30). null = no scoring this move.
+    let rewardTail: (() => void) | null = null;
     try {
       const outcome = attemptMove(state, coord, balanceConfig);
       if (outcome.kind === "no-source") return;
@@ -1190,11 +1195,19 @@ const mount: GameMount = async (container, options) => {
           const centroid = centroidOfClearedCells(boardView.element, clearedKeys);
           const target = elementCenter(scoreEl);
           const vibrantDelta = hasNamedBonus(breakdowns);
-          // wave.play resolves when the FINAL delta pill begins flying
-          // toward the score chip -- the cause-and-effect beat. The
-          // count-up + chip glow fire on the same tick.
-          await bonusWave.play(centroid, pills, target, { vibrantDelta });
-          animateScoreTo(state.score, true);
+          // Capture the committed score NOW so the count-up tween targets THIS
+          // move's total even if a fast next move commits a higher score while
+          // the badge is still flying (Fowler: no lost-update from a live
+          // state.score read). The tail is FIRED after the lock reopens (in
+          // finally), never awaited -- the wave + count-up are cosmetic and must
+          // not gate the next move. bonusWave.play still resolves at start-of-
+          // fly, so the count-up begins exactly as the +N reaches the chip.
+          const committedScore = state.score;
+          rewardTail = (): void => {
+            void bonusWave.play(centroid, pills, target, { vibrantDelta }).then(() => {
+              animateScoreTo(committedScore, true);
+            });
+          };
         } else {
           // Defensive: totalDelta > 0 should always yield at least the
           // +delta pill, so this branch is dead in practice. Keep the
@@ -1246,6 +1259,13 @@ const mount: GameMount = async (container, options) => {
         setUndoEnabled(true);
       }
       flushBufferedTaps();
+      // Fire the cosmetic reward tail AFTER the lock is released and buffered
+      // taps are flushed: the flying +N badge and score count-up play in the
+      // background while the player is already free to pick their next piece.
+      // It never touches isAnimating or board state, so it cannot race the
+      // next move (the wave is a fixed body overlay; the count-up rides the
+      // score chip). null on a non-scoring move.
+      if (rewardTail !== null) rewardTail();
     }
   }
 

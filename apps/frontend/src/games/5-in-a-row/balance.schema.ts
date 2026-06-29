@@ -60,7 +60,24 @@ export const BalanceSchema = z
       splash_ring_step_ms: z.number(),
     }),
   })
-  .strict();
+  .strict()
+  // Cross-field invariant (2026-06-30): the spawn loop draws tiles from the
+  // preview queue (`nextPreview.slice(0, spawn_per_turn)` in turn-loop.ts), and
+  // the queue only ever holds `preview_count` items. So a `preview_count` below
+  // `spawn_per_turn` SILENTLY clamps the tiles that actually land -- the
+  // "spawns 2 not 3" bug. Fail loudly at load instead of shipping the clamp.
+  // (They may be EQUAL or preview larger; preview smaller is the bug.)
+  .superRefine((cfg, ctx) => {
+    if (cfg.preview_count < cfg.spawn_per_turn) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["preview_count"],
+        message: `preview_count (${String(cfg.preview_count)}) must be >= spawn_per_turn (${String(
+          cfg.spawn_per_turn,
+        )}): the spawn loop draws from the preview queue, so a smaller preview silently clamps the tiles that land.`,
+      });
+    }
+  });
 
 export type Balance = z.infer<typeof BalanceSchema>;
 

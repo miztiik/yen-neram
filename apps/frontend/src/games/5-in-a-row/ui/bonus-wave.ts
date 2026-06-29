@@ -12,7 +12,6 @@ import type { BonusPill } from "./bonus-pills.js";
 const WAVE_CONTAINER_CLASS = "yn-bonus-wave";
 const PILL_CLASS = "yn-bonus-pill";
 const PILL_KIND_PREFIX = "yn-bonus-pill--";
-const PILL_STACK_GAP_PX = 34;
 
 export type ScreenPoint = { readonly x: number; readonly y: number };
 
@@ -66,6 +65,11 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
   // teardown without leaving zombie DOM nodes.
   const pendingTimers = new Set<number>();
 
+  // Track resolvers of in-flight play() promises so destroy() can settle them
+  // on teardown (otherwise a caller awaiting play() at unmount would hang and
+  // its move's `finally` -- which clears the input lock -- would never run).
+  const pendingResolvers = new Set<() => void>();
+
   function scheduleCleanup(el: HTMLElement, lifespanMs: number): void {
     const timer = window.setTimeout(() => {
       pendingTimers.delete(timer);
@@ -80,85 +84,50 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
     target: ScreenPoint,
     options?: WavePlayOptions,
   ): Promise<void> {
-    if (pills.length === 0) return;
+    // Only the "+N" delta badge is rendered (word pills retired 2026-06-29).
+    const deltaPill = pills.find((p) => p.isFinalBadge);
+    if (deltaPill === undefined) return;
     const vibrantDelta = options?.vibrantDelta === true;
 
-    // Non-delta pills stack UPWARD from the centroid (negative Y);
-    // the delta badge sits at the top of the stack, then flies.
-    // Stack offset is in CSS pixels and applied via custom property
-    // so the rise/hold/exit keyframes can compose it with their
-    // own per-frame transforms.
-    const nonDelta = pills.filter((p) => !p.isFinalBadge);
-    const deltaPill = pills.find((p) => p.isFinalBadge);
-
-    const pillLifespanMs = timing.pill_rise_ms + timing.pill_hold_ms + timing.pill_exit_ms;
-    const totalNonDeltaCount = nonDelta.length;
-
-    // Emit non-delta pills, each above the previous (so the bottom of
-    // the stack is the first-spawned bonus). Stagger order: first
-    // bonus spawns at 0ms, subsequent at +stagger * index.
-    nonDelta.forEach((pill, i) => {
-      const el = document.createElement("div");
-      el.className = `${PILL_CLASS} ${PILL_KIND_PREFIX}${pill.kind}`;
-      el.textContent = pill.text;
-      // Stack from the centroid upward: top of bottom-most pill at y=0,
-      // then -PILL_STACK_GAP_PX per pill above. Negative offset =
-      // higher on screen. The (totalNonDeltaCount - 1 - i) flip places
-      // the FIRST-spawned pill at the bottom of the visible stack.
-      const stackOffsetPx = -(totalNonDeltaCount - 1 - i) * PILL_STACK_GAP_PX;
-      el.style.left = `${String(centroid.x)}px`;
-      el.style.top = `${String(centroid.y)}px`;
-      el.style.setProperty("--yn-pill-stack-offset", `${String(stackOffsetPx)}px`);
-      el.style.setProperty("--yn-pill-stagger-ms", `${String(i * timing.pill_stagger_ms)}ms`);
-      el.style.setProperty("--yn-pill-life-ms", `${String(pillLifespanMs)}ms`);
-      container.appendChild(el);
-      // Lifetime = stagger delay + rise + hold + exit (+ safety margin
-      // applied inside scheduleCleanup).
-      scheduleCleanup(el, i * timing.pill_stagger_ms + pillLifespanMs);
-    });
-
-    if (deltaPill === undefined) return;
-
-    // The delta badge sits one slot ABOVE the highest non-delta pill.
-    const deltaStackOffsetPx = -totalNonDeltaCount * PILL_STACK_GAP_PX;
-    const deltaStaggerMs = nonDelta.length * timing.pill_stagger_ms;
+    // Single-flight: a fresh clear supersedes any badge still in the air, so
+    // rapid consecutive clears never pile up overlapping "+N" badges or leave
+    // zombie nodes on screen. The count-up resolves on its own timer below,
+    // independent of the DOM node, so clearing the node never loses the tween.
+    container.replaceChildren();
 
     const deltaEl = document.createElement("div");
-    // Vibrant variant when the clear earned a named bonus (length 6+,
-    // intersect, or cascade) -- a tier-2+ beat. The bonus reads as a
-    // bigger, brighter +N, not a word. Plain tier-1 stays calm.
+    // Vibrant variant when the clear earned a named bonus (length 6+, intersect,
+    // or cascade): a bigger, brighter +N -- the bonus is size+colour, never a
+    // printed word. Plain tier-1 stays on the calmer baseline.
     const deltaModifierClass = vibrantDelta ? ` ${PILL_KIND_PREFIX}delta-mult` : "";
     deltaEl.className = `${PILL_CLASS} ${PILL_KIND_PREFIX}delta${deltaModifierClass}`;
     deltaEl.textContent = deltaPill.text;
     deltaEl.style.left = `${String(Math.round(centroid.x))}px`;
     deltaEl.style.top = `${String(Math.round(centroid.y))}px`;
-    deltaEl.style.setProperty("--yn-pill-stack-offset", `${String(deltaStackOffsetPx)}px`);
-    deltaEl.style.setProperty("--yn-pill-stagger-ms", `${String(deltaStaggerMs)}ms`);
+    deltaEl.style.setProperty("--yn-pill-stack-offset", "0px");
+    deltaEl.style.setProperty("--yn-pill-stagger-ms", "0ms");
     deltaEl.style.setProperty("--yn-pill-rise-ms", `${String(timing.pill_rise_ms)}ms`);
     deltaEl.style.setProperty("--yn-pill-hold-ms", `${String(timing.pill_hold_ms)}ms`);
     deltaEl.style.setProperty("--yn-pill-fly-ms", `${String(timing.fly_to_score_ms)}ms`);
-    // Fly vector: from the delta-pill's screen position to the score
-    // chip's screen position. The pill's screen pos accounts for the
-    // (centroid + stackOffset) translation, so dx/dy is straightforward.
-    const startX = centroid.x;
-    const startY = centroid.y + deltaStackOffsetPx;
-    const flyDx = target.x - startX;
-    const flyDy = target.y - startY;
-    deltaEl.style.setProperty("--yn-fly-dx", `${String(flyDx)}px`);
-    deltaEl.style.setProperty("--yn-fly-dy", `${String(flyDy)}px`);
+    // Fly vector: from the badge's centroid position to the score chip.
+    deltaEl.style.setProperty("--yn-fly-dx", `${String(target.x - centroid.x)}px`);
+    deltaEl.style.setProperty("--yn-fly-dy", `${String(target.y - centroid.y)}px`);
     container.appendChild(deltaEl);
-    scheduleCleanup(
-      deltaEl,
-      deltaStaggerMs + timing.pill_rise_ms + timing.pill_hold_ms + timing.fly_to_score_ms,
-    );
+    scheduleCleanup(deltaEl, timing.pill_rise_ms + timing.pill_hold_ms + timing.fly_to_score_ms);
 
-    // Resolve when the delta pill BEGINS its fly (= count-up should
-    // start). That is: stagger delay + rise time + hold time.
-    const startOfFlyMs = deltaStaggerMs + timing.pill_rise_ms + timing.pill_hold_ms;
+    // Resolve when the badge BEGINS its fly (= the count-up should start):
+    // rise + hold. destroy() resolves this early so an awaited play() that is
+    // torn down mid-flight never hangs.
+    const startOfFlyMs = timing.pill_rise_ms + timing.pill_hold_ms;
     return new Promise<void>((resolve) => {
+      const settle = (): void => {
+        pendingResolvers.delete(settle);
+        resolve();
+      };
+      pendingResolvers.add(settle);
       const settleTimer = window.setTimeout(() => {
         pendingTimers.delete(settleTimer);
-        resolve();
+        settle();
       }, startOfFlyMs);
       pendingTimers.add(settleTimer);
     });
@@ -167,6 +136,9 @@ export function createBonusWave(timing: WaveTiming): BonusWave {
   function destroy(): void {
     for (const t of pendingTimers) window.clearTimeout(t);
     pendingTimers.clear();
+    // Settle any in-flight play() promise so a torn-down caller's await resolves.
+    for (const settle of pendingResolvers) settle();
+    pendingResolvers.clear();
     if (container.parentNode !== null) container.parentNode.removeChild(container);
   }
 

@@ -10,7 +10,7 @@
 
 import type { ClearBreakdown } from "../engine/score.js";
 
-export type BonusPillKind = "length" | "intersect" | "cascade" | "delta";
+export type BonusPillKind = "delta";
 
 export type BonusPill = {
   readonly kind: BonusPillKind;
