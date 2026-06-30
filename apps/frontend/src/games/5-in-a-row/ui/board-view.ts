@@ -3,6 +3,7 @@
 
 import "./board-view.css";
 import type { Board, Coord, PreviewItem } from "../types.js";
+import { setupKeyboardNavigation } from "./keyboard-nav.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BOARD_SIZE = 9;
@@ -351,23 +352,9 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   // second frame inside the tray (Jony council, 2026-06-28). One frame, not
   // three (tray edge / gutter / rim).
 
-  // Keyboard navigation: tabindex makes the SVG focusable; arrows move a
-  // visible focus indicator across cells; Space/Enter dispatch as a tap on
-  // the focused cell; Escape clears the focus indicator. focusedCoord
-  // persists across re-renders so a screen-reader user keeps their place.
-  let focusedCoord: Coord | null = null;
-  function updateFocusVisual(): void {
-    for (const row of cellGs) {
-      for (const g of row) {
-        g.classList.remove("yn-cell-focused");
-      }
-    }
-    if (focusedCoord !== null) {
-      const g = getCellG(focusedCoord.row, focusedCoord.col);
-      if (g !== null) g.classList.add("yn-cell-focused");
-    }
-  }
-
+  // Keyboard navigation (focus indicator, arrow movement, Space/Enter tap,
+  // Escape) lives in setupKeyboardNavigation; it is wired below once the
+  // pointer handlers are defined and fully owns the focused-cell state.
   function getCellG(row: number, col: number): SVGGElement | null {
     if (row < 0 || row >= BOARD_SIZE || col < 0 || col >= BOARD_SIZE) return null;
     const rowGs = cellGs[row];
@@ -994,51 +981,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
   svg.addEventListener("pointerup", onPointerUp);
   svg.addEventListener("pointercancel", onPointerCancel);
 
-  // Keyboard-focus visual is progressive: a mouse click that lands focus
-  // on the SVG (e.g. clicking a cell) MUST NOT paint the focused-cell
-  // indicator (it was painting an out-of-context orange box at (0,0) on
-  // every click). The indicator only appears the moment the user presses
-  // their first arrow key — same UX pattern as data-tables and trees
-  // across modern apps.
-  const onSvgKeyDown = (e: KeyboardEvent): void => {
-    if (focusedCoord === null) focusedCoord = { row: 0, col: 0 };
-    let handled = true;
-    switch (e.key) {
-      case "ArrowUp":
-        focusedCoord = { row: Math.max(0, focusedCoord.row - 1), col: focusedCoord.col };
-        break;
-      case "ArrowDown":
-        focusedCoord = {
-          row: Math.min(BOARD_SIZE - 1, focusedCoord.row + 1),
-          col: focusedCoord.col,
-        };
-        break;
-      case "ArrowLeft":
-        focusedCoord = { row: focusedCoord.row, col: Math.max(0, focusedCoord.col - 1) };
-        break;
-      case "ArrowRight":
-        focusedCoord = {
-          row: focusedCoord.row,
-          col: Math.min(BOARD_SIZE - 1, focusedCoord.col + 1),
-        };
-        break;
-      case " ":
-      case "Enter":
-        options.onCellTap(focusedCoord);
-        break;
-      case "Escape":
-        focusedCoord = null;
-        break;
-      default:
-        handled = false;
-    }
-    if (handled) {
-      e.preventDefault();
-      updateFocusVisual();
-    }
-  };
-
-  svg.addEventListener("keydown", onSvgKeyDown);
+  const keyboardNav = setupKeyboardNavigation(svg, cellGs, BOARD_SIZE, options.onCellTap);
 
   function destroy(): void {
     cancelPressTimer();
@@ -1047,7 +990,7 @@ export function createBoardView(options: BoardViewOptions): BoardView {
     svg.removeEventListener("pointermove", onPointerMove);
     svg.removeEventListener("pointerup", onPointerUp);
     svg.removeEventListener("pointercancel", onPointerCancel);
-    svg.removeEventListener("keydown", onSvgKeyDown);
+    keyboardNav.destroy();
     if (svg.parentNode !== null) {
       svg.parentNode.removeChild(svg);
     }
