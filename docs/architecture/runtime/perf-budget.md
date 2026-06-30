@@ -1,6 +1,6 @@
 # Frame budget and perf gates
 
-**Last Updated**: 2026-06-29
+**Last Updated**: 2026-06-30
 
 Operational profile of how Yen-Neram stays inside CLAUDE.md Holy Law 2
 (target: mid-tier Android, Snapdragon 6-series, ~2022 vintage, 4 GB RAM,
@@ -40,6 +40,25 @@ discrete events; the board sleeps between inputs. The perf budget
 exists to catch a regression that would betray the renderer pick (e.g.
 someone adds a requestAnimationFrame loop, or the shell starts shipping
 a framework).
+
+### Sanctioned rAF exception (cosmetic tail only)
+
+The "no per-frame loop" rule protects the INPUT path - the slide, the
+selection, the input-to-photon budget. It is not a blanket ban on
+`requestAnimationFrame`. Exactly one bounded rAF tween is sanctioned: the
+score-chip count-up (`animateScoreTo` in `games/5-in-a-row/index.ts`). It
+is allowed because it runs only in the post-input cosmetic tail (after the
+input lock is released and buffered taps are flushed), so it is outside
+the input-to-photon path. It earns its place by fixing a real
+target-device regression: the prior CSS `@property <integer>` transition
+silently degraded to an instant jump on older Android WebViews - the exact
+mid-tier device the budget protects. Its contract (Carmack council
+2026-06-30): single-flight (`cancelAnimationFrame` the prior tween),
+clean terminate (write the exact final integer), snap-to-final on
+`prefers-reduced-motion` and on tab-hidden, one custom-property write on
+one element per frame with zero layout reads, and integer dedupe. Any
+future rAF must clear the same bar or stay out of the codebase; a rAF in
+the input path is still a regression the perf suite must catch.
 
 Per-game code splitting protects the shell budget. The portal, router,
 shared save reader, and app preferences are always loaded; each game is

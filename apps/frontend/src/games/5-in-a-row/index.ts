@@ -487,10 +487,17 @@ const mount: GameMount = async (container, options) => {
   // this mount. Once crossed, the chip stays in "NEW BEST" mode for the
   // rest of the game (label, chip colourway, tracks state.score live).
   let crossedAllTimeBest = state.score > allTimeBestAtMount;
-  // Most-recent on-screen score integer. Drives the CSS @property tween
-  // by changing only when state.score actually changes (otherwise theme
+  // Most-recent on-screen score integer. Drives the count-up tween by
+  // changing only when state.score actually changes (otherwise theme
   // hot-swap re-renders would retrigger a 0-delta count-up).
   let displayedScore = state.score;
+  // Handle of the in-flight score count-up rAF (null = idle). Single-flight:
+  // a fresh count-up cancels the prior one so two clears never drive the chip
+  // at once (Carmack council 2026-06-30). The count-up is a JS rAF tween, NOT
+  // a CSS @property transition, so the number climbs IDENTICALLY on every
+  // engine -- the CSS transition silently degraded to an instant jump on
+  // exactly the mid-tier Android WebView target. See animateScoreTo.
+  let scoreRafId: number | null = null;
 
   // Undo state (2026-06-08). Doctrine per how-to-play.ts: "You get one
   // undo per game". Snapshot is in-memory (NOT persisted to the
@@ -681,41 +688,60 @@ const mount: GameMount = async (container, options) => {
     timerValue.classList.toggle("yn-timer-urgent", seconds <= 10 && seconds > 0);
   };
 
-  // Drive the count-up tween on the score chip. Duration scales with the
-  // delta per ADR-0017: a small +5 ticks in ~450ms (almost subliminal),
-  // the rare +135 takes the full ~1100ms cap so the player actually
-  // WATCHES it climb. Equal-time-per-event would make a 5-clear feel as
-  // heavy as a 135-clear; proportional time IS the recognition.
-  // Implementation note: the integer transition uses CSS @property
-  // (registered as <integer> in board-view.css) -- the browser interpolates
-  // the int, counter() re-evaluates each paint, and the ::after text
-  // updates without rAF.
+  // Per-frame side effects of a CELEBRATORY count-up (Jony + Fowler council
+  // 2026-06-30). The BEST chip climbs as a running max WITH the score, and the
+  // milestone toast fires on the exact frame the climbing number CROSSES a
+  // threshold -- so the reward reads as ONE coherent beat. Previously these two
+  // fired synchronously the instant the move committed, ~0.8 s before the score
+  // count-up even started (the score chip waited for the "+N" badge to fly), so
+  // the BEST chip and milestone showed the new total while the score still read
+  // the old value -- the "it says 80 but only added 45" desync. Driven off the
+  // count-up's own value, never a live state.score read, so a fast next move
+  // cannot make them lead the number again.
+  const onCountUpFrame = (current: number): void => {
+    updateBestOnScoreChange(current);
+    checkMilestones(current);
+  };
+
+  // Drive the count-up on the score chip. Duration scales with the delta per
+  // ADR-0017: a small +5 ticks in ~450ms (almost subliminal), the rare +135
+  // takes the full ~1100ms cap so the player actually WATCHES it climb.
+  //
+  // The tween is a bounded JS requestAnimationFrame loop, NOT a CSS @property
+  // transition (Carmack council 2026-06-30). The CSS-transition approach
+  // animated `--yn-score-count` only where @property `<integer>` interpolation
+  // is supported (Chrome 85+/Safari 16.4+/Firefox 128+) and silently JUMPED to
+  // the final value everywhere else -- including older Android WebViews, i.e.
+  // exactly the mid-tier target device. A rAF loop climbs identically on every
+  // engine. It runs ONLY in the post-input-unlock cosmetic tail, writes ONE
+  // custom property on ONE element (counter() renders it; no layout read in the
+  // loop), dedupes unchanged integers, and respects reduce-motion + tab-hidden
+  // by snapping. See docs/architecture/runtime/perf-budget.md (sanctioned-rAF
+  // exception).
+  const writeScoreCount = (n: number): void => {
+    scoreValue.style.setProperty("--yn-score-count", String(n));
+  };
   const animateScoreTo = (target: number, celebrate: boolean): void => {
+    scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
+    // Single-flight: supersede any tween still climbing toward an older target.
+    if (scoreRafId !== null) {
+      cancelAnimationFrame(scoreRafId);
+      scoreRafId = null;
+    }
     if (target === displayedScore) {
-      // No-op (likely a non-score-changing render like a deselect).
-      scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
+      // No-op (deselect / theme hot-swap / non-scoring move). Leave the
+      // custom property untouched so it keeps reading the settled value.
       return;
     }
-    const delta = Math.max(0, target - displayedScore);
-    const durationMs = Math.min(
-      balanceConfig.reward.score_count_up_max_ms,
-      Math.max(
-        balanceConfig.reward.score_count_up_min_ms,
-        balanceConfig.reward.score_count_up_min_ms +
-          delta * balanceConfig.reward.score_count_up_per_delta_ms,
-      ),
-    );
-    scoreValue.style.transition = `--yn-score-count ${String(durationMs)}ms cubic-bezier(0.22, 1, 0.36, 1)`;
-    scoreValue.style.setProperty("--yn-score-count", String(target));
-    scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
+    const from = displayedScore;
     displayedScore = target;
+    const driveFrame = celebrate ? onCountUpFrame : null;
     if (celebrate) {
       scoreEl.style.setProperty(
         "--yn-score-glow-ms",
         `${String(balanceConfig.reward.score_chip_glow_ms)}ms`,
       );
-      // Restart the celebration animation by toggling the class with a
-      // reflow tap (mirrors the pattern in awaitClassAnimation).
+      // Restart the celebration glow by toggling the class with a reflow tap.
       scoreEl.classList.remove("yn-score-celebrating");
       void scoreEl.getBoundingClientRect();
       scoreEl.classList.add("yn-score-celebrating");
@@ -724,6 +750,47 @@ const mount: GameMount = async (container, options) => {
         balanceConfig.reward.score_chip_glow_ms + 80,
       );
     }
+    // Snap (no tween) when motion is reduced or the tab is hidden. The number
+    // is always CORRECT; only the flourish is cut -- and now it is the SAME
+    // deliberate jump on every platform, honouring the OS reduce-motion choice.
+    if (settingsState.reduceMotion || document.visibilityState === "hidden") {
+      writeScoreCount(target);
+      driveFrame?.(target);
+      return;
+    }
+    const delta = Math.abs(target - from);
+    const durationMs = Math.min(
+      balanceConfig.reward.score_count_up_max_ms,
+      Math.max(
+        balanceConfig.reward.score_count_up_min_ms,
+        balanceConfig.reward.score_count_up_min_ms +
+          delta * balanceConfig.reward.score_count_up_per_delta_ms,
+      ),
+    );
+    const startTs = performance.now();
+    let lastWritten = from;
+    writeScoreCount(from);
+    const stepFrame = (now: number): void => {
+      const t = Math.min(1, (now - startTs) / durationMs);
+      // easeOutCubic -- matches the prior cubic-bezier(0.22, 1, 0.36, 1) feel.
+      const eased = 1 - Math.pow(1 - t, 3);
+      const current = Math.round(from + (target - from) * eased);
+      if (current !== lastWritten) {
+        writeScoreCount(current);
+        driveFrame?.(current);
+        lastWritten = current;
+      }
+      if (t < 1) {
+        scoreRafId = requestAnimationFrame(stepFrame);
+      } else {
+        // Clean terminate: write the EXACT final integer and drive the final
+        // frame so the BEST chip + milestone land on the true total.
+        scoreRafId = null;
+        writeScoreCount(target);
+        driveFrame?.(target);
+      }
+    };
+    scoreRafId = requestAnimationFrame(stepFrame);
   };
 
   // Update the BEST chip to reflect the live score. There are two phases:
@@ -885,6 +952,11 @@ const mount: GameMount = async (container, options) => {
   }
 
   function showMilestoneToast(value: number): void {
+    // Single-flight: the count-up now calls checkMilestones every frame, so a
+    // climb that crosses two thresholds would otherwise stack two toasts. Drop
+    // any toast still on screen before showing the newest -- only the top beat
+    // shows (matches the prior "never stacks toasts" intent).
+    for (const stale of document.querySelectorAll(".yn-milestone-toast")) stale.remove();
     const toast = document.createElement("div");
     toast.className = "yn-milestone-toast";
     toast.textContent = String(value);
@@ -907,48 +979,79 @@ const mount: GameMount = async (container, options) => {
     if (highest > 0) showMilestoneToast(highest);
   }
 
-  function recordHighScore(): RecordedScore {
+  // Commit the CURRENT run's score to the persisted records. ONE seam shared by
+  // game-over and run-abandon (Fowler council 2026-06-30) so a record set
+  // mid-run is never lost no matter how the run ends.
+  //   - high_scores[mode]: ALWAYS (top-N leaderboard; the record survives).
+  //   - streak: ALWAYS (recordPlayedToday is per-day idempotent, so two commits
+  //     on the same local day never double-count).
+  //   - in_progress: nulled (the run is over).
+  //   - recent_scores[mode]: ONLY when foldRecent. The adaptive-milestone median
+  //     must represent COMPLETED runs; folding a partial abandoned run would drag
+  //     the targets down (Palm). Game-over folds; abandon does not.
+  // The `recordedThisGame` latch (ADR-0036) keeps it idempotent within a mount:
+  // a stray double game-over -- or an abandon followed by a same-tick game-over --
+  // commits exactly once.
+  function commitRun(opts: { readonly foldRecent: boolean }): HighScoreEntry {
     const entry: HighScoreEntry = {
       score: state.score,
       timestamp_iso: new Date().toISOString(),
     };
-    const oldScores = highScoresForCurrentMode();
-    const isNewPersonalBest = computeIsNewBest(entry.score, oldScores);
-    // Idempotency latch (ADR-0036): a game ends once; guard the persisted
-    // mutation so a stray double game-over cannot append a PHANTOM run to
-    // recent_scores and skew the adaptive-milestone median. entry +
-    // isNewPersonalBest are pure, so re-deriving them for the modal is safe.
-    if (!recordedThisGame) {
-      recordedThisGame = true;
-      const cap = balanceConfig.top_scores_max;
-      const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
-        [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
-      let next_high_scores = save.high_scores;
-      if (mode === "max-points") {
-        next_high_scores = {
-          ...save.high_scores,
-          max_points: insertEntry(save.high_scores.max_points),
-        };
-      } else if (mode === "timed") {
-        next_high_scores = { ...save.high_scores, timed: insertEntry(save.high_scores.timed) };
-      } else {
-        next_high_scores = {
-          ...save.high_scores,
-          infinite: insertEntry(save.high_scores.infinite),
-        };
-      }
-      const nextStreak = recordPlayedToday(save.streak);
-      save = {
-        ...save,
-        high_scores: next_high_scores,
-        in_progress: null,
-        streak: nextStreak,
-        recent_scores: appendRunToRecent(state.score),
+    if (recordedThisGame) return entry;
+    recordedThisGame = true;
+    const cap = balanceConfig.top_scores_max;
+    const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
+      [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
+    let next_high_scores = save.high_scores;
+    if (mode === "max-points") {
+      next_high_scores = {
+        ...save.high_scores,
+        max_points: insertEntry(save.high_scores.max_points),
       };
-      writeSave(save);
-      renderStreak();
+    } else if (mode === "timed") {
+      next_high_scores = { ...save.high_scores, timed: insertEntry(save.high_scores.timed) };
+    } else {
+      next_high_scores = {
+        ...save.high_scores,
+        infinite: insertEntry(save.high_scores.infinite),
+      };
     }
+    save = {
+      ...save,
+      high_scores: next_high_scores,
+      in_progress: null,
+      streak: recordPlayedToday(save.streak),
+      // `...save` already carries the prior recent_scores; only OVERRIDE it on a
+      // completed run. (Conditional spread, not `recent_scores: undefined`, per
+      // exactOptionalPropertyTypes.)
+      ...(opts.foldRecent ? { recent_scores: appendRunToRecent(state.score) } : {}),
+    };
+    writeSave(save);
+    renderStreak();
+    return entry;
+  }
+
+  function recordHighScore(): RecordedScore {
+    // isNewPersonalBest is computed against the PRE-insert leaderboard, so it is
+    // read before commitRun mutates `save`.
+    const isNewPersonalBest = computeIsNewBest(state.score, highScoresForCurrentMode());
+    const entry = commitRun({ foldRecent: true });
     return { entry, isNewPersonalBest };
+  }
+
+  // The player abandoned the current run (Restart / Reset / Switch mode). Commit
+  // the score FIRST so a personal best earned mid-run survives -- a vanished
+  // record is the one unforgivable casual betrayal (Palm/Player council
+  // 2026-06-30). foldRecent:false because a partial run must not poison the
+  // adaptive-milestone median. Score 0 = a misclick restart with nothing to
+  // record; wipe to a fresh shape that still preserves high_scores + streak +
+  // recent_scores (makeFreshGame).
+  function abandonCurrentRun(): void {
+    if (state.score > 0) {
+      commitRun({ foldRecent: false });
+    } else {
+      writeSave(makeFreshGame(save, save.mode));
+    }
   }
 
   function buildModeMeta(): ModeMeta {
@@ -1189,37 +1292,37 @@ const mount: GameMount = async (container, options) => {
         });
       }
       if (totalDelta > 0) {
+        // Capture the committed score NOW so the count-up targets THIS move's
+        // total even if a fast next move commits a higher score while the badge
+        // is still flying (Fowler: no lost-update from a live state.score read).
+        const committedScore = state.score;
         const breakdowns = breakdownChain(outcome.clears, balanceConfig);
         const pills = derivePills(breakdowns, totalDelta);
         if (pills.length > 0) {
           const centroid = centroidOfClearedCells(boardView.element, clearedKeys);
           const target = elementCenter(scoreEl);
           const vibrantDelta = hasNamedBonus(breakdowns);
-          // Capture the committed score NOW so the count-up tween targets THIS
-          // move's total even if a fast next move commits a higher score while
-          // the badge is still flying (Fowler: no lost-update from a live
-          // state.score read). The tail is FIRED after the lock reopens (in
-          // finally), never awaited -- the wave + count-up are cosmetic and must
-          // not gate the next move. bonusWave.play still resolves at start-of-
-          // fly, so the count-up begins exactly as the +N reaches the chip.
-          const committedScore = state.score;
+          // The tail is FIRED after the lock reopens (in finally), never awaited
+          // -- the wave + count-up are cosmetic and must not gate the next move.
+          // bonusWave.play resolves at start-of-fly, so the count-up begins
+          // exactly as the +N reaches the chip; the count-up then drives the BEST
+          // chip + milestone in lockstep (onCountUpFrame), so they no longer lead
+          // the score number by ~0.8 s.
           rewardTail = (): void => {
             void bonusWave.play(centroid, pills, target, { vibrantDelta }).then(() => {
               animateScoreTo(committedScore, true);
             });
           };
         } else {
-          // Defensive: totalDelta > 0 should always yield at least the
-          // +delta pill, so this branch is dead in practice. Keep the
-          // silent sync as a fallback so the chip stays consistent.
-          syncScoreSilently();
+          // Defensive: totalDelta > 0 should always yield the +N pill, so this
+          // is dead in practice. Still drive the count-up (which carries the BEST
+          // chip + milestone) so the chip stays truthful without a flying badge.
+          rewardTail = (): void => animateScoreTo(committedScore, true);
         }
-        updateBestOnScoreChange(state.score);
-        checkMilestones(state.score);
       } else {
-        // No clears = no score change; silent sync is a no-op in
-        // animateScoreTo (delta === 0 early return). Best chip
-        // doesn't change either.
+        // No clears = no score change; silent sync is a no-op in animateScoreTo
+        // (target === displayedScore early return). Best chip + milestone are
+        // driven only by a celebratory count-up, so they don't change either.
         syncScoreSilently();
       }
       if (isGameOver(state)) {
@@ -1364,6 +1467,16 @@ const mount: GameMount = async (container, options) => {
 
   function onVisibilityChange(): void {
     if (document.visibilityState === "hidden") {
+      // Snap any in-flight score count-up straight to its final value -- don't
+      // leave a tween frozen mid-climb for a player who tabbed away (Carmack
+      // guardrail). displayedScore is already the target (set at tween start),
+      // so the chip + BEST + milestone all land on the true total.
+      if (scoreRafId !== null) {
+        cancelAnimationFrame(scoreRafId);
+        scoreRafId = null;
+        writeScoreCount(displayedScore);
+        onCountUpFrame(displayedScore);
+      }
       stopTimer();
     } else if (state.modeState.kind === "timed" && !drawerOpen) {
       startTimer();
@@ -1431,22 +1544,23 @@ const mount: GameMount = async (container, options) => {
         // Mid-game "I'm done with this run, give me a fresh board"
         // intent. Same code path as "Reset game" in Danger zone, but
         // promoted to the Navigate section because abandoning a bad
-        // run is a normal play action, not a destructive one. Save
-        // is wiped to a fresh shape for the current mode; reload.
-        // PRESERVES high_scores + streak per ADR-0021 (the prior
-        // `makeFreshSave` wiped the leaderboard). setReplayMode keeps
-        // the SAME mode on the reload (ADR-0023).
+        // run is a normal play action, not a destructive one.
+        // abandonCurrentRun COMMITS the in-progress score first so a
+        // personal best earned mid-run is never lost (council 2026-06-30),
+        // then leaves a fresh in_progress; high_scores + streak +
+        // recent_scores survive. setReplayMode keeps the SAME mode on the
+        // reload (ADR-0023).
+        abandonCurrentRun();
         setReplayMode(save.mode);
-        writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
       onResetGame() {
         // Kept under Danger zone for parity / discoverability; behaves
         // identically to onRestartGame today. If a future PR adds
         // confirmation copy to one but not the other they can diverge.
-        // PRESERVES high_scores + streak per ADR-0021.
+        // Also commits the in-progress score before wiping.
+        abandonCurrentRun();
         setReplayMode(save.mode);
-        writeSave(makeFreshGame(save, save.mode));
         window.location.reload();
       },
       onClearHighScores() {
@@ -1457,13 +1571,13 @@ const mount: GameMount = async (container, options) => {
         window.location.reload();
       },
       onModeSwitch() {
-        // Open the mode picker IN PLACE (ADR-0023): wipe the in-progress
-        // run and reload WITHOUT setting the replay flag, so the entry
-        // path falls through to showModePicker() right here in the game
-        // route. No bounce to the portal -- the player asked to change
-        // the mode, not to leave the game. high_scores + streak survive
-        // because only in_progress is cleared.
-        writeSave({ ...save, in_progress: null });
+        // Open the mode picker IN PLACE (ADR-0023): commit the in-progress
+        // score (so a mid-run best earned in THIS mode is recorded before
+        // leaving it), clear the run, and reload WITHOUT the replay flag so
+        // the entry path falls through to showModePicker() right here in the
+        // game route. No bounce to the portal -- the player asked to change
+        // the mode, not to leave the game. high_scores + streak survive.
+        abandonCurrentRun();
         window.location.reload();
       },
       onShowHowToPlay() {
@@ -1482,6 +1596,12 @@ const mount: GameMount = async (container, options) => {
   const instance: GameInstance = {
     unmount() {
       stopTimer();
+      // Cancel an in-flight score count-up so its rAF loop doesn't keep firing
+      // (writing to a now-detached chip) after teardown.
+      if (scoreRafId !== null) {
+        cancelAnimationFrame(scoreRafId);
+        scoreRafId = null;
+      }
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("keydown", onDocKeyDown);
       if (gameOverModalClose !== null) gameOverModalClose();

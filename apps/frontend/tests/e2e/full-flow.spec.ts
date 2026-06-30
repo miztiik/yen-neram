@@ -558,18 +558,22 @@ test.describe("full v1 flow", () => {
     expect(parsed.in_progress?.score).toBe(0);
   });
 
-  test("Menu -> Restart PRESERVES high_scores + streak (ADR-0021 regression)", async ({ page }) => {
-    // ADR-0021 regression: pre-2026-06-08 the Restart / Reset / Play
-    // again / Switch mode handlers all called `makeFreshSave(mode)`
-    // which wipes the leaderboard AND streak alongside the in-progress
-    // run. User reported "the high score is not persisting -- it gets
-    // cleared when the game ends." Fix routes those handlers through
-    // `makeFreshGame(save, mode)` which preserves cross-run state.
-    //
-    // This test seeds a save with NON-empty high_scores + streak,
-    // exercises the Restart path, and asserts both survive.
+  test("Menu -> Restart COMMITS the in-progress score to high_scores (never loses a mid-run best)", async ({
+    page,
+  }) => {
+    // Council 2026-06-30: a personal best earned mid-run must survive an
+    // abandon. Previously Restart called makeFreshGame, which preserved the
+    // OLD leaderboard but discarded the in-progress run UNCOMMITTED -- so a
+    // score that beat your best was silently thrown away. Now abandon commits
+    // the score to high_scores first (the streak is also credited, per-day
+    // idempotent; recent_scores is NOT folded -- a partial run must not drag
+    // the adaptive-milestone median down).
     await page.goto(GAME_URL);
     await page.evaluate(() => {
+      // Seed last_played_date = TODAY so recordPlayedToday is a same-day no-op
+      // (idempotent) and the streak assertion stays deterministic.
+      const now = new Date();
+      const today = `${String(now.getFullYear())}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
       type Cell = null | { runGroup: number };
       const board: Cell[][] = Array.from({ length: 9 }, () =>
         Array.from({ length: 9 }, (): Cell => null),
@@ -595,11 +599,9 @@ test.describe("full v1 flow", () => {
           max_points: [{ score: 90, timestamp_iso: "2026-06-03T12:00:00.000Z" }],
           timed: [],
         },
-        streak: { current: 5, longest: 9, last_played_date: "2026-06-07" },
+        streak: { current: 5, longest: 9, last_played_date: today },
       };
       localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
-      // No picker-skip seed needed: the save carries an in-progress run,
-      // so the reload resumes straight to the board (ADR-0023).
     });
     await page.reload();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
@@ -611,9 +613,6 @@ test.describe("full v1 flow", () => {
     await drawer.getByRole("button", { name: "Restart this game" }).click();
     await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
 
-    // Read the post-Restart save: in_progress fresh (score 0), but the
-    // high_scores arrays + streak survive byte-identically. This is
-    // the contract the ADR-0021 fix carries.
     const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
     const parsed = JSON.parse(stored ?? "{}") as {
       in_progress: { score: number } | null;
@@ -623,21 +622,19 @@ test.describe("full v1 flow", () => {
         timed: { score: number; timestamp_iso: string }[];
       };
       streak: { current: number; longest: number; last_played_date: string } | null;
+      recent_scores?: unknown;
     };
+    // The abandoned 50 is now ON the leaderboard, slotted below the prior best.
+    expect(parsed.high_scores.infinite.map((e) => e.score)).toEqual([250, 180, 50]);
+    expect(parsed.high_scores.max_points.map((e) => e.score)).toEqual([90]);
+    // A fresh in_progress was minted for the next run (score 0).
     expect(parsed.in_progress?.score).toBe(0);
-    expect(parsed.high_scores.infinite).toEqual([
-      { score: 250, timestamp_iso: "2026-06-01T10:00:00.000Z" },
-      { score: 180, timestamp_iso: "2026-06-02T11:00:00.000Z" },
-    ]);
-    expect(parsed.high_scores.max_points).toEqual([
-      { score: 90, timestamp_iso: "2026-06-03T12:00:00.000Z" },
-    ]);
-    expect(parsed.high_scores.timed).toEqual([]);
-    expect(parsed.streak).toEqual({
-      current: 5,
-      longest: 9,
-      last_played_date: "2026-06-07",
-    });
+    // Streak credited but NOT double-counted (same local day -> unchanged count).
+    expect(parsed.streak?.current).toBe(5);
+    expect(parsed.streak?.longest).toBe(9);
+    // recent_scores is NOT folded on an abandon (partial run); none existed, so
+    // the field stays absent.
+    expect(parsed.recent_scores).toBeUndefined();
   });
 
   test("Menu -> Switch mode PRESERVES high_scores + streak (ADR-0021 regression)", async ({
@@ -699,6 +696,59 @@ test.describe("full v1 flow", () => {
       longest: 4,
       last_played_date: "2026-06-07",
     });
+  });
+
+  test("Menu -> Switch mode COMMITS a mid-run new best before leaving the mode", async ({
+    page,
+  }) => {
+    // The headline retention scenario: the player beats their all-time best
+    // mid-run, then switches mode. The new best must be banked for the mode
+    // they are LEAVING -- not discarded. (Council 2026-06-30.)
+    await page.goto(GAME_URL);
+    await page.evaluate(() => {
+      type Cell = null | { runGroup: number };
+      const board: Cell[][] = Array.from({ length: 9 }, () =>
+        Array.from({ length: 9 }, (): Cell => null),
+      );
+      board[0]![0] = { runGroup: 3 };
+      const save = {
+        schema_version: 2,
+        mode: "infinite",
+        in_progress: {
+          board,
+          selected_cell: null,
+          next_preview: [{ row: 1, col: 1, kind: 1 }],
+          score: 500, // beats the stored best of 300
+          turn_seed: 7,
+          undo: { available: true, snapshot: null },
+          mode_state: { kind: "infinite" },
+        },
+        high_scores: {
+          infinite: [{ score: 300, timestamp_iso: "2026-06-05T10:00:00.000Z" }],
+          max_points: [],
+          timed: [],
+        },
+        streak: null,
+      };
+      localStorage.setItem("yn:game:5-in-a-row", JSON.stringify(save));
+    });
+    await page.reload();
+    await expect(page.locator("svg.yn-board-svg")).toBeVisible({ timeout: 5_000 });
+
+    await page.getByRole("button", { name: "Open menu" }).click();
+    const menuDrawer = page.getByRole("dialog", { name: "Menu" });
+    await expect(menuDrawer).toBeVisible({ timeout: 1_000 });
+    await menuDrawer.getByRole("button", { name: "Switch mode" }).click();
+    await expect(page.getByRole("heading", { name: "Pick a mode" })).toBeVisible({
+      timeout: 5_000,
+    });
+
+    // The 500 is now the top infinite high score; the old 300 sits below it.
+    const stored = await page.evaluate(() => localStorage.getItem("yn:game:5-in-a-row"));
+    const parsed = JSON.parse(stored ?? "{}") as {
+      high_scores: { infinite: { score: number }[] };
+    };
+    expect(parsed.high_scores.infinite.map((e) => e.score)).toEqual([500, 300]);
   });
 
   test("Menu -> Switch mode opens the picker in place (no portal bounce)", async ({ page }) => {

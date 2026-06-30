@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { createRng, dailySeed } from "@/games/5-in-a-row/engine/rng.js";
+import type { Rng } from "@/games/5-in-a-row/engine/rng.js";
 import { createInitialTurnState, type BalanceLike } from "@/games/5-in-a-row/ui/turn-loop.js";
 import type { Board, ModeState } from "@/games/5-in-a-row/types.js";
 
@@ -58,7 +59,39 @@ describe("daily-seed golden master (ADR-0034)", () => {
 
   it("a fixed seed always yields the SAME first preview (positions + colours)", () => {
     const state = createInitialTurnState(createRng(123456789), INFINITE, FIXED_BALANCE);
-    expect(renderPreview(state)).toMatchInlineSnapshot(`"3,4:3 5,0:2 4,4:5"`);
+    // Regenerated 2026-06-30 for the line-aware spawn placement (engine/
+    // spawn-weight.ts): the preview POSITIONS shifted because the same RNG draws
+    // now map to different cells (the weight favours cells that don't extend a
+    // line). The draw ORDER + COUNT are unchanged -- the board snapshot above is
+    // untouched and the draw-count guard below pins it -- so this is a knowing
+    // gameplay-version regen, not a determinism regression.
+    expect(renderPreview(state)).toMatchInlineSnapshot(`"3,3:3 5,0:2 4,3:5"`);
+  });
+
+  it("the initial board + preview cost a FIXED number of RNG draws (draw-order/count guard)", () => {
+    // The real contract behind "the same daily board": a fixed number of draws in
+    // a fixed order. A counting decorator (not a mock) over the real RNG catches
+    // a slipped or dropped draw WITHOUT false-positiving on placement tuning (the
+    // snapshot above is the position pin; this is the structural pin). Spawn
+    // placement weights are pure board-math and must add ZERO draws, so a
+    // line-aware (or any future) weighting must not move this number.
+    let draws = 0;
+    const inner = createRng(123456789);
+    const counting: Rng = {
+      next: () => inner.next(),
+      nextInt: (m) => {
+        draws++;
+        return inner.nextInt(m);
+      },
+      pick: (items) => {
+        if (items.length === 0) throw new RangeError("empty");
+        return items[counting.nextInt(items.length)]!;
+      },
+      getCursor: () => inner.getCursor(),
+    };
+    createInitialTurnState(counting, INFINITE, FIXED_BALANCE);
+    // 5 seeds x (1 position + 1 colour) + 3 preview x (1 position + 1 colour).
+    expect(draws).toBe(16);
   });
 
   it("is reproducible: two runs from the same seed are byte-identical", () => {

@@ -12,6 +12,7 @@ import {
 import { findPath } from "../engine/pathfind.js";
 import { detectLines, type LineDetectResult } from "../engine/line-detect.js";
 import { scoreSingleClear } from "../engine/score.js";
+import { spawnWeight } from "../engine/spawn-weight.js";
 import type { Rng } from "../engine/rng.js";
 
 export type TurnState = {
@@ -66,15 +67,6 @@ function pickRunGroup(rng: Rng, numRunGroups: number): RunGroup {
 // Count filled orthogonal neighbours (0-4) of a cell. Drives spawn placement:
 // an empty cell wedged inside the player's pocket has many filled neighbours; a
 // cell in open board has few. Cheap (4 getCell lookups) vs frame budget.
-function filledNeighbors(board: Board, row: number, col: number): number {
-  let n = 0;
-  if (getCell(board, row - 1, col) !== null) n++;
-  if (getCell(board, row + 1, col) !== null) n++;
-  if (getCell(board, row, col - 1) !== null) n++;
-  if (getCell(board, row, col + 1) !== null) n++;
-  return n;
-}
-
 // Scan the whole board for the first cell that sits on a clearable line.
 // Drives the player-clear CASCADE chain: after cells are removed, removal
 // can complete a fresh line elsewhere. Pure (no RNG); returns null when no
@@ -98,10 +90,21 @@ function detectFirstLine(board: Board, minLineLength: number): LineDetectResult 
 // so the satisfying clear cluster survives. Distinct from the reverted #61,
 // which nudged COLOUR; this nudges CELL. Exactly one rng draw, so the per-turn
 // draw count is unchanged (mid-game resume + cursor contract intact).
-function pickWeightedEmptyIndex(board: Board, cells: readonly Coord[], rng: Rng): number {
+// Pick an empty-cell index weighted by spawnWeight (engine/spawn-weight): a
+// candidate cell that is a worse spawn target (e.g. one that would extend the
+// player's building line) gets a lower weight and is less likely to be chosen.
+// Exactly ONE rng draw, so the per-turn draw count is unchanged (mid-game
+// resume + daily-determinism contract intact); the weights are a pure, rng-free
+// function of the board.
+function pickWeightedEmptyIndex(
+  board: Board,
+  cells: readonly Coord[],
+  rng: Rng,
+  minLineLength: number,
+): number {
   let total = 0;
   const weights = cells.map((p) => {
-    const w = Math.max(1, 3 - filledNeighbors(board, p.row, p.col));
+    const w = spawnWeight(board, p, minLineLength);
     total += w;
     return w;
   });
@@ -118,6 +121,7 @@ function rollPreview(
   rng: Rng,
   count: number,
   numRunGroups: number,
+  minLineLength: number,
 ): { readonly preview: readonly PreviewItem[]; readonly gameOver: boolean } {
   const empties = findEmptyCoords(board);
   if (empties.length === 0) {
@@ -128,7 +132,7 @@ function rollPreview(
   const out: PreviewItem[] = [];
   const target = Math.min(count, remaining.length);
   for (let i = 0; i < target; i++) {
-    const idx = pickWeightedEmptyIndex(board, remaining, rng);
+    const idx = pickWeightedEmptyIndex(board, remaining, rng, minLineLength);
     const picked = remaining[idx];
     if (picked === undefined) continue;
     const last = remaining[remaining.length - 1];
@@ -198,6 +202,7 @@ export function createInitialTurnState(
     rng,
     balance.preview_count,
     balance.num_run_groups,
+    balance.min_line_length,
   );
   return {
     board,
@@ -282,7 +287,8 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
       if (getCell(board, spawnCoord.row, spawnCoord.col) !== null) {
         const empties = findEmptyCoords(board);
         if (empties.length === 0) break;
-        const alt = empties[pickWeightedEmptyIndex(board, empties, state.rng)];
+        const alt =
+          empties[pickWeightedEmptyIndex(board, empties, state.rng, balance.min_line_length)];
         if (alt === undefined) break;
         spawnCoord = alt;
       }
@@ -309,6 +315,7 @@ export function attemptMove(state: TurnState, to: Coord, balance: BalanceLike): 
     state.rng,
     balance.preview_count,
     balance.num_run_groups,
+    balance.min_line_length,
   );
 
   const postMoveState: TurnState = {

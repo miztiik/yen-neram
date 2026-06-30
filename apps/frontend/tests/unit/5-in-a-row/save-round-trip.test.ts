@@ -223,4 +223,25 @@ describe("makeFreshGame (mid-session restart, preserves cross-run state)", () =>
     const fresh = makeFreshGame(partial, "infinite");
     expect(fresh.streak).toBeNull();
   });
+
+  it("PRESERVES recent_scores across the run boundary (adaptive-milestone history)", () => {
+    // recent_scores feeds the adaptive milestones (ADR-0036). The original
+    // helper dropped it, so every Restart / Play-again / Switch-mode silently
+    // wiped the rolling window -- a latent regression fixed 2026-06-30.
+    const withRecent: Save = {
+      ...PRIOR_SAVE,
+      recent_scores: { infinite: [40, 55, 70], max_points: [], timed: [12] },
+    };
+    const fresh = makeFreshGame(withRecent, "infinite");
+    expect(fresh.recent_scores).toEqual({ infinite: [40, 55, 70], max_points: [], timed: [12] });
+    expect(() => SaveSchema.parse(fresh)).not.toThrow();
+  });
+
+  it("omits recent_scores when the prior save never had it (back-compat, no undefined key)", () => {
+    // exactOptionalPropertyTypes: the helper must NOT write an explicit
+    // `recent_scores: undefined`; the key is simply absent on an old save.
+    const fresh = makeFreshGame(PRIOR_SAVE, "infinite");
+    expect("recent_scores" in fresh).toBe(false);
+    expect(() => SaveSchema.parse(fresh)).not.toThrow();
+  });
 });
