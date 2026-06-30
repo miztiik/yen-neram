@@ -6,12 +6,12 @@ import { createRng } from "./engine/rng.js";
 import { countFilled, getCell } from "./engine/board.js";
 import { findPath, findReachableCells } from "./engine/pathfind.js";
 import { breakdownChain } from "./engine/score.js";
-import { appendCapped, deriveMilestones } from "./engine/milestones.js";
 import { shuffleBoard } from "./engine/shuffle.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
 import { createBoardView, DEFAULT_TILE_SIZE, type ClearStyle } from "./ui/board-view.js";
 import { buildHud } from "./ui/hud.js";
 import { createScoreChip } from "./ui/score-chip.js";
+import { createRunRecords, type RecordedScore } from "./ui/run-records.js";
 import {
   attemptMove,
   createInitialTurnState,
@@ -21,13 +21,7 @@ import {
   type TurnState,
 } from "./ui/turn-loop.js";
 import { loadTheme } from "./ui/theme-loader.js";
-import {
-  extendTimeForClear,
-  freshModeState,
-  isGameOver,
-  recordPlayedToday,
-  seedForMode,
-} from "./modes/index.js";
+import { extendTimeForClear, freshModeState, isGameOver, seedForMode } from "./modes/index.js";
 import { consumeReplayMode, setReplayMode, showModePicker } from "./ui/mode-picker.js";
 import {
   discoverAvailableThemes,
@@ -39,7 +33,6 @@ import {
 import { openHowToPlay } from "./ui/how-to-play.js";
 import { openLeaderboard } from "./ui/leaderboard.js";
 import {
-  computeIsNewBest,
   openGameOverModal,
   type GameOverContext,
   type ModeMeta,
@@ -460,7 +453,7 @@ const mount: GameMount = async (container, options) => {
     getReduceMotion: () => settingsState.reduceMotion,
     onFrame: (current: number): void => {
       updateBestOnScoreChange(current);
-      checkMilestones(current);
+      runRecords.checkMilestones(current);
     },
     initial: state.score,
   });
@@ -574,157 +567,19 @@ const mount: GameMount = async (container, options) => {
     writeSave(next);
   }
 
-  type HighScoreEntry = { readonly score: number; readonly timestamp_iso: string };
-  type RecordedScore = {
-    readonly entry: HighScoreEntry;
-    readonly isNewPersonalBest: boolean;
-  };
-
-  function highScoresForCurrentMode(): readonly HighScoreEntry[] {
-    if (mode === "max-points") return save.high_scores.max_points;
-    if (mode === "timed") return save.high_scores.timed;
-    return save.high_scores.infinite;
-  }
-
-  // --- Adaptive milestones (ADR-0036) ------------------------------------
-  // Quiet "you reached N" beats whose targets ADAPT to the player's own recent
-  // runs (median of recent_scores[mode]) so they stay reachable-but-a-stretch
-  // (fixed 250/500/1000 proved far too high). Thresholds are frozen at run start
-  // (this mount; a new run reloads via Play-again so they re-derive with the
-  // just-finished run folded in) and are NEVER shown before they are crossed --
-  // which is what makes them safe to float down after a bad streak (council
-  // 2026-06-28). The all-time-best chip stays the fixed aspirational mountain.
-  const recentScoresForMode = (): readonly number[] => {
-    const rs = save.recent_scores;
-    if (rs === undefined) return [];
-    if (mode === "max-points") return rs.max_points;
-    if (mode === "timed") return rs.timed;
-    return rs.infinite;
-  };
-  const milestoneThresholds = deriveMilestones(
-    recentScoresForMode(),
-    balanceConfig.milestones.cold_start[mode] ?? [],
-    balanceConfig.milestones.fractions,
-  );
-  const firedMilestones = new Set<number>();
-  let recordedThisGame = false;
-
-  function appendRunToRecent(score: number): NonNullable<Save["recent_scores"]> {
-    const cap = balanceConfig.recent_window;
-    const cur: NonNullable<Save["recent_scores"]> = save.recent_scores ?? {
-      infinite: [],
-      max_points: [],
-      timed: [],
-    };
-    if (mode === "max-points") {
-      return { ...cur, max_points: appendCapped(cur.max_points, score, cap) };
-    }
-    if (mode === "timed") return { ...cur, timed: appendCapped(cur.timed, score, cap) };
-    return { ...cur, infinite: appendCapped(cur.infinite, score, cap) };
-  }
-
-  function showMilestoneToast(value: number): void {
-    // Single-flight: the count-up now calls checkMilestones every frame, so a
-    // climb that crosses two thresholds would otherwise stack two toasts. Drop
-    // any toast still on screen before showing the newest -- only the top beat
-    // shows (matches the prior "never stacks toasts" intent).
-    for (const stale of document.querySelectorAll(".yn-milestone-toast")) stale.remove();
-    const toast = document.createElement("div");
-    toast.className = "yn-milestone-toast";
-    toast.textContent = String(value);
-    toast.setAttribute("aria-hidden", "true");
-    toast.style.setProperty("--yn-milestone-ms", `${String(balanceConfig.milestones.toast_ms)}ms`);
-    document.body.appendChild(toast);
-    window.setTimeout(() => toast.remove(), balanceConfig.milestones.toast_ms + 120);
-  }
-
-  // Fire a beat for the HIGHEST newly-crossed threshold this update (a cascade
-  // can jump two at once; only the top one pops, so it never stacks toasts).
-  function checkMilestones(score: number): void {
-    let highest = 0;
-    for (const t of milestoneThresholds) {
-      if (!firedMilestones.has(t) && score >= t) {
-        firedMilestones.add(t);
-        if (t > highest) highest = t;
-      }
-    }
-    if (highest > 0) showMilestoneToast(highest);
-  }
-
-  // Commit the CURRENT run's score to the persisted records. ONE seam shared by
-  // game-over and run-abandon (Fowler council 2026-06-30) so a record set
-  // mid-run is never lost no matter how the run ends.
-  //   - high_scores[mode]: ALWAYS (top-N leaderboard; the record survives).
-  //   - streak: ALWAYS (recordPlayedToday is per-day idempotent, so two commits
-  //     on the same local day never double-count).
-  //   - in_progress: nulled (the run is over).
-  //   - recent_scores[mode]: ONLY when foldRecent. The adaptive-milestone median
-  //     must represent COMPLETED runs; folding a partial abandoned run would drag
-  //     the targets down (Palm). Game-over folds; abandon does not.
-  // The `recordedThisGame` latch (ADR-0036) keeps it idempotent within a mount:
-  // a stray double game-over -- or an abandon followed by a same-tick game-over --
-  // commits exactly once.
-  function commitRun(opts: { readonly foldRecent: boolean }): HighScoreEntry {
-    const entry: HighScoreEntry = {
-      score: state.score,
-      timestamp_iso: new Date().toISOString(),
-    };
-    if (recordedThisGame) return entry;
-    recordedThisGame = true;
-    const cap = balanceConfig.top_scores_max;
-    const insertEntry = (arr: readonly HighScoreEntry[]): HighScoreEntry[] =>
-      [...arr, entry].sort((a, b) => b.score - a.score).slice(0, cap);
-    let next_high_scores = save.high_scores;
-    if (mode === "max-points") {
-      next_high_scores = {
-        ...save.high_scores,
-        max_points: insertEntry(save.high_scores.max_points),
-      };
-    } else if (mode === "timed") {
-      next_high_scores = { ...save.high_scores, timed: insertEntry(save.high_scores.timed) };
-    } else {
-      next_high_scores = {
-        ...save.high_scores,
-        infinite: insertEntry(save.high_scores.infinite),
-      };
-    }
-    save = {
-      ...save,
-      high_scores: next_high_scores,
-      in_progress: null,
-      streak: recordPlayedToday(save.streak),
-      // `...save` already carries the prior recent_scores; only OVERRIDE it on a
-      // completed run. (Conditional spread, not `recent_scores: undefined`, per
-      // exactOptionalPropertyTypes.)
-      ...(opts.foldRecent ? { recent_scores: appendRunToRecent(state.score) } : {}),
-    };
-    writeSave(save);
-    renderStreak();
-    return entry;
-  }
-
-  function recordHighScore(): RecordedScore {
-    // isNewPersonalBest is computed against the PRE-insert leaderboard, so it is
-    // read before commitRun mutates `save`.
-    const isNewPersonalBest = computeIsNewBest(state.score, highScoresForCurrentMode());
-    const entry = commitRun({ foldRecent: true });
-    return { entry, isNewPersonalBest };
-  }
-
-  // The player abandoned the current run (Restart / Reset / Switch mode). Commit
-  // the score FIRST so a personal best earned mid-run survives -- a vanished
-  // record is the one unforgivable casual betrayal (Palm/Player council
-  // 2026-06-30). foldRecent:false because a partial run must not poison the
-  // adaptive-milestone median. Score 0 = a misclick restart with nothing to
-  // record; wipe to a fresh shape that still preserves high_scores + streak +
-  // recent_scores (makeFreshGame).
-  function abandonCurrentRun(): void {
-    if (state.score > 0) {
-      commitRun({ foldRecent: false });
-    } else {
-      writeSave(makeFreshGame(save, save.mode));
-    }
-  }
+  // Persisted records (leaderboard + recent_scores + streak) and the adaptive
+  // milestone toasts live in ui/run-records.ts. It reaches the host's live save
+  // through getSave/setSave (capture-by-value would go stale once persist()
+  // reassigns `save`); everything else it needs is a module-level import.
+  const runRecords = createRunRecords({
+    getSave: () => save,
+    setSave: (next) => {
+      save = next;
+    },
+    getScore: () => state.score,
+    mode,
+    renderStreak,
+  });
 
   function buildModeMeta(): ModeMeta {
     if (state.modeState.kind === "max-points") {
@@ -738,7 +593,8 @@ const mount: GameMount = async (container, options) => {
 
   function presentGameOver(record: RecordedScore): void {
     if (gameOverModalClose !== null) return;
-    const topThree: TopThreeRow[] = highScoresForCurrentMode()
+    const topThree: TopThreeRow[] = runRecords
+      .highScoresForCurrentMode()
       .slice(0, 3)
       .map((e) => ({
         score: e.score,
@@ -998,7 +854,7 @@ const mount: GameMount = async (container, options) => {
         syncScoreSilently();
       }
       if (isGameOver(state)) {
-        const recorded = recordHighScore();
+        const recorded = runRecords.recordHighScore();
         stopTimer();
         presentGameOver(recorded);
       } else {
@@ -1114,7 +970,7 @@ const mount: GameMount = async (container, options) => {
     renderTimer();
     if (next <= 0) {
       stopTimer();
-      const recorded = recordHighScore();
+      const recorded = runRecords.recordHighScore();
       presentGameOver(recorded);
     }
   }
@@ -1211,7 +1067,7 @@ const mount: GameMount = async (container, options) => {
         // then leaves a fresh in_progress; high_scores + streak +
         // recent_scores survive. setReplayMode keeps the SAME mode on the
         // reload (ADR-0023).
-        abandonCurrentRun();
+        runRecords.abandonCurrentRun();
         setReplayMode(save.mode);
         window.location.reload();
       },
@@ -1220,7 +1076,7 @@ const mount: GameMount = async (container, options) => {
         // identically to onRestartGame today. If a future PR adds
         // confirmation copy to one but not the other they can diverge.
         // Also commits the in-progress score before wiping.
-        abandonCurrentRun();
+        runRecords.abandonCurrentRun();
         setReplayMode(save.mode);
         window.location.reload();
       },
@@ -1238,7 +1094,7 @@ const mount: GameMount = async (container, options) => {
         // the entry path falls through to showModePicker() right here in the
         // game route. No bounce to the portal -- the player asked to change
         // the mode, not to leave the game. high_scores + streak survive.
-        abandonCurrentRun();
+        runRecords.abandonCurrentRun();
         window.location.reload();
       },
       onShowHowToPlay() {
