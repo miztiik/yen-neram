@@ -1,6 +1,6 @@
 # Save format
 
-**Last Updated**: 2026-06-29
+**Last Updated**: 2026-06-30
 
 The save format is the per-game state-persistence contract. Each game writes versioned JSON to `localStorage` under the key `yn:game:<slug>`; app-level preferences live under `yn:app`. Every value carries a top-level `schema_version: number` that the reader inspects before parsing the rest of the payload.
 
@@ -18,6 +18,10 @@ The save format is the per-game state-persistence contract. Each game writes ver
 - Breaking bump (removed field, type change, semantic shift): the read-side migrator ships in the same commit as the schema change.
 - The old reader stays in the codebase for one release after a breaking bump so partially-rolled-out clients still load.
 - A player whose save from yesterday no longer loads today is a release blocker (CLAUDE.md section 11).
+
+## Record write lifecycle
+
+The cross-run records (`high_scores`, `recent_scores`, `streak`) are written by one shared path (`commitRun`) when a RUN ends - at game over, or when the player abandons a run that has a score (Restart / Reset / Switch mode). Mid-run, only the resumable `in_progress` block is written each move. `makeFreshGame` carries every cross-run record across a run boundary; it never wipes them. See [5-in-a-row-rewards.md](5-in-a-row-rewards.md) "When the high score is recorded" for the full rule.
 
 ## See also
 

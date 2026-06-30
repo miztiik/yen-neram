@@ -89,6 +89,14 @@ export function makeFreshSave(mode: GameMode): Save {
 // `makeFreshSave` is kept for the FIRST EVER mount where there is no
 // prior save to preserve from -- it produces a zeroed Save shape
 // from scratch.
+//
+// `recent_scores` (the rolling last-N run buffer that feeds the adaptive
+// milestones, ADR-0036) MUST be carried across the run boundary too. The
+// original helper dropped it, so every Play-again / Restart / Reset / Switch-
+// mode silently wiped the adaptive-milestone history -- a latent regression of
+// the same class as the ADR-0021 high_scores wipe (Fowler council 2026-06-30).
+// It is optional, so it is only forwarded when present (exactOptionalPropertyTypes:
+// never assign an explicit `undefined` to the optional key).
 export function makeFreshGame(prev: Save, mode: GameMode): Save {
   return {
     schema_version: 2,
@@ -96,5 +104,6 @@ export function makeFreshGame(prev: Save, mode: GameMode): Save {
     in_progress: null,
     high_scores: prev.high_scores,
     streak: prev.streak,
+    ...(prev.recent_scores !== undefined ? { recent_scores: prev.recent_scores } : {}),
   };
 }
