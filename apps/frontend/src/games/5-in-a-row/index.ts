@@ -10,6 +10,8 @@ import { appendCapped, deriveMilestones } from "./engine/milestones.js";
 import { shuffleBoard } from "./engine/shuffle.js";
 import type { Board, Coord, GameMode, ModeState, PreviewItem } from "./types.js";
 import { createBoardView, DEFAULT_TILE_SIZE, type ClearStyle } from "./ui/board-view.js";
+import { buildHud } from "./ui/hud.js";
+import { createScoreChip } from "./ui/score-chip.js";
 import {
   attemptMove,
   createInitialTurnState,
@@ -161,244 +163,26 @@ const mount: GameMount = async (container, options) => {
 
   container.replaceChildren();
 
-  const root = document.createElement("div");
-  // Responsive 3-cell grid (Jony pass 2026-06-07, side-gutters lift):
-  //   Mobile / portrait tablet: stacked rows (HUD bar / board / actions bar)
-  //   Wide (lg+ = 1024px):      3 columns (HUD col | board | actions col)
-  // yn-board-bg sits on root so the ambient glyph pattern fills the gutters
-  // when the bars become side columns; on mobile the bars cover the pattern
-  // strip behind them anyway, so the visual is unchanged.
-  root.className =
-    "grid h-full yn-board-bg " +
-    "grid-rows-[auto_minmax(0,1fr)_auto] grid-cols-1 " +
-    "lg:grid-rows-1 lg:grid-cols-[minmax(160px,1fr)_minmax(0,800px)_minmax(160px,1fr)]";
-  root.setAttribute("role", "application");
-  root.setAttribute("aria-label", "5 in a Row game");
-
-  const topBar = document.createElement("div");
-  topBar.className =
-    // 2027 HUD (ADR-0033): the score is the un-boxed hero, big + light, sitting
-    // DIRECTLY on the violet field; Best/Streak/Timer demote to one muted stat
-    // line beneath it. A single centred column in both orientations (top block
-    // on mobile, left rail on lg). No pills.
-    "flex flex-col items-center justify-center gap-1.5 px-3 py-3 " + "lg:gap-2 lg:px-4 lg:py-6";
-
-  // Score chip (ADR-0017 "Stacked Wave" pass, Jony pass 2026-06-08): the
-  // NUMBER is the hero. Killed the "SCORE" label entirely -- the only big
-  // number on the bar after first play is the score, labelling it is
-  // redundant. Cream pill with espresso digits (--yn-ink-deep #1a0a04,
-  // not the terracotta --yn-ink #7c2d12 which read as muddy newsprint);
-  // weight 900 with -0.025em tracking so the digits assert as the HUD
-  // hero. The accent orange stays reserved for events (count-up
-  // celebration glow, BEST bump, the bonus-wave delta badge). Count-up
-  // animates via CSS @property --yn-score-count + counter() on ::after;
-  // JS only needs to write the integer + the per-event duration
-  // (no rAF, compositor-only). See board-view.css .yn-score-display /
-  // .yn-score-chip and the @property declaration at the top of that
-  // file's reward-loop block.
-  const scoreEl = document.createElement("div");
-  scoreEl.className =
-    // Un-boxed hero (ADR-0033): no pill, no border, no shadow. Big light type
-    // straight on the violet field. The celebration glow still blooms from the
-    // bare number via .yn-score-celebrating.
-    "yn-score-chip flex items-center justify-center leading-none " +
-    "text-7xl sm:text-8xl tabular-nums";
-  scoreEl.setAttribute("aria-live", "polite");
-  scoreEl.setAttribute("aria-label", "Score 0");
-  const scoreValue = document.createElement("span");
-  scoreValue.className = "yn-score-display";
-  // Seed the custom property at 0; the first render() bumps it to the
-  // restored save value (or stays at 0 on fresh game). The transition is
-  // applied per-update inline so duration scales with delta.
-  scoreValue.style.setProperty("--yn-score-count", "0");
-  scoreEl.appendChild(scoreValue);
-
-  // BEST chip (Palm's one-more-turn hook, revised 2026-06-08): tracks the
-  // ALL-TIME high score for the current mode (read once from
-  // save.high_scores[mode][0] at mount). Was previously a session-best,
-  // which is a tautology in a monotonically-increasing-score game (current
-  // score == session best, always, since score never decreases mid-run).
-  // Now it shows a PERSISTENT target to chase across reloads.
-  //
-  // When the player's live score CROSSES the stored all-time best, the
-  // chip swaps its label to "NEW BEST", flips to the accent-filled
-  // colourway, and tracks the live score (so the player sees the
-  // milestone climb). The cross-moment plays one yn-best-bump pulse.
-  // The chip is hidden iff the all-time best is 0 AND the player has not
-  // scored yet (there is nothing to chase and nothing to celebrate).
-  const bestEl = document.createElement("div");
-  bestEl.className =
-    // Matched stat-cell (Jony 2026-06-28): a fixed-height label slot above the
-    // number so every stat cell baselines its number on one shared line. No
-    // pill. On crossing the all-time best it tints to accent (yn-best-chip--
-    // crossed) and pops once (yn-best-bumping) -- colour carries the record,
-    // no "New Best" text churn.
-    "yn-best-chip hidden flex-col items-center gap-0.5";
-  bestEl.setAttribute("aria-live", "polite");
-  const bestLabelSlot = document.createElement("div");
-  bestLabelSlot.className = "flex items-center justify-center h-3.5";
-  const bestLabel = document.createElement("span");
-  bestLabel.className =
-    "yn-best-label text-[10px] uppercase tracking-[0.14em] font-semibold leading-none text-yn-hud-muted";
-  bestLabel.textContent = "Best";
-  bestLabelSlot.appendChild(bestLabel);
-  const bestValue = document.createElement("span");
-  bestValue.className =
-    "yn-best-display text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
-  bestValue.style.setProperty("--yn-best-count", "0");
-  bestEl.append(bestLabelSlot, bestValue);
-
-  // Streak chip (Jony pass 2026-06-08): was plain "3-day streak" text
-  // in a muted cream pill; reads as a settings field, not a brag. Now:
-  // amber warm pill with an inline-SVG flame icon + the count as the
-  // hero. The "day streak" wording is dropped from the chip face but
-  // preserved as the aria-label for screen-reader users. The flame is
-  // a 14x14 hand-drawn path with a two-stop linear gradient (amber
-  // outer, accent inner). Hidden at 0 streak.
-  const streakEl = document.createElement("div");
-  streakEl.className = "yn-streak-chip flex flex-col items-center gap-0.5";
-  streakEl.setAttribute("aria-live", "polite");
-  streakEl.setAttribute("title", "Daily play streak");
-  streakEl.style.display = "none";
-  // The flame + count nodes are appended once and updated in
-  // renderStreak() so we don't tear down the DOM each turn.
-  const streakFlame = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  streakFlame.setAttribute("class", "yn-streak-chip__flame");
-  streakFlame.setAttribute("viewBox", "0 0 24 24");
-  streakFlame.setAttribute("aria-hidden", "true");
-  streakFlame.setAttribute("focusable", "false");
-  // Two-colour gradient: amber outer body of the flame, accent core.
-  // The path is a stylised flame with one inner highlight, drawn from
-  // common stroke-only icon vocabulary so it reads at 14px.
-  streakFlame.innerHTML = `
-    <defs>
-      <linearGradient id="yn-streak-flame-grad" x1="0%" y1="100%" x2="0%" y2="0%">
-        <stop offset="0%" stop-color="#ea580c"/>
-        <stop offset="60%" stop-color="#fb923c"/>
-        <stop offset="100%" stop-color="#fbbf24"/>
-      </linearGradient>
-    </defs>
-    <path d="M12 2c1.2 3 4.5 5 4.5 9 0 3.6-2 6-4.5 6S7.5 14.6 7.5 11c0-1.7.8-3 1.6-3.9.3 1.4 1.1 2 1.9 2 0-2.6.4-5 1-7Z" fill="url(#yn-streak-flame-grad)" stroke="#9a3412" stroke-width="0.6" stroke-linejoin="round"/>
-    <path d="M12 11.5c.7 1.2 1.6 1.8 1.6 3.2 0 1.3-.7 2.3-1.6 2.3s-1.6-1-1.6-2.3c0-.7.3-1.3.6-1.7.1.5.4.7.6.7.1-.7.2-1.4.4-2.2Z" fill="#fef3c7" opacity="0.85"/>
-  `;
-  // Flame sits in the same fixed-height top slot as the Best label so the two
-  // stat numbers baseline-align; the flame IS the label (no "day streak" word).
-  const streakFlameSlot = document.createElement("div");
-  streakFlameSlot.className = "flex items-center justify-center h-3.5";
-  streakFlameSlot.appendChild(streakFlame);
-  const streakCount = document.createElement("span");
-  streakCount.className =
-    "yn-streak-chip__count text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
-  streakEl.append(streakFlameSlot, streakCount);
-
-  // Timer chip: cream pill with mono mm:ss. Hidden outside timed mode.
-  const timerEl = document.createElement("div");
-  // Matched stat-cell (Jony 2026-06-28): a clock glyph in the top slot, mm:ss
-  // below -- same shape as Best/Streak so timed-mode keeps the row aligned.
-  timerEl.className = "yn-timer flex flex-col items-center gap-0.5";
-  // Coalesced updates only at second boundaries (see renderTimer) so
-  // "polite" announcements don't flood the screen reader at 10Hz.
-  timerEl.setAttribute("aria-live", "polite");
-  timerEl.setAttribute("aria-label", "Time remaining");
-  if (mode !== "timed") timerEl.style.display = "none";
-  const timerIconSlot = document.createElement("div");
-  timerIconSlot.className = "flex items-center justify-center h-3.5 text-yn-hud-muted";
-  timerIconSlot.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>`;
-  const timerValue = document.createElement("span");
-  timerValue.className =
-    "yn-timer-value text-lg font-semibold tabular-nums leading-none text-yn-hud-ink";
-  timerEl.append(timerIconSlot, timerValue);
-
-  // Stat line (ADR-0033): Best / Streak / Timer demoted into one muted row
-  // beneath the hero score. The old "Next" HUD pill is GONE -- it duplicated the
-  // on-board ghost previews (the player should look in ONE place); the "Show
-  // next 2 preview" toggle now gates those board ghosts directly.
-  const statLine = document.createElement("div");
-  // Whitespace-separated matched cells, top-aligned so the label/icon slots and
-  // the numbers each share a line (Jony 2026-06-28). No divider -- gap only.
-  statLine.className = "flex flex-row items-start justify-center gap-6 sm:gap-8 min-h-[2.25rem]";
-  statLine.append(bestEl, streakEl, timerEl);
-
-  topBar.append(scoreEl, statLine);
-
-  const boardArea = document.createElement("div");
-  // No flex-1 (grid row/col handles sizing) and no yn-board-bg (moved to
-  // root). A flex centerer for the board AND a size container (.yn-board-area
-  // -> container-type: size) so the board sizes to the smaller of this area's
-  // width/height and stays square on every viewport -- no letterbox. overflow
-  // stays VISIBLE so the board slab shadow is not clipped.
-  boardArea.className = "yn-board-area flex items-center justify-center p-2 min-h-0";
-  const boardWrap = document.createElement("div");
-  // The board is sized + shaped entirely by .yn-board-slab (index.css):
-  // width = min(100cqw, 100cqh) capped at 800px + aspect-ratio 1, i.e. a square
-  // the size of the smaller axis of .yn-board-area. The SVG board is square, so
-  // the grid fills the tray edge-to-edge with NO letterbox on any viewport.
-  // overflow-hidden clips the grid to the tray's rounded corners (ADR-0031).
-  boardWrap.className = "yn-board-slab overflow-hidden";
-  const loadingEl = document.createElement("p");
-  loadingEl.className = "text-sm text-white/70 text-center";
-  loadingEl.textContent = "Loading theme...";
-  boardWrap.appendChild(loadingEl);
-  boardArea.appendChild(boardWrap);
-
-  const bottomBar = document.createElement("div");
-  bottomBar.className =
-    // Two-button layout (Undo left, Menu right); buttons float on the shared
-    // violet bg. The standalone "Back" lives under Menu (ADR-0019).
-    "flex flex-row items-center justify-between gap-2 px-3 py-3 " +
-    "lg:flex-col lg:items-center lg:justify-center lg:gap-3 lg:px-4 lg:py-6";
-  // Bottom-bar control trio (Jony 2026-06-28): Undo + Shuffle + Menu now share
-  // ONE circular icon-button form; hierarchy is fill ONLY. Menu is the solid
-  // accent anchor; Undo + Shuffle are frosted peer tools. Glyphs are inline SVG
-  // (no icon library, ASCII source), ~22px so they read without a text label.
-  const ICON_BTN =
-    "w-11 h-11 rounded-full grid place-items-center transition-transform " +
-    "active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80";
-  const ICON_BTN_TOOL = `${ICON_BTN} bg-white/10 border border-white/15 text-yn-hud-ink hover:bg-white/20`;
-
-  const undoBtn = document.createElement("button");
-  undoBtn.type = "button";
-  // Icon-only (Jony 2026-06-28): a counter-clockwise back-arrow. The descriptive
-  // aria-label stays ("Undo last move") -- an icon button needs a spoken name,
-  // and the undo e2e selector keys off it. setUndoEnabled toggles the colourway.
-  undoBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11"/></svg>`;
-  undoBtn.setAttribute("aria-label", "Undo last move");
-  undoBtn.setAttribute("title", "Undo");
-
-  // Stuck-valve shuffle button (ADR-0038): a once-per-run lifeline that
-  // re-colours a buried board. Hidden until the board crosses the fullness
-  // threshold (and gone once spent) so it never clutters the bar in normal
-  // play -- it APPEARS exactly when the player is stuck, with a one-shot
-  // entrance pop (yn-icon-enter). Glyph = two weaving arrows, deliberately
-  // unlike Undo's single loop so the two controls never read as the same.
-  const shuffleBtn = document.createElement("button");
-  shuffleBtn.type = "button";
-  shuffleBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.8-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/></svg>`;
-  shuffleBtn.setAttribute("aria-label", "Shuffle the board (once per game)");
-  shuffleBtn.setAttribute("title", "Shuffle");
-  shuffleBtn.className = ICON_BTN_TOOL;
-  shuffleBtn.style.display = "none";
-
-  // Menu button: the solid accent ANCHOR of the trio (same circle envelope as
-  // Undo/Shuffle, accent fill instead of frosted). The 3-line hamburger opens
-  // the drawer (Navigate / Appearance / danger zone all live inside).
-  const menuBtn = document.createElement("button");
-  menuBtn.type = "button";
-  menuBtn.className = `${ICON_BTN} bg-yn-accent text-white shadow-xs hover:bg-orange-700`;
-  menuBtn.setAttribute("aria-label", "Open menu");
-  menuBtn.setAttribute("title", "Menu");
-  // Inline SVG hamburger -- matches the trio glyph family (stroke 2, round caps).
-  menuBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>`;
-
-  // Undo + Shuffle cluster at the leading edge (gap-3); Menu anchors to the
-  // trailing edge so revealing Shuffle never shifts the Menu (anti-jump).
-  const toolsCluster = document.createElement("div");
-  toolsCluster.className = "flex flex-row items-center gap-3 lg:flex-col lg:gap-3";
-  toolsCluster.append(undoBtn, shuffleBtn);
-  bottomBar.append(toolsCluster, menuBtn);
-
-  root.append(topBar, boardArea, bottomBar);
-  container.appendChild(root);
+  // HUD scaffolding is built by ui/hud.ts (pure DOM, no logic). Destructure the
+  // handles into the same names the host body already uses, so wiring below is
+  // unchanged; only the ~240 lines of createElement moved out.
+  const hud = buildHud(mode);
+  container.appendChild(hud.root);
+  const {
+    scoreEl,
+    scoreValue,
+    bestEl,
+    bestValue,
+    streakEl,
+    streakCount,
+    timerValue,
+    boardArea,
+    boardWrap,
+    undoBtn,
+    shuffleBtn,
+    menuBtn,
+    setUndoEnabled,
+  } = hud;
 
   const appPrefs = readAppPrefs();
   const themeId = options.theme ?? appPrefs.selected_theme ?? DEFAULT_THEME_ID;
@@ -487,17 +271,6 @@ const mount: GameMount = async (container, options) => {
   // this mount. Once crossed, the chip stays in "NEW BEST" mode for the
   // rest of the game (label, chip colourway, tracks state.score live).
   let crossedAllTimeBest = state.score > allTimeBestAtMount;
-  // Most-recent on-screen score integer. Drives the count-up tween by
-  // changing only when state.score actually changes (otherwise theme
-  // hot-swap re-renders would retrigger a 0-delta count-up).
-  let displayedScore = state.score;
-  // Handle of the in-flight score count-up rAF (null = idle). Single-flight:
-  // a fresh count-up cancels the prior one so two clears never drive the chip
-  // at once (Carmack council 2026-06-30). The count-up is a JS rAF tween, NOT
-  // a CSS @property transition, so the number climbs IDENTICALLY on every
-  // engine -- the CSS transition silently degraded to an instant jump on
-  // exactly the mid-tier Android WebView target. See animateScoreTo.
-  let scoreRafId: number | null = null;
 
   // Undo state (2026-06-08). Doctrine per how-to-play.ts: "You get one
   // undo per game". Snapshot is in-memory (NOT persisted to the
@@ -551,20 +324,6 @@ const mount: GameMount = async (container, options) => {
     fly_to_score_ms: balanceConfig.reward.wave_fly_to_score_ms,
   });
 
-  // Undo button visual + a11y state. The button is created above with
-  // textContent + aria-label already set; this helper centralises the
-  // enabled/disabled toggle so onCellTap (snapshot capture) and the
-  // click handler can both call it without duplicating Tailwind class
-  // strings.
-  const setUndoEnabled = (enabled: boolean): void => {
-    undoBtn.disabled = !enabled;
-    undoBtn.setAttribute("aria-disabled", enabled ? "false" : "true");
-    // Enabled = frosted peer tool; disabled = same disc ghosted to 40% with the
-    // glyph muted and the border dropped (Jony 2026-06-28) -- never a grey shout.
-    undoBtn.className = enabled
-      ? ICON_BTN_TOOL
-      : `${ICON_BTN} bg-white/10 text-yn-hud-muted opacity-40 cursor-not-allowed`;
-  };
   // Initial state: disabled. The first snapshot capture in onCellTap
   // enables it. A reload with `undo.available === true` and no in-memory
   // snapshot also leaves it disabled until the player makes a move
@@ -649,10 +408,10 @@ const mount: GameMount = async (container, options) => {
       boardView.clearReachabilityHints();
     }
     render();
-    // Score chip animates DOWN through the CSS @property tween (the
-    // tween handles negative deltas fine; duration just clamps to the
-    // min). No celebration glow -- undo isn't a win.
-    animateScoreTo(state.score, false);
+    // Score chip tweens DOWN to the restored score (the rAF tween handles
+    // negative deltas fine; duration clamps to the min). No celebration glow --
+    // undo isn't a win.
+    scoreChip.animateScoreTo(state.score, false);
     // BEST chip: if the undo drops the live score back to or below the
     // all-time-best-at-mount, revert the "NEW BEST" mode so the chip
     // stops claiming a record the player no longer holds. Otherwise
@@ -688,110 +447,23 @@ const mount: GameMount = async (container, options) => {
     timerValue.classList.toggle("yn-timer-urgent", seconds <= 10 && seconds > 0);
   };
 
-  // Per-frame side effects of a CELEBRATORY count-up (Jony + Fowler council
-  // 2026-06-30). The BEST chip climbs as a running max WITH the score, and the
-  // milestone toast fires on the exact frame the climbing number CROSSES a
-  // threshold -- so the reward reads as ONE coherent beat. Previously these two
-  // fired synchronously the instant the move committed, ~0.8 s before the score
-  // count-up even started (the score chip waited for the "+N" badge to fly), so
-  // the BEST chip and milestone showed the new total while the score still read
-  // the old value -- the "it says 80 but only added 45" desync. Driven off the
-  // count-up's own value, never a live state.score read, so a fast next move
-  // cannot make them lead the number again.
-  const onCountUpFrame = (current: number): void => {
-    updateBestOnScoreChange(current);
-    checkMilestones(current);
-  };
-
-  // Drive the count-up on the score chip. Duration scales with the delta per
-  // ADR-0017: a small +5 ticks in ~450ms (almost subliminal), the rare +135
-  // takes the full ~1100ms cap so the player actually WATCHES it climb.
-  //
-  // The tween is a bounded JS requestAnimationFrame loop, NOT a CSS @property
-  // transition (Carmack council 2026-06-30). The CSS-transition approach
-  // animated `--yn-score-count` only where @property `<integer>` interpolation
-  // is supported (Chrome 85+/Safari 16.4+/Firefox 128+) and silently JUMPED to
-  // the final value everywhere else -- including older Android WebViews, i.e.
-  // exactly the mid-tier target device. A rAF loop climbs identically on every
-  // engine. It runs ONLY in the post-input-unlock cosmetic tail, writes ONE
-  // custom property on ONE element (counter() renders it; no layout read in the
-  // loop), dedupes unchanged integers, and respects reduce-motion + tab-hidden
-  // by snapping. See docs/architecture/runtime/perf-budget.md (sanctioned-rAF
-  // exception).
-  const writeScoreCount = (n: number): void => {
-    scoreValue.style.setProperty("--yn-score-count", String(n));
-  };
-  const animateScoreTo = (target: number, celebrate: boolean): void => {
-    scoreEl.setAttribute("aria-label", `Score ${String(target)}`);
-    // Single-flight: supersede any tween still climbing toward an older target.
-    if (scoreRafId !== null) {
-      cancelAnimationFrame(scoreRafId);
-      scoreRafId = null;
-    }
-    if (target === displayedScore) {
-      // No-op (deselect / theme hot-swap / non-scoring move). Leave the
-      // custom property untouched so it keeps reading the settled value.
-      return;
-    }
-    const from = displayedScore;
-    displayedScore = target;
-    const driveFrame = celebrate ? onCountUpFrame : null;
-    if (celebrate) {
-      scoreEl.style.setProperty(
-        "--yn-score-glow-ms",
-        `${String(balanceConfig.reward.score_chip_glow_ms)}ms`,
-      );
-      // Restart the celebration glow by toggling the class with a reflow tap.
-      scoreEl.classList.remove("yn-score-celebrating");
-      void scoreEl.getBoundingClientRect();
-      scoreEl.classList.add("yn-score-celebrating");
-      window.setTimeout(
-        () => scoreEl.classList.remove("yn-score-celebrating"),
-        balanceConfig.reward.score_chip_glow_ms + 80,
-      );
-    }
-    // Snap (no tween) when motion is reduced or the tab is hidden. The number
-    // is always CORRECT; only the flourish is cut -- and now it is the SAME
-    // deliberate jump on every platform, honouring the OS reduce-motion choice.
-    if (settingsState.reduceMotion || document.visibilityState === "hidden") {
-      writeScoreCount(target);
-      driveFrame?.(target);
-      return;
-    }
-    const delta = Math.abs(target - from);
-    const durationMs = Math.min(
-      balanceConfig.reward.score_count_up_max_ms,
-      Math.max(
-        balanceConfig.reward.score_count_up_min_ms,
-        balanceConfig.reward.score_count_up_min_ms +
-          delta * balanceConfig.reward.score_count_up_per_delta_ms,
-      ),
-    );
-    const startTs = performance.now();
-    let lastWritten = from;
-    writeScoreCount(from);
-    const stepFrame = (now: number): void => {
-      const t = Math.min(1, (now - startTs) / durationMs);
-      // easeOutCubic -- matches the prior cubic-bezier(0.22, 1, 0.36, 1) feel.
-      const eased = 1 - Math.pow(1 - t, 3);
-      const current = Math.round(from + (target - from) * eased);
-      if (current !== lastWritten) {
-        writeScoreCount(current);
-        driveFrame?.(current);
-        lastWritten = current;
-      }
-      if (t < 1) {
-        scoreRafId = requestAnimationFrame(stepFrame);
-      } else {
-        // Clean terminate: write the EXACT final integer and drive the final
-        // frame so the BEST chip + milestone land on the true total.
-        scoreRafId = null;
-        writeScoreCount(target);
-        driveFrame?.(target);
-      }
-    };
-    scoreRafId = requestAnimationFrame(stepFrame);
-  };
+  // Score-chip count-up lives in ui/score-chip.ts (a bounded rAF tween). onFrame
+  // climbs the BEST chip + fires the milestone toast in lockstep with the number
+  // (never ahead of it -- the old "says 80 but only added 45" desync was the
+  // best/milestone firing ~0.8 s before the count-up). The onFrame closure
+  // forward-refs updateBestOnScoreChange + checkMilestones (defined below); both
+  // run only at tween time, well after mount.
+  const scoreChip = createScoreChip({
+    scoreEl,
+    scoreValue,
+    reward: balanceConfig.reward,
+    getReduceMotion: () => settingsState.reduceMotion,
+    onFrame: (current: number): void => {
+      updateBestOnScoreChange(current);
+      checkMilestones(current);
+    },
+    initial: state.score,
+  });
 
   // Update the BEST chip to reflect the live score. There are two phases:
   //
@@ -862,7 +534,7 @@ const mount: GameMount = async (container, options) => {
   // moves still call render() + animateScoreTo together (the explicit
   // syncScoreSilently helper) so a deselect / theme hot-swap re-render
   // never bumps the count-up.
-  const syncScoreSilently = (): void => animateScoreTo(state.score, false);
+  const syncScoreSilently = (): void => scoreChip.animateScoreTo(state.score, false);
   const render = (): void => {
     // "Show next 2 preview" now gates the ON-BOARD ghosts (ADR-0033): pass an
     // empty preview when the player turned it off, so the toggle actually hides
@@ -1310,14 +982,14 @@ const mount: GameMount = async (container, options) => {
           // the score number by ~0.8 s.
           rewardTail = (): void => {
             void bonusWave.play(centroid, pills, target, { vibrantDelta }).then(() => {
-              animateScoreTo(committedScore, true);
+              scoreChip.animateScoreTo(committedScore, true);
             });
           };
         } else {
           // Defensive: totalDelta > 0 should always yield the +N pill, so this
           // is dead in practice. Still drive the count-up (which carries the BEST
           // chip + milestone) so the chip stays truthful without a flying badge.
-          rewardTail = (): void => animateScoreTo(committedScore, true);
+          rewardTail = (): void => scoreChip.animateScoreTo(committedScore, true);
         }
       } else {
         // No clears = no score change; silent sync is a no-op in animateScoreTo
@@ -1417,15 +1089,10 @@ const mount: GameMount = async (container, options) => {
   document.addEventListener("keydown", onDocKeyDown);
 
   render();
-  // Seed the chip's initial integer WITHOUT a tween (a restored save with
-  // score 42 shouldn't visibly count up from 0 on every page load). The
-  // next animateScoreTo call (triggered by the player's first scoring
-  // move) explicitly overwrites the inline transition with its
-  // event-scaled duration, so we don't need to "restore" the empty
-  // transition here -- the no-op transition is harmless until then.
-  scoreValue.style.transition = "none";
-  scoreValue.style.setProperty("--yn-score-count", String(state.score));
-  scoreEl.setAttribute("aria-label", `Score ${String(state.score)}`);
+  // Seed the chip's initial integer WITHOUT a tween (a restored save with score
+  // 42 shouldn't visibly count up from 0 on every load). The score-chip module
+  // owns displayedScore + the --yn-score-count property; seed() sets both.
+  scoreChip.seed(state.score);
   persist();
 
   // ---- Timed-mode countdown -------------------------------------------
@@ -1469,14 +1136,8 @@ const mount: GameMount = async (container, options) => {
     if (document.visibilityState === "hidden") {
       // Snap any in-flight score count-up straight to its final value -- don't
       // leave a tween frozen mid-climb for a player who tabbed away (Carmack
-      // guardrail). displayedScore is already the target (set at tween start),
-      // so the chip + BEST + milestone all land on the true total.
-      if (scoreRafId !== null) {
-        cancelAnimationFrame(scoreRafId);
-        scoreRafId = null;
-        writeScoreCount(displayedScore);
-        onCountUpFrame(displayedScore);
-      }
+      // guardrail). The chip + BEST + milestone all land on the true total.
+      scoreChip.snapToFinal();
       stopTimer();
     } else if (state.modeState.kind === "timed" && !drawerOpen) {
       startTimer();
@@ -1598,10 +1259,7 @@ const mount: GameMount = async (container, options) => {
       stopTimer();
       // Cancel an in-flight score count-up so its rAF loop doesn't keep firing
       // (writing to a now-detached chip) after teardown.
-      if (scoreRafId !== null) {
-        cancelAnimationFrame(scoreRafId);
-        scoreRafId = null;
-      }
+      scoreChip.destroy();
       document.removeEventListener("visibilitychange", onVisibilityChange);
       document.removeEventListener("keydown", onDocKeyDown);
       if (gameOverModalClose !== null) gameOverModalClose();
